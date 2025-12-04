@@ -10,7 +10,13 @@ Interactive git utilities for bash with fzf-powered menus.
 npm i -g gitbash
 ```
 
-Run `gitbash --help` for more options.
+### Options
+
+```bash
+gitbash --help      # Show help
+gitbash --version   # Show version
+gitbash --init      # Print shell init code
+```
 
 ### Shell Aliases
 
@@ -55,6 +61,12 @@ brew install bat        # File preview with syntax highlighting
 ### branch
 
 Interactive menu for branch operations (create/switch/update).
+
+```bash
+branch              # Interactive menu
+branch -h           # Show help
+branch --version    # Show version
+```
 
 ### create
 
