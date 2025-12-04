@@ -5,6 +5,10 @@ pr() {
   # Parse arguments
   while [[ $# -gt 0 ]]; do
     case $1 in
+      -v|--version)
+        echo "gitbash ${FUNCNAME[0]} v$VERSION"
+        return 0
+        ;;
       -h|--help)
         cat << 'EOF'
 Usage: pr [OPTIONS]

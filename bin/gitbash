@@ -5,6 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMMANDS_DIR="$SCRIPT_DIR/commands"
+VERSION="$(grep -o '"version": *"[^"]*"' "$SCRIPT_DIR/package.json" | cut -d'"' -f4)"
 
 # Available commands
 COMMANDS=(
@@ -50,8 +51,9 @@ Commands:
   update      Merge latest main/master into current branch
 
 Options:
-  -h, --help  Show this help message
-  --init      Print shell initialization code (for sourcing)
+  -h, --help     Show this help message
+  -v, --version  Show version number
+  --init         Print shell initialization code (for sourcing)
 
 Examples:
   gitbash commit fix bug -p     # Commit and push
@@ -95,6 +97,10 @@ main() {
     case "${1:-}" in
         -h|--help|"")
             show_help
+            exit 0
+            ;;
+        -v|--version)
+            echo "gitbash $VERSION"
             exit 0
             ;;
         --init)

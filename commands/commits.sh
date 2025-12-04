@@ -4,8 +4,12 @@
 # List recent commits and optionally revert selected ones
 commits() {
     # -----------------------------
-    # 0. Check for help flag
+    # 0. Check for help/version flag
     # -----------------------------
+    if [[ "${1:-}" == "-v" || "${1:-}" == "--version" ]]; then
+        echo "gitbash ${FUNCNAME[0]} v$VERSION"
+        return 0
+    fi
     if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
         cat << 'EOF'
 Usage: commits [COUNT]

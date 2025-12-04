@@ -4,12 +4,16 @@
 # Cleanup local branches that are no longer needed
 cleanup() {
     # -----------------------------
-    # 0. Check for help flag and parse options
+    # 0. Check for help/version flag and parse options
     # -----------------------------
     local json_mode=false
     
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            -v|--version)
+                echo "gitbash ${FUNCNAME[0]} v$VERSION"
+                return 0
+                ;;
             -h|--help)
                 cat << 'EOF'
 Usage: cleanup [OPTIONS]
