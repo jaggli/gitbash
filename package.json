@@ -1,6 +1,6 @@
 {
   "name": "gitbash",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Opinionated git utilities for bash with fzf-powered menus",
   "author": "jaggli",
   "license": "MIT",
