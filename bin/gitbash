@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# gitbash - prints the init script path for sourcing
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+case "$1" in
+  -h|--help)
+    cat << 'EOF'
+gitbash - Interactive git utilities for bash
+
+Usage:
+  gitbash          Print the init script path (for sourcing)
+  gitbash --help   Show this help
+
+Dependencies:
+  brew install fzf           # Required
+  brew install git-delta     # Optional: better diffs
+  brew install bat           # Optional: syntax highlighting
+EOF
+    ;;
+  *)
+    echo "$SCRIPT_DIR/init.sh"
+    ;;
+esac

@@ -1,0 +1,38 @@
+{
+  "name": "gitbash",
+  "version": "1.0.0",
+  "description": "Opinionated git utilities for bash with fzf-powered menus",
+  "author": "jaggli",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jaggli/gitbash.git"
+  },
+  "homepage": "https://github.com/jaggli/gitbash#readme",
+  "bugs": {
+    "url": "https://github.com/jaggli/gitbash/issues"
+  },
+  "keywords": [
+    "bash",
+    "git",
+    "fzf",
+    "shell",
+    "utilities",
+    "cli",
+    "branch",
+    "commit",
+    "stash"
+  ],
+  "bin": {
+    "gitbash": "bin/gitbash"
+  },
+  "files": [
+    "*.sh",
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=14"
+  }
+}
