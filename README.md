@@ -4,13 +4,40 @@ Interactive git utilities for bash with fzf-powered menus.
 
 ## Installation
 
-### Via npm (recommended)
+### Via npm
 
 ```bash
 npm i -g gitbash
 ```
 
 Run `gitbash --help` for more options.
+
+### Shell Aliases
+
+Add these aliases to your `.zshrc` or `.bashrc` for individual command access:
+
+```bash
+alias branch="gitbash branch"
+alias cleanstash="gitbash cleanstash"
+alias cleanup="gitbash cleanup"
+alias commit="gitbash commit"
+alias commits="gitbash commits"
+alias create="gitbash create"
+alias pr="gitbash pr"
+alias stale="gitbash stale"
+alias stash="gitbash stash"
+alias stashes="gitbash stashes"
+alias status="gitbash status"
+alias switch="gitbash switch"
+alias unstash="gitbash unstash"
+alias update="gitbash update"
+```
+
+Or use the built-in shell integration, for all commands:
+
+```bash
+eval "$(gitbash --init)"
+```
 
 ### Dependencies
 

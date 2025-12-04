@@ -1,6 +1,6 @@
 {
   "name": "gitbash",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Opinionated git utilities for bash with fzf-powered menus",
   "author": "jaggli",
   "license": "MIT",
@@ -27,10 +27,14 @@
     "gitbash": "bin/gitbash"
   },
   "files": [
-    "*.sh",
     "bin/",
+    "commands/",
     "README.md",
     "LICENSE"
+  ],
+  "os": [
+    "darwin",
+    "linux"
   ],
   "engines": {
     "node": ">=14"
