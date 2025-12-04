@@ -1,24 +1,124 @@
 #!/usr/bin/env bash
-# gitbash - prints the init script path for sourcing
+# gitbash - Interactive git utilities for bash with fzf-powered menus
+
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+COMMANDS_DIR="$SCRIPT_DIR/commands"
 
-case "$1" in
-  -h|--help)
+# Available commands
+COMMANDS=(
+    "branch"
+    "cleanstash"
+    "cleanup"
+    "commit"
+    "commits"
+    "create"
+    "pr"
+    "stale"
+    "stash"
+    "stashes"
+    "status"
+    "switch"
+    "unstash"
+    "update"
+)
+
+show_help() {
     cat << 'EOF'
 gitbash - Interactive git utilities for bash
 
 Usage:
-  gitbash          Print the init script path (for sourcing)
-  gitbash --help   Show this help
+  gitbash <command> [args...]
+  gitbash --help
+  gitbash --init
+
+Commands:
+  branch      Interactive menu for branch operations
+  cleanstash  Delete stashes (multi-select)
+  cleanup     Find and delete leftover local branches
+  commit      Commit with optional push
+  commits     List recent commits with revert option
+  create      Create feature branch with Jira parsing
+  pr          Open PR in browser
+  stale       List stale remote branches
+  stash       Create named stash
+  stashes     Interactive stash menu
+  status      Interactive staging with fzf
+  switch      Switch branches with fzf
+  unstash     Apply stash with fzf picker
+  update      Merge latest main/master into current branch
+
+Options:
+  -h, --help  Show this help message
+  --init      Print shell initialization code (for sourcing)
+
+Examples:
+  gitbash commit fix bug -p     # Commit and push
+  gitbash switch feature        # Switch to branch containing "feature"
+  gitbash create PROJ-123 fix   # Create feature/PROJ-123-fix
+
+Shell Integration:
+  Add to your .bashrc or .bash_profile:
+    eval "$(gitbash --init)"
+
+  This enables calling commands directly:
+    commit fix bug -p
+    switch feature
 
 Dependencies:
   brew install fzf           # Required
   brew install git-delta     # Optional: better diffs
   brew install bat           # Optional: syntax highlighting
 EOF
-    ;;
-  *)
-    echo "$SCRIPT_DIR/init.sh"
-    ;;
-esac
+}
+
+show_init() {
+    cat << EOF
+# gitbash shell integration
+# Add this to your .bashrc or .bash_profile:
+#   eval "\$(gitbash --init)"
+
+GITBASH_COMMANDS_DIR="$COMMANDS_DIR"
+
+EOF
+    # Output source commands for each script
+    for cmd in "${COMMANDS[@]}"; do
+        if [[ -f "$COMMANDS_DIR/$cmd.sh" ]]; then
+            echo "source \"\$GITBASH_COMMANDS_DIR/$cmd.sh\""
+        fi
+    done
+}
+
+# Main entry point
+main() {
+    case "${1:-}" in
+        -h|--help|"")
+            show_help
+            exit 0
+            ;;
+        --init)
+            show_init
+            exit 0
+            ;;
+        *)
+            local cmd="$1"
+            shift
+            
+            # Check if command exists
+            if [[ -f "$COMMANDS_DIR/$cmd.sh" ]]; then
+                # Source the command file and execute the function
+                source "$COMMANDS_DIR/$cmd.sh"
+                "$cmd" "$@"
+            else
+                echo "Error: Unknown command '$cmd'" >&2
+                echo "Run 'gitbash --help' for available commands." >&2
+                exit 1
+            fi
+            ;;
+    esac
+}
+
+main "$@"
+
+

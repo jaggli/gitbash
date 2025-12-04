@@ -5,7 +5,7 @@ create() {
     # -----------------------------
     # 0. Check for help flag
     # -----------------------------
-    if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+    if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
         cat << 'EOF'
 Usage: create [JIRA_LINK] [TITLE...]
 
@@ -58,7 +58,7 @@ EOF
     local jira_link
     local branch_title
     
-    if [[ -n "$1" ]]; then
+    if [[ -n "${1:-}" ]]; then
         # Arguments provided - use one-liner mode
         jira_link="$1"
         shift

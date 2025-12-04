@@ -6,7 +6,7 @@ commits() {
     # -----------------------------
     # 0. Check for help flag
     # -----------------------------
-    if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+    if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
         cat << 'EOF'
 Usage: commits [COUNT]
 
