@@ -138,7 +138,7 @@ Showing last $count commits" \
             fi
         ' \
         --preview-window=right:50%
-    )
+    ) || true
 
     # Cleanup temp file
     rm -f "$commit_file"

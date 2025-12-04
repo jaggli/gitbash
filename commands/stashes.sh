@@ -154,7 +154,7 @@ EOF
               --header="What would you like to do?" \
               --no-multi \
               --bind=enter:accept
-    )
+    ) || true
 
     # ESC or Ctrl-C
     if [[ -z "$selection" ]]; then

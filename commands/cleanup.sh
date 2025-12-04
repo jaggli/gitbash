@@ -352,7 +352,7 @@ Found $total_count branches ($preselect_count pre-selected for deletion)" \
         ' \
         --preview-window=right:35% \
         --bind "load:$toggle_sequence"
-    )
+    ) || true
 
     # Cleanup temp files
     rm -f "$branch_file" "$preselect_file"

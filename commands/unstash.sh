@@ -127,7 +127,7 @@ EOF
                         echo "No preview";
                     fi
               '
-    )
+    ) || true
 
     # ESC or Ctrl-C
     if [[ -z "$selection" ]]; then

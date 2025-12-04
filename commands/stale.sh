@@ -341,7 +341,7 @@ Showing $stale_count stale branches (older than 3 months)" \
                 fi
             ' \
             --preview-window=right:35%
-    )
+    ) || true
     
     # Cleanup temp files
     rm -f "$stale_file" "$all_file" "$state_file" "$toggle_script" "$prompt_script" "$header_script"

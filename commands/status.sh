@@ -168,7 +168,7 @@ EOF
           fi
         ' \
         --preview-window=right:60%
-    )
+    ) || true
 
     # Parse the key pressed and the selected files
     local key_pressed
