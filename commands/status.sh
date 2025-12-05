@@ -129,7 +129,7 @@ EOF
   while true; do
     local selected_output
     selected_output=$(
-      echo "$status_output" | fzf \
+      fzf \
         --height=100% \
         -i \
         --reverse \
@@ -167,8 +167,9 @@ EOF
             git diff --color=always "$file" 2>/dev/null | delta 2>/dev/null || git diff --color=always "$file" 2>/dev/null;
           fi
         ' \
-        --preview-window=right:60%
-    ) || true
+        --preview-window=right:60% \
+        <<< "$status_output"
+    ) </dev/tty || true
 
     # Parse the key pressed and the selected files
     local key_pressed

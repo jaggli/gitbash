@@ -172,7 +172,7 @@ EOF
             fi
             # Format: display branch (padded), date, author, TAB, full branch name
             printf "%-${max_branch_length}s  %-20s %-25s\t%s\n" "$display_branch" "$date" "$author" "$full_branch"
-        done)
+        done || true)
     
     # Build stale branch list (only branches older than 3 months)
     local stale_branch_list
@@ -192,7 +192,7 @@ EOF
                 # Format: display branch (padded), date, author, TAB, full branch name
                 printf "%-${max_branch_length}s  %-20s %-25s\t%s\n" "$display_branch" "$date" "$author" "$full_branch"
             fi
-        done)
+        done || true)
 
     if [[ -z "$all_branch_list" ]]; then
         if [[ "$json_mode" == true ]]; then
@@ -246,7 +246,7 @@ EOF
                 
                 json_output+="{\"last_change_timestamp\":$timestamp,\"author_email\":\"$author_email\",\"author_name\":\"$author_name\",\"name\":\"$name\",\"last_change_relative\":\"$rel_date\"}"
             fi
-        done < <(git for-each-ref --sort=committerdate --format='%(refname:short)|%(committerdate:relative)|%(authorname)|%(authoremail)|%(committerdate:unix)' refs/remotes/origin 2>/dev/null | grep -v 'origin/HEAD' | grep -v '^origin$')
+        done < <(git for-each-ref --sort=committerdate --format='%(refname:short)|%(committerdate:relative)|%(authorname)|%(authoremail)|%(committerdate:unix)' refs/remotes/origin 2>/dev/null | grep -v 'origin/HEAD' | grep -v '^origin$' || true)
         } &>/dev/null
         json_output+="]"
         echo "$json_output"
@@ -314,7 +314,7 @@ HEADER_EOF
     
     local selection
     selection=$(
-        cat "$stale_file" | fzf \
+        fzf \
             --prompt="Stale branches (>3 months, oldest first) > " \
             --query="$filter" \
             -i \
@@ -340,8 +340,9 @@ Showing $stale_count stale branches (older than 3 months)" \
                     git log --oneline --color=always -n 15 "origin/$branch" 2>/dev/null || echo "No commits found";
                 fi
             ' \
-            --preview-window=right:35%
-    ) || true
+            --preview-window=right:35% \
+            < "$stale_file"
+    ) </dev/tty || true
     
     # Cleanup temp files
     rm -f "$stale_file" "$all_file" "$state_file" "$toggle_script" "$prompt_script" "$header_script"

@@ -111,8 +111,7 @@ EOF
     # 3. Run fzf full-screen picker with preview
     # -----------------------------
     local selection
-    selection=$(printf "%s\n" "$choices" \
-        | fzf --prompt="Available stashes > " \
+    selection=$(fzf --prompt="Available stashes > " \
               -i \
               --reverse \
               --border \
@@ -126,8 +125,9 @@ EOF
                     else
                         echo "No preview";
                     fi
-              '
-    ) || true
+              ' \
+              <<< "$choices"
+    ) </dev/tty || true
 
     # ESC or Ctrl-C
     if [[ -z "$selection" ]]; then

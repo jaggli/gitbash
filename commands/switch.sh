@@ -105,10 +105,11 @@ EOF
     if ! echo "$local_branches" | grep -qx "$local_name"; then
       echo "$remote"
     fi
-  done)
+  done || true)
   
   local selected_branch
-  selected_branch=$(
+  local branch_list
+  branch_list=$(
     {
       # List local branches
       echo "$local_branches" | sed 's/^/local: /'
@@ -118,7 +119,10 @@ EOF
         # List filtered remote branches
         echo "$remote_branches" | sed 's/^/remote: /'
       fi
-    } | fzf \
+    }
+  )
+  selected_branch=$(
+    fzf \
       --height=40% \
       --reverse \
       --border \
@@ -127,8 +131,9 @@ EOF
       -i \
       --preview="branch=\$(echo {} | sed 's/^[^:]*: //'); if [[ \"\$branch\" == *───* ]]; then echo 'Spacer - not selectable'; else git log --color=always -n 1 --format='%C(bold cyan)Author:%C(reset) %an%n%C(bold cyan)Date:%C(reset) %ar (%ad)%n%C(bold cyan)Message:%C(reset) %s%n' --date=format:'%Y-%m-%d %H:%M' \"\$branch\" 2>/dev/null && echo && git log --oneline --color=always -n 10 \"\$branch\" 2>/dev/null; fi" \
       --preview-window=right:50% \
-      --header="Current: $current_branch"
-  ) || true
+      --header="Current: $current_branch" \
+      <<< "$branch_list"
+  ) </dev/tty || true
 
   # -----------------------------
   # 4. Handle selection

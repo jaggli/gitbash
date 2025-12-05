@@ -141,7 +141,7 @@ EOF
 
     # Get list of remote branches (without origin/ prefix)
     local remote_branches
-    remote_branches=$(git for-each-ref --format='%(refname:short)' refs/remotes/origin | sed 's|^origin/||' | grep -v '^HEAD$')
+    remote_branches=$(git for-each-ref --format='%(refname:short)' refs/remotes/origin | sed 's|^origin/||' | grep -v '^HEAD$' || true)
 
     # Arrays to hold branches by category (format: timestamp|branch|relative_date|author_email|author_name)
     local merged_branches=()
@@ -327,7 +327,7 @@ EOF
     toggle_sequence+="+first"
 
     local selection
-    selection=$(cat "$branch_file" | fzf \
+    selection=$(fzf \
         --prompt="Local branches to clean up > " \
         -i \
         --reverse \
@@ -351,8 +351,9 @@ Found $total_count branches ($preselect_count pre-selected for deletion)" \
             fi
         ' \
         --preview-window=right:35% \
-        --bind "load:$toggle_sequence"
-    ) || true
+        --bind "load:$toggle_sequence" \
+        < "$branch_file"
+    ) </dev/tty || true
 
     # Cleanup temp files
     rm -f "$branch_file" "$preselect_file"

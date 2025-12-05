@@ -111,7 +111,7 @@ EOF
     # 4. Run fzf picker
     # -----------------------------
     local selection
-    selection=$(cat "$commit_file" | fzf \
+    selection=$(fzf \
         --prompt="Commits on '$current_branch' > " \
         -i \
         --reverse \
@@ -137,8 +137,9 @@ Showing last $count commits" \
                 git show --color=always "$hash" 2>/dev/null | head -100;
             fi
         ' \
-        --preview-window=right:50%
-    ) || true
+        --preview-window=right:50% \
+        < "$commit_file"
+    ) </dev/tty || true
 
     # Cleanup temp file
     rm -f "$commit_file"

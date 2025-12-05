@@ -147,15 +147,15 @@ EOF
     # 3. Run fzf menu
     # -----------------------------
     local selection
-    selection=$(printf "%s\n" "$choices" \
-        | fzf --prompt="Branch action > " \
+    selection=$(fzf --prompt="Branch action > " \
               -i \
               --reverse \
               --border \
               --header="What would you like to do?" \
               --no-multi \
-              --bind=enter:accept
-    ) || true
+              --bind=enter:accept \
+              <<< "$choices"
+    ) </dev/tty || true
 
     # ESC or Ctrl-C
     if [[ -z "$selection" ]]; then
