@@ -111,9 +111,6 @@ EOF
     # -----------------------------
     # 2. Fetch and prune to sync with remote
     # -----------------------------
-    if [[ "$json_mode" == false ]]; then
-        echo "Fetching and pruning remote..."
-    fi
     if ! git fetch --prune origin 2>/dev/null; then
         if [[ "$json_mode" == false ]]; then
             echo "⚠ Fetch failed; continuing with local data." >&2
