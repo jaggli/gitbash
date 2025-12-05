@@ -2,6 +2,13 @@
 # shellcheck disable=SC2155
 # Common utilities for gitbash commands - compatible with bash and zsh
 
+# Load config file if it exists
+CONFIG_FILE="$HOME/.gitbashrc"
+if [[ -f "$CONFIG_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$CONFIG_FILE"
+fi
+
 # Color codes for consistent output
 COLOR_RED='\033[0;31m'
 COLOR_GREEN='\033[0;32m'
