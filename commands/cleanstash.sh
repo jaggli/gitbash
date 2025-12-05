@@ -126,8 +126,8 @@ EOF
     # 4. Extract stash IDs safely
     # -----------------------------
     local stash_ids=()
+    local stash_id line
     while IFS= read -r line; do
-        local stash_id
         stash_id=$(echo "$line" | grep -o 'stash@{[0-9]\+}')
         if [[ -n "$stash_id" ]]; then
             stash_ids+=("$stash_id")
@@ -157,6 +157,7 @@ EOF
             echo "Deleting stashes..."
             # Sort by stash number in descending order to delete safely
             local sorted_ids=()
+            local id
             while IFS= read -r id; do
                 sorted_ids+=("$id")
             done < <(printf '%s\n' "${stash_ids[@]}" | sort -t'{' -k2 -rn)

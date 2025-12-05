@@ -163,6 +163,10 @@ EOF
     stale_branches=()
     recent_branches=()
 
+    # Variables for loop (declared once to avoid zsh output on redeclaration)
+    local last_commit_ts relative_date author_email author_name
+    local has_remote configured_upstream entry
+
     # Process each local branch
     while IFS= read -r branch; do
         # Skip base branch
@@ -170,24 +174,22 @@ EOF
         [[ -z "$branch" ]] && continue
 
         # Get last commit info for all branches
-        local last_commit_ts relative_date author_email author_name
         last_commit_ts=$(git log -1 --format='%ct' "$branch" 2>/dev/null)
         relative_date=$(git log -1 --format='%cr' "$branch" 2>/dev/null)
         author_email=$(git log -1 --format='%ae' "$branch" 2>/dev/null)
         author_name=$(git log -1 --format='%an' "$branch" 2>/dev/null)
         
         # Check if remote branch exists
-        local has_remote=false
+        has_remote=false
         if echo "$remote_branches" | grep -qx "$branch"; then
             has_remote=true
         fi
 
         # Check if it HAD an upstream (was pushed before)
-        local configured_upstream
         configured_upstream=$(git config "branch.$branch.remote" 2>/dev/null)
 
         # Entry format: timestamp|branch|relative_date|author_email|author_name
-        local entry="$last_commit_ts|$branch|$relative_date|$author_email|$author_name"
+        entry="$last_commit_ts|$branch|$relative_date|$author_email|$author_name"
 
         if [[ "$has_remote" == false && -n "$configured_upstream" ]]; then
             # Had upstream but remote is gone = merged and deleted remotely
@@ -205,9 +207,9 @@ EOF
     _sort_desc() {
         local _var="$1"
         shift
-        local _out=()
-        while IFS= read -r line; do
-            _out+=("$line")
+        local _out=() _line
+        while IFS= read -r _line; do
+            _out+=("$_line")
         done < <(printf '%s\n' "$@" | sort -t'|' -k1 -rn)
         # shellcheck disable=SC2034  # assigned via eval to caller var
         eval "$_var=(\"\${_out[@]}\")"
@@ -427,10 +429,10 @@ Found $total_count branches ($preselect_count pre-selected for deletion)" \
     local branches_to_delete=()
     local need_switch=false
     local only_merged=true
+    local branch_name line
 
     while IFS= read -r line; do
         [[ "$line" == "✖ Abort"* ]] && continue
-        local branch_name
         branch_name=$(echo "$line" | cut -f2)
         if [[ -n "$branch_name" ]]; then
             branches_to_delete+=("$branch_name")
