@@ -134,9 +134,7 @@ EOF
       return 1
     fi
 
-    local type_options
-    type_options=$(cat << 'TYPES'
-feat     - A new feature
+    local type_options="feat     - A new feature
 fix      - A bug fix
 docs     - Documentation only changes
 style    - Code style changes (formatting, whitespace)
@@ -145,9 +143,7 @@ perf     - Performance improvement
 test     - Adding or fixing tests
 build    - Build system or dependency changes
 ci       - CI/CD configuration changes
-chore    - Other changes that don't modify src/test files
-TYPES
-)
+chore    - Other changes that don't modify src/test files"
 
     local selected_type
     selected_type=$(echo "$type_options" | fzf --prompt="Commit type > " \

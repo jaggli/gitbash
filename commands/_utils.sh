@@ -109,36 +109,38 @@ require_git_repo() {
 }
 
 # Get delta arguments based on theme setting
-# Uses GITBASH_THEME: auto (default), dark, or light
+# Uses GITBASH_THEME: light (default), dark, or auto
 _get_delta_args() {
-    local theme="${GITBASH_THEME:-auto}"
+    local theme="${GITBASH_THEME:-light}"
     case "$theme" in
-        light)
-            echo "--light"
-            ;;
         dark)
             echo "--dark"
             ;;
-        *)
-            # auto - let delta detect (no args needed, but we can add --light for lighter terminals)
+        auto)
+            # auto - let delta detect
             echo ""
+            ;;
+        *)
+            # light is default
+            echo "--light"
             ;;
     esac
 }
 
 # Get bat arguments based on theme setting
 _get_bat_args() {
-    local theme="${GITBASH_THEME:-auto}"
+    local theme="${GITBASH_THEME:-light}"
     case "$theme" in
-        light)
-            echo "--theme=GitHub"
-            ;;
         dark)
             echo "--theme=Dracula"
             ;;
-        *)
+        auto)
             # auto - let bat detect
             echo ""
+            ;;
+        *)
+            # light is default
+            echo "--theme=GitHub"
             ;;
     esac
 }
