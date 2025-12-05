@@ -16,6 +16,7 @@ npm i -g gitbash
 gitbash --help      # Show help
 gitbash --version   # Show version
 gitbash --init      # Print shell init code
+gitbash --config    # Interactive configuration wizard
 ```
 
 ### Shell Aliases
@@ -55,6 +56,20 @@ brew install fzf
 brew install git-delta  # Better diff highlighting
 brew install bat        # File preview with syntax highlighting
 ```
+
+### Configuration
+
+gitbash reads configuration from `~/.gitbashrc` if it exists. You can set the following variables:
+
+```bash
+# Prefix for feature branches (default: "feature/")
+GITBASH_FEATURE_BRANCH_PREFIX="feature/"
+
+# Command for merging (default: "merge")
+GITBASH_MERGE_COMMAND="merge"
+```
+
+You can create this file manually or use `gitbash --config` to configure interactively.
 
 ## Commands
 
