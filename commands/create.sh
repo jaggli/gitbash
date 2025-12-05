@@ -218,7 +218,6 @@ TYPES
             echo "Parsed issue number: $issue_number"
         fi
     fi
-    echo
 
     # -----------------------------
     # 3. Get branch title from user (if not already provided)
@@ -242,9 +241,7 @@ TYPES
     # branch_prefix is set earlier from type menu, flag, or config
     local branch_name="${branch_prefix}${issue_number}-${branch_title}"
     
-    echo
     echo "Branch name: $branch_name"
-    echo
 
     # -----------------------------
     # 5. Check if branch already exists
