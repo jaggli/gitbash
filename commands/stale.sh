@@ -144,7 +144,11 @@ EOF
     if [[ "$json_mode" == false ]]; then
         echo "Fetching latest from remote..."
     fi
-    git fetch --prune origin 2>/dev/null
+    if ! git fetch --prune origin 2>/dev/null; then
+        if [[ "$json_mode" == false ]]; then
+            echo "⚠ Fetch failed; continuing with local data." >&2
+        fi
+    fi
 
     # -----------------------------
     # 4. Build branch list sorted by date (oldest first)

@@ -70,7 +70,6 @@ EOF
                 ;;
         esac
     done
-
     # -----------------------------
     # 1. Check prerequisites
     # -----------------------------
@@ -110,7 +109,11 @@ EOF
     if [[ "$json_mode" == false ]]; then
         echo "Fetching and pruning remote..."
     fi
-    git fetch --prune origin 2>/dev/null
+    if ! git fetch --prune origin 2>/dev/null; then
+        if [[ "$json_mode" == false ]]; then
+            echo "⚠ Fetch failed; continuing with local data." >&2
+        fi
+    fi
 
     # -----------------------------
     # 3. Detect base branch
@@ -144,9 +147,12 @@ EOF
     remote_branches=$(git for-each-ref --format='%(refname:short)' refs/remotes/origin | sed 's|^origin/||' | grep -v '^HEAD$' || true)
 
     # Arrays to hold branches by category (format: timestamp|branch|relative_date|author_email|author_name)
-    local merged_branches=()
-    local stale_branches=()
-    local recent_branches=()
+    local -a merged_branches
+    local -a stale_branches
+    local -a recent_branches
+    merged_branches=()
+    stale_branches=()
+    recent_branches=()
 
     # Process each local branch
     while IFS= read -r branch; do
@@ -186,15 +192,26 @@ EOF
         fi
     done < <(git for-each-ref --format='%(refname:short)' refs/heads)
 
-    # Sort each category by timestamp (most recent first)
-    if [[ ${#merged_branches[@]} -gt 0 ]]; then
-        mapfile -t merged_branches < <(printf '%s\n' "${merged_branches[@]}" | sort -t'|' -k1 -rn)
+    # Sort each category by timestamp (most recent first), compatible with bash 3.x (no mapfile)
+    _sort_desc() {
+        local _var="$1"
+        shift
+        local _out=()
+        while IFS= read -r line; do
+            _out+=("$line")
+        done < <(printf '%s\n' "$@" | sort -t'|' -k1 -rn)
+        # shellcheck disable=SC2034  # assigned via eval to caller var
+        eval "$_var=(\"\${_out[@]}\")"
+    }
+
+    if [[ ${merged_branches+set} && ${#merged_branches[@]} -gt 0 ]]; then
+        _sort_desc merged_branches "${merged_branches[@]}"
     fi
-    if [[ ${#stale_branches[@]} -gt 0 ]]; then
-        mapfile -t stale_branches < <(printf '%s\n' "${stale_branches[@]}" | sort -t'|' -k1 -rn)
+    if [[ ${stale_branches+set} && ${#stale_branches[@]} -gt 0 ]]; then
+        _sort_desc stale_branches "${stale_branches[@]}"
     fi
-    if [[ ${#recent_branches[@]} -gt 0 ]]; then
-        mapfile -t recent_branches < <(printf '%s\n' "${recent_branches[@]}" | sort -t'|' -k1 -rn)
+    if [[ ${recent_branches+set} && ${#recent_branches[@]} -gt 0 ]]; then
+        _sort_desc recent_branches "${recent_branches[@]}"
     fi
 
     # -----------------------------
@@ -216,7 +233,18 @@ EOF
         }
         
         # Process all branches for JSON output
-        for entry in "${merged_branches[@]}" "${stale_branches[@]}" "${recent_branches[@]}"; do
+        local all_entries=()
+        if [[ ${merged_branches+set} ]]; then
+            all_entries+=("${merged_branches[@]}")
+        fi
+        if [[ ${stale_branches+set} ]]; then
+            all_entries+=("${stale_branches[@]}")
+        fi
+        if [[ ${recent_branches+set} ]]; then
+            all_entries+=("${recent_branches[@]}")
+        fi
+
+        for entry in "${all_entries[@]}"; do
             [[ -z "$entry" ]] && continue
             
             local ts name rel_date email author
@@ -255,7 +283,8 @@ EOF
     local max_branch_len=60
 
     # Add merged branches (pre-selected)
-    for entry in "${merged_branches[@]}"; do
+    if [[ ${merged_branches+set} ]]; then
+        for entry in "${merged_branches[@]}"; do
         local branch date display_branch line
         branch=$(echo "$entry" | cut -d'|' -f2)
         date=$(echo "$entry" | cut -d'|' -f3)
@@ -267,36 +296,41 @@ EOF
         branch_list+="$line"$'\n'
         preselect_list+="$line"$'\n'
         ((idx++))
-    done
+        done
+    fi
 
     # Add stale branches (pre-selected)
-    for entry in "${stale_branches[@]}"; do
-        local branch date display_branch line
-        branch=$(echo "$entry" | cut -d'|' -f2)
-        date=$(echo "$entry" | cut -d'|' -f3)
-        display_branch="$branch"
-        if [[ ${#display_branch} -gt $max_branch_len ]]; then
-            display_branch="${display_branch:0:$((max_branch_len - 3))}..."
-        fi
-        line=$(printf "[STALE]   %-${max_branch_len}s  %s\t%s" "$display_branch" "$date" "$branch")
-        branch_list+="$line"$'\n'
-        preselect_list+="$line"$'\n'
-        ((idx++))
-    done
+    if [[ ${stale_branches+set} ]]; then
+        for entry in "${stale_branches[@]}"; do
+            local branch date display_branch line
+            branch=$(echo "$entry" | cut -d'|' -f2)
+            date=$(echo "$entry" | cut -d'|' -f3)
+            display_branch="$branch"
+            if [[ ${#display_branch} -gt $max_branch_len ]]; then
+                display_branch="${display_branch:0:$((max_branch_len - 3))}..."
+            fi
+            line=$(printf "[STALE]   %-${max_branch_len}s  %s\t%s" "$display_branch" "$date" "$branch")
+            branch_list+="$line"$'\n'
+            preselect_list+="$line"$'\n'
+            ((idx++))
+        done
+    fi
 
     # Add recent branches (not pre-selected)
-    for entry in "${recent_branches[@]}"; do
-        local branch date display_branch line
-        branch=$(echo "$entry" | cut -d'|' -f2)
-        date=$(echo "$entry" | cut -d'|' -f3)
-        display_branch="$branch"
-        if [[ ${#display_branch} -gt $max_branch_len ]]; then
-            display_branch="${display_branch:0:$((max_branch_len - 3))}..."
-        fi
-        line=$(printf "[RECENT]  %-${max_branch_len}s  %s\t%s" "$display_branch" "$date" "$branch")
-        branch_list+="$line"$'\n'
-        ((idx++))
-    done
+    if [[ ${recent_branches+set} ]]; then
+        for entry in "${recent_branches[@]}"; do
+            local branch date display_branch line
+            branch=$(echo "$entry" | cut -d'|' -f2)
+            date=$(echo "$entry" | cut -d'|' -f3)
+            display_branch="$branch"
+            if [[ ${#display_branch} -gt $max_branch_len ]]; then
+                display_branch="${display_branch:0:$((max_branch_len - 3))}..."
+            fi
+            line=$(printf "[RECENT]  %-${max_branch_len}s  %s\t%s" "$display_branch" "$date" "$branch")
+            branch_list+="$line"$'\n'
+            ((idx++))
+        done
+    fi
 
     if [[ -z "$branch_list" ]]; then
         echo "No local branches to clean up."
@@ -316,8 +350,16 @@ EOF
     # -----------------------------
     # 7. Run fzf picker
     # -----------------------------
-    local total_count=$((${#merged_branches[@]} + ${#stale_branches[@]} + ${#recent_branches[@]}))
-    local preselect_count=$((${#merged_branches[@]} + ${#stale_branches[@]}))
+    local merged_count=0
+    local stale_count=0
+    local recent_count=0
+
+    [[ ${merged_branches+set} ]] && merged_count=${#merged_branches[@]}
+    [[ ${stale_branches+set} ]] && stale_count=${#stale_branches[@]}
+    [[ ${recent_branches+set} ]] && recent_count=${#recent_branches[@]}
+
+    local total_count=$((merged_count + stale_count + recent_count))
+    local preselect_count=$((merged_count + stale_count))
 
     # Build toggle sequence for pre-selection (toggle first N items)
     local toggle_sequence="first"
