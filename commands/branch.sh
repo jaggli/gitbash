@@ -176,12 +176,24 @@ EOF
     # -----------------------------
     case "$selection" in
         "$create_option")
+            # Source create.sh if create function not available
+            if ! declare -f create >/dev/null 2>&1; then
+                source "$SOURCE_DIR/create.sh"
+            fi
             create
             ;;
         "$switch_option")
+            # Source switch.sh if switch function not available
+            if ! declare -f switch >/dev/null 2>&1; then
+                source "$SOURCE_DIR/switch.sh"
+            fi
             switch
             ;;
         "$update_option")
+            # Source update.sh if update function not available
+            if ! declare -f update >/dev/null 2>&1; then
+                source "$SOURCE_DIR/update.sh"
+            fi
             update
             ;;
         "$abort_label")

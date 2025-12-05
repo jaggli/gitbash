@@ -86,8 +86,11 @@ EOF
     esac
   done
 
-  # Join message parts with spaces
-  local msg="${msg_parts[*]}"
+  # Join message parts with spaces (handle empty array for set -u)
+  local msg=""
+  if [[ ${#msg_parts[@]} -gt 0 ]]; then
+    msg="${msg_parts[*]}"
+  fi
 
   # If no commit message was provided...
   if [ -z "$msg" ]; then

@@ -94,39 +94,46 @@ check_dependencies() {
         echo "  ✗ bat (optional) - syntax highlighting for file previews"
     fi
 
+    # Build list of all missing dependencies
+    local all_missing=()
+    [[ ${#missing_required[@]} -gt 0 ]] && all_missing+=("${missing_required[@]}")
+    [[ ${#missing_optional[@]} -gt 0 ]] && all_missing+=("${missing_optional[@]}")
+
+    # If nothing to install, we're done
+    if [[ ${#all_missing[@]} -eq 0 ]]; then
+        return 0
+    fi
+
     # Check if Homebrew is available
     if ! command -v brew >/dev/null 2>&1; then
         echo
         echo "Homebrew not found. Install dependencies manually:"
-        for dep in "${missing_required[@]}" "${missing_optional[@]}"; do
+        for dep in "${all_missing[@]}"; do
             echo "  brew install $dep"
         done
         return 0
     fi
 
     # Offer to install missing dependencies
-    local all_missing=("${missing_required[@]}" "${missing_optional[@]}")
-    if [[ ${#all_missing[@]} -gt 0 ]]; then
-        echo
-        local install_deps
-        read -e -p "Install missing dependencies with Homebrew? (Y/n): " install_deps
-        case "$install_deps" in
-            [nN][oO]|[nN])
-                echo "Skipped dependency installation."
-                ;;
-            *)
-                echo "Installing dependencies..."
-                for dep in "${all_missing[@]}"; do
-                    echo "  Installing $dep..."
-                    if brew install "$dep" 2>/dev/null; then
-                        echo "  ✓ $dep installed"
-                    else
-                        echo "  ✗ Failed to install $dep"
-                    fi
-                done
-                ;;
-        esac
-    fi
+    echo
+    local install_deps
+    read -e -p "Install missing dependencies with Homebrew? (Y/n): " install_deps
+    case "$install_deps" in
+        [nN][oO]|[nN])
+            echo "Skipped dependency installation."
+            ;;
+        *)
+            echo "Installing dependencies..."
+            for dep in "${all_missing[@]}"; do
+                echo "  Installing $dep..."
+                if brew install "$dep" 2>/dev/null; then
+                    echo "  ✓ $dep installed"
+                else
+                    echo "  ✗ Failed to install $dep"
+                fi
+            done
+            ;;
+    esac
 }
 
 # Check if gitbash shell integration is set up
