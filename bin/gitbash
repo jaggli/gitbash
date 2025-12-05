@@ -3,6 +3,42 @@
 
 set -euo pipefail
 
+CONFIG_FILE="$HOME/.gitbashrc"
+
+load_config() {
+    if [[ -f "$CONFIG_FILE" ]]; then
+        # shellcheck disable=SC1090
+        source "$CONFIG_FILE"
+    fi
+}
+
+configure_gitbash() {
+    load_config
+
+    local current_prefix="${GITBASH_FEATURE_BRANCH_PREFIX:-feature/}"
+    local current_merge="${GITBASH_MERGE_COMMAND:-fork}"
+
+    echo "Configure gitbash (writes to $CONFIG_FILE)"
+
+    local input prefix merge_cmd
+
+    read -e -p "Feature branch prefix (used by create) [${current_prefix}]: " input
+    prefix=${input:-$current_prefix}
+
+    read -e -p "Merge tool command (used by update on conflicts) [${current_merge}]: " input
+    merge_cmd=${input:-$current_merge}
+
+    cat > "$CONFIG_FILE" <<EOF
+# gitbash configuration
+# Prefix for feature branches created by 'create'
+GITBASH_FEATURE_BRANCH_PREFIX="$prefix"
+# Merge tool command invoked by 'update' when conflicts occur
+GITBASH_MERGE_COMMAND="$merge_cmd"
+EOF
+
+    echo "Saved configuration to $CONFIG_FILE"
+}
+
 # Resolve symlinks to get the actual script location
 SOURCE="${BASH_SOURCE[0]}"
 while [[ -L "$SOURCE" ]]; do
@@ -38,9 +74,10 @@ show_help() {
 gitbash - Interactive git utilities for bash
 
 Usage:
-  gitbash <command> [args...]
-  gitbash --help
-  gitbash --init
+    gitbash <command> [args...]
+    gitbash --help
+    gitbash --init
+    gitbash --config
 
 Commands:
   branch      Interactive menu for branch operations
@@ -62,6 +99,7 @@ Options:
   -h, --help     Show this help message
   -v, --version  Show version number
   --init         Print shell initialization code (for sourcing)
+    --config       Configure gitbash and save to ~/.gitbashrc
 
 Examples:
   gitbash commit fix bug -p     # Commit and push
@@ -102,6 +140,7 @@ EOF
 
 # Main entry point
 main() {
+    load_config
     case "${1:-}" in
         -h|--help|"")
             show_help
@@ -113,6 +152,10 @@ main() {
             ;;
         --init)
             show_init
+            exit 0
+            ;;
+        --config)
+            configure_gitbash
             exit 0
             ;;
         *)
