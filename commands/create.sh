@@ -163,12 +163,21 @@ TYPES
     
     if [[ ${#positional_args[@]} -gt 0 ]]; then
         # Arguments provided - use one-liner mode
-        jira_link="${positional_args[0]}"
-        # Join remaining arguments as title
-        if [[ ${#positional_args[@]} -gt 1 ]]; then
-            branch_title="${positional_args[*]:1}"
+        # Use array index 1 for zsh compatibility (zsh arrays are 1-indexed, bash uses 0)
+        if [[ -n "${ZSH_VERSION:-}" ]]; then
+            jira_link="${positional_args[1]}"
+            if [[ ${#positional_args[@]} -gt 1 ]]; then
+                branch_title="${positional_args[*]:1}"
+            else
+                branch_title=""
+            fi
         else
-            branch_title=""
+            jira_link="${positional_args[0]}"
+            if [[ ${#positional_args[@]} -gt 1 ]]; then
+                branch_title="${positional_args[*]:1}"
+            else
+                branch_title=""
+            fi
         fi
     else
         # Interactive mode
