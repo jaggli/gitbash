@@ -172,40 +172,42 @@ TYPES
         fi
     else
         # Interactive mode
-        echo "Enter Jira link (e.g., https://jira.company.com/browse/PROJ-123):"
+        echo "Enter Jira link (e.g., https://jira.company.com/browse/PROJ-123) or press Enter to skip:"
         prompt_read " > " jira_link
-    fi
-
-    if [[ -z "$jira_link" ]]; then
-        echo "Error: No Jira link provided."
-        return 1
     fi
 
     # -----------------------------
     # 2. Parse issue number from Jira link
     # -----------------------------
     local issue_number
-    # First try to match just the issue number pattern (e.g., PROJ-123)
-    issue_number=$(echo "$jira_link" | grep -o -E '^[A-Z]+-[0-9]+$' | head -1)
     
-    # If not a direct match, try to extract from URL
-    if [[ -z "$issue_number" ]]; then
-        # Match patterns like PROJ-123, ABC-456, etc.
-        # Supports both /browse/PROJ-123 and selectedIssue=PROJ-123 formats
-        issue_number=$(echo "$jira_link" | grep -o -E '(browse/|selectedIssue=)[A-Z]+-[0-9]+' | grep -o '[A-Z]\+-[0-9]\+' | head -1)
-    fi
-
-    if [[ -z "$issue_number" ]]; then
-        echo "Warning: Could not parse issue number from Jira link. Using NOISSUE."
+    if [[ -z "$jira_link" ]]; then
+        # No Jira link provided, use NOISSUE
         issue_number="NOISSUE"
-        # If parsing failed and we had arguments, include the first arg in the title
-        if [[ -n "$branch_title" ]]; then
-            branch_title="$jira_link $branch_title"
-        else
-            branch_title="$jira_link"
-        fi
+        print_info "No Jira link provided. Using NOISSUE."
     else
-        echo "Parsed issue number: $issue_number"
+        # First try to match just the issue number pattern (e.g., PROJ-123)
+        issue_number=$(echo "$jira_link" | grep -o -E '^[A-Z]+-[0-9]+$' | head -1)
+        
+        # If not a direct match, try to extract from URL
+        if [[ -z "$issue_number" ]]; then
+            # Match patterns like PROJ-123, ABC-456, etc.
+            # Supports both /browse/PROJ-123 and selectedIssue=PROJ-123 formats
+            issue_number=$(echo "$jira_link" | grep -o -E '(browse/|selectedIssue=)[A-Z]+-[0-9]+' | grep -o '[A-Z]\+-[0-9]\+' | head -1)
+        fi
+
+        if [[ -z "$issue_number" ]]; then
+            print_warning "Could not parse issue number from Jira link. Using NOISSUE."
+            issue_number="NOISSUE"
+            # If parsing failed and we had arguments, include the first arg in the title
+            if [[ -n "$branch_title" ]]; then
+                branch_title="$jira_link $branch_title"
+            else
+                branch_title="$jira_link"
+            fi
+        else
+            echo "Parsed issue number: $issue_number"
+        fi
     fi
     echo
 
