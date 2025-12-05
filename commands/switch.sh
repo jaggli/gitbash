@@ -101,19 +101,42 @@ EOF
       fi
     }
   )
-  selected_branch=$(
-    fzf \
-      --height=40% \
-      --reverse \
-      --border \
-      --prompt="Select branch: " \
-      --query="$filter" \
-      -i \
-      --preview="branch=\$(echo {} | sed 's/^[^:]*: //'); if [[ \"\$branch\" == *───* ]]; then echo 'Spacer - not selectable'; else git log --color=always -n 1 --format='%C(bold cyan)Author:%C(reset) %an%n%C(bold cyan)Date:%C(reset) %ar (%ad)%n%C(bold cyan)Message:%C(reset) %s%n' --date=format:'%Y-%m-%d %H:%M' \"\$branch\" 2>/dev/null && echo && git log --oneline --color=always -n 10 \"\$branch\" 2>/dev/null; fi" \
-      --preview-window=right:50% \
-      --header="Current: $current_branch" \
-      <<< "$branch_list"
-  ) </dev/tty || true
+
+  # -----------------------------
+  # 3b. Check for single match when filter is provided
+  # -----------------------------
+  if [[ -n "$filter" ]]; then
+    # Filter branch list (case-insensitive), excluding spacer
+    local matching_branches
+    matching_branches=$(echo "$branch_list" | grep -iv '───' | grep -i "$filter" || true)
+    local match_count
+    match_count=$(echo "$matching_branches" | grep -c . || echo "0")
+    
+    if [[ "$match_count" -eq 1 ]]; then
+      # Single match - skip fzf
+      selected_branch="$matching_branches"
+      print_info "Single match found, switching directly..."
+    fi
+  fi
+
+  # -----------------------------
+  # 3c. Use fzf if no single match
+  # -----------------------------
+  if [[ -z "$selected_branch" ]]; then
+    selected_branch=$(
+      fzf \
+        --height=40% \
+        --reverse \
+        --border \
+        --prompt="Select branch: " \
+        --query="$filter" \
+        -i \
+        --preview="branch=\$(echo {} | sed 's/^[^:]*: //'); if [[ \"\$branch\" == *───* ]]; then echo 'Spacer - not selectable'; else git log --color=always -n 1 --format='%C(bold cyan)Author:%C(reset) %an%n%C(bold cyan)Date:%C(reset) %ar (%ad)%n%C(bold cyan)Message:%C(reset) %s%n' --date=format:'%Y-%m-%d %H:%M' \"\$branch\" 2>/dev/null && echo && git log --oneline --color=always -n 10 \"\$branch\" 2>/dev/null; fi" \
+        --preview-window=right:50% \
+        --header="Current: $current_branch" \
+        <<< "$branch_list"
+    ) </dev/tty || true
+  fi
 
   # -----------------------------
   # 4. Handle selection
