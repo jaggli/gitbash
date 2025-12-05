@@ -40,8 +40,17 @@ gitbash reads configuration from `~/.gitbashrc` if it exists. You can set the fo
 # Prefix for feature branches (default: "feature/")
 GITBASH_FEATURE_BRANCH_PREFIX="feature/"
 
-# Command for merging (default: "merge")
-GITBASH_MERGE_COMMAND="merge"
+# Merge tool command invoked by 'update' when conflicts occur (default: "fork")
+GITBASH_MERGE_COMMAND="fork"
+
+# Theme for delta/bat diff highlighting: auto, dark, or light (default: "light")
+GITBASH_THEME="light"
+
+# Stale branch threshold in months for 'stale' command (default: 3)
+GITBASH_STALE_MONTHS=3
+
+# Cleanup threshold in days - branches merged more than this many days ago (default: 7)
+GITBASH_CLEANUP_DAYS=7
 ```
 
 You can create this file manually or use `gitbash --config` to configure interactively.
@@ -121,13 +130,15 @@ Merge latest main/master into current branch. Opens merge tool on conflicts.
 ### stale
 
 ```bash
-stale [-m|--my] [--json] [FILTER...]
+stale [-a|--all] [--age=N] [--json] [FILTER...]
 ```
 
 List remote branches >3 months old (oldest first). Multi-select with TAB to delete.
 
-- `Ctrl-A` toggles showing all branches
-- `--my` filters by your git username
+- By default, pre-filters by your git username (from `git config user.name`)
+- `-a|--all` shows all branches without username filter
+- `--age=N` sets stale threshold in months (default: 3, or `GITBASH_STALE_MONTHS`)
+- `Ctrl-A` toggles showing all branches (including recent ones)
 - `--json` outputs JSON for scripting (same format as cleanup)
 
 ### stashes
