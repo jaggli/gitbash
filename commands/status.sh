@@ -156,23 +156,23 @@ EOF
             # Untracked file - show contents
             echo "=== UNTRACKED FILE ===";
             echo;
-            bat --color=always --style=numbers "$file" 2>/dev/null || cat "$file" 2>/dev/null || echo "Cannot preview file";
+            bat --color=always --style=numbers --theme=\"GitHub\" "$file" 2>/dev/null || cat "$file" 2>/dev/null || echo "Cannot preview file";
           elif [[ "$file_status" =~ ^[MAC] ]]; then
             # Staged file - show cached diff
             echo "=== STAGED CHANGES ===";
             echo;
-            git diff --cached --color=always "$file" 2>/dev/null | delta 2>/dev/null || git diff --cached --color=always "$file" 2>/dev/null;
+            git diff --cached --color=always "$file" 2>/dev/null | delta --light 2>/dev/null || git diff --cached --color=always "$file" 2>/dev/null;
             if git diff --color=always "$file" 2>/dev/null | grep -q .; then
               echo;
               echo "=== UNSTAGED CHANGES ===";
               echo;
-              git diff --color=always "$file" 2>/dev/null | delta 2>/dev/null || git diff --color=always "$file" 2>/dev/null;
+              git diff --color=always "$file" 2>/dev/null | delta --light 2>/dev/null || git diff --color=always "$file" 2>/dev/null;
             fi
           else
             # Unstaged changes
             echo "=== UNSTAGED CHANGES ===";
             echo;
-            git diff --color=always "$file" 2>/dev/null | delta 2>/dev/null || git diff --color=always "$file" 2>/dev/null;
+            git diff --color=always "$file" 2>/dev/null | delta --light 2>/dev/null || git diff --color=always "$file" 2>/dev/null;
           fi
         ' \
         --preview-window=right:60% \

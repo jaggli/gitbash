@@ -139,7 +139,7 @@ Showing last $count commits" \
                 echo "";
                 echo "─────────────────────────────────────────────────────";
                 echo "";
-                git show --color=always "$hash" 2>/dev/null | head -100 | delta 2>/dev/null || git show --color=always "$hash" 2>/dev/null | head -100;
+                git show --color=always "$hash" 2>/dev/null | head -100 | delta --light 2>/dev/null || git show --color=always "$hash" 2>/dev/null | head -100;
             fi
         ' \
         --preview-window=right:50% \

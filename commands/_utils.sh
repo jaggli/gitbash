@@ -38,7 +38,7 @@ prompt_read_edit() {
 # Returns the command name to use for diffs
 get_diff_cmd() {
     if command -v delta >/dev/null 2>&1; then
-        echo "delta"
+        echo "delta --light"
     else
         echo "git diff"
     fi
@@ -50,7 +50,7 @@ get_diff_cmd() {
 # Example: show_diff HEAD~1
 show_diff() {
     if command -v delta >/dev/null 2>&1; then
-        git diff "$@" | delta
+        git diff "$@" | delta --light
     else
         git diff "$@"
     fi
