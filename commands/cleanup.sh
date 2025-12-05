@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2155
 
+# Source common utilities
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# shellcheck source=_utils.sh
+source "$SOURCE_DIR/_utils.sh"
+
 # Cleanup local branches that are no longer needed
 cleanup() {
     # -----------------------------
@@ -85,7 +90,7 @@ EOF
     if [[ "$json_mode" == false ]]; then
         if ! command -v fzf >/dev/null 2>&1; then
             echo "fzf is not installed."
-            read -rp "Install fzf with Homebrew? (y/N): " ans
+            prompt_read "Install fzf with Homebrew? (y/N): " ans
             case "$ans" in
                 [yY][eE][sS]|[yY])
                     echo "Installing fzf with brew..."
@@ -459,7 +464,7 @@ Found $total_count branches ($preselect_count pre-selected for deletion)" \
     # Default to Y if only merged branches, otherwise N
     local confirm
     if [[ "$only_merged" == true ]]; then
-        read -rp "Delete these ${#branches_to_delete[@]} local branch(es)? (Y/n): " confirm
+        prompt_read "Delete these ${#branches_to_delete[@]} local branch(es)? (Y/n): " confirm
         case "$confirm" in
             [nN][oO]|[nN])
                 echo "Deletion cancelled."
@@ -467,7 +472,7 @@ Found $total_count branches ($preselect_count pre-selected for deletion)" \
                 ;;
         esac
     else
-        read -rp "Delete these ${#branches_to_delete[@]} local branch(es)? (y/N): " confirm
+        prompt_read "Delete these ${#branches_to_delete[@]} local branch(es)? (y/N): " confirm
         case "$confirm" in
             [yY][eE][sS]|[yY])
                 ;;

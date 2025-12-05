@@ -1,3 +1,11 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2155
+
+# Source common utilities
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# shellcheck source=_utils.sh
+source "$SOURCE_DIR/_utils.sh"
+
 # Show git status with fzf file selector and diff preview
 status() {
   # -----------------------------
@@ -75,7 +83,7 @@ EOF
     echo "fzf is not installed."
 
     # Ask whether to install with Homebrew
-    read -rp "Install fzf with Homebrew? (y/N): " ans
+    prompt_read "Install fzf with Homebrew? (y/N): " ans
     case "$ans" in
       [yY][eE][sS]|[yY])
         echo "Installing fzf with brew..."
@@ -212,7 +220,7 @@ EOF
         for f in "${untracked_to_delete[@]}"; do
           echo "  - $f"
         done
-        read -rp "Delete these ${#untracked_to_delete[@]} untracked file(s)? (y/N): " confirm
+        prompt_read "Delete these ${#untracked_to_delete[@]} untracked file(s)? (y/N): " confirm
         case "$confirm" in
           [yY][eE][sS]|[yY])
             for f in "${untracked_to_delete[@]}"; do
@@ -232,7 +240,7 @@ EOF
         for f in "${files_to_revert[@]}"; do
           echo "  - $f"
         done
-        read -rp "Revert changes in these ${#files_to_revert[@]} file(s)? This cannot be undone. (y/N): " confirm
+        prompt_read "Revert changes in these ${#files_to_revert[@]} file(s)? This cannot be undone. (y/N): " confirm
         case "$confirm" in
           [yY][eE][sS]|[yY])
             for f in "${files_to_revert[@]}"; do
@@ -312,7 +320,7 @@ EOF
       done
       
       echo
-      read -rp "Would you like to commit and push these changes? (Y/n): " ans
+      prompt_read "Would you like to commit and push these changes? (Y/n): " ans
       case "$ans" in
         [nN][oO]|[nN])
           echo "Continuing..."

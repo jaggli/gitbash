@@ -1,3 +1,11 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2155
+
+# Source common utilities
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# shellcheck source=_utils.sh
+source "$SOURCE_DIR/_utils.sh"
+
 cleanstash() {
     # -----------------------------
     # 0. Check for help/version flag
@@ -69,7 +77,7 @@ EOF
         echo "fzf is not installed."
 
         # Ask whether to install with Homebrew
-        read -r -p "Install fzf with Homebrew? (y/N): " ans
+        prompt_read "Install fzf with Homebrew? (y/N): " ans
         case "$ans" in
             [yY][eE][sS]|[yY])
                 echo "Installing fzf with brew..."
@@ -164,7 +172,7 @@ EOF
     done
     echo
 
-    read -rp "Delete these ${#stash_ids[@]} stash(es)? (y/N): " confirm_ans
+    prompt_read "Delete these ${#stash_ids[@]} stash(es)? (y/N): " confirm_ans
     case "$confirm_ans" in
         [yY][eE][sS]|[yY])
             # -----------------------------
@@ -172,8 +180,10 @@ EOF
             # -----------------------------
             echo "Deleting stashes..."
             # Sort by stash number in descending order to delete safely
-            local sorted_ids
-            mapfile -t sorted_ids < <(printf '%s\n' "${stash_ids[@]}" | sort -t'{' -k2 -rn)
+            local sorted_ids=()
+            while IFS= read -r id; do
+                sorted_ids+=("$id")
+            done < <(printf '%s\n' "${stash_ids[@]}" | sort -t'{' -k2 -rn)
             
             for stash_id in "${sorted_ids[@]}"; do
                 echo "Dropping $stash_id ..."

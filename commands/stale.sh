@@ -1,3 +1,11 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2155
+
+# Source common utilities
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# shellcheck source=_utils.sh
+source "$SOURCE_DIR/_utils.sh"
+
 stale() {
     # -----------------------------
     # 0. Check for help/version flag and parse options
@@ -103,7 +111,7 @@ EOF
         if ! command -v fzf >/dev/null 2>&1; then
             echo "fzf is not installed."
 
-            read -rp "Install fzf with Homebrew? (y/N): " ans
+            prompt_read "Install fzf with Homebrew? (y/N): " ans
             case "$ans" in
                 [yY][eE][sS]|[yY])
                     echo "Installing fzf with brew..."
@@ -392,7 +400,7 @@ Showing $stale_count stale branches (older than 3 months)" \
     done
     echo ""
 
-    read -rp "Delete these ${#branches_to_delete[@]} branch(es) from remote? (y/N): " confirm
+    prompt_read "Delete these ${#branches_to_delete[@]} branch(es) from remote? (y/N): " confirm
     case "$confirm" in
         [yY][eE][sS]|[yY])
             echo "Deleting branches..."

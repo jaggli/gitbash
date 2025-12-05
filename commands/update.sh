@@ -1,3 +1,11 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2155
+
+# Source common utilities
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# shellcheck source=_utils.sh
+source "$SOURCE_DIR/_utils.sh"
+
 # Update the current branch with the latest version of master/main
 update() {
   local merge_tool="${GITBASH_FEATURE_BRANCH_PREFIX:-}"
@@ -122,7 +130,7 @@ EOF
     echo "You have uncommitted changes:"
     git status --short
     echo ""
-    read -rp "Commit changes before updating? (Y/n): " reply
+    prompt_read "Commit changes before updating? (Y/n): " reply
     if [[ "$reply" =~ ^[Nn]$ ]]; then
       echo "⚠ Cannot merge with uncommitted changes. Commit or stash them first."
       return 1

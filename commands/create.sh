@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2155
 
+# Source common utilities
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# shellcheck source=_utils.sh
+source "$SOURCE_DIR/_utils.sh"
+
 create() {
     # -----------------------------
     # 0. Check for help/version flag
@@ -71,7 +76,7 @@ EOF
     else
         # Interactive mode
         echo "Enter Jira link (e.g., https://jira.company.com/browse/PROJ-123):"
-        read -rp " > " jira_link
+        prompt_read " > " jira_link
     fi
 
     if [[ -z "$jira_link" ]]; then
@@ -112,7 +117,7 @@ EOF
     # -----------------------------
     if [[ -z "$branch_title" ]]; then
         echo "Enter branch title (will be converted to lowercase with dashes):"
-        read -rp " > " branch_title
+        prompt_read " > " branch_title
     fi
 
     if [[ -z "$branch_title" ]]; then
@@ -138,7 +143,7 @@ EOF
     # -----------------------------
     if git show-ref --verify --quiet "refs/heads/$branch_name"; then
         echo "⚠ Branch '$branch_name' already exists locally."
-        read -rp "Switch to this branch instead? (Y/n): " ans
+        prompt_read "Switch to this branch instead? (Y/n): " ans
         case "$ans" in
             [nN][oO]|[nN])
                 echo "Aborted."

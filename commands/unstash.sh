@@ -1,3 +1,11 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2155
+
+# Source common utilities
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# shellcheck source=_utils.sh
+source "$SOURCE_DIR/_utils.sh"
+
 unstash() {
     # -----------------------------
     # 0. Check for help/version flag
@@ -72,7 +80,7 @@ EOF
         echo "fzf is not installed."
 
         # Ask whether to install with Homebrew
-        read -rp "Install fzf with Homebrew? (y/N): " ans
+        prompt_read "Install fzf with Homebrew? (y/N): " ans
         case "$ans" in
             [yY][eE][sS]|[yY])
                 echo "Installing fzf with brew..."
@@ -165,7 +173,7 @@ EOF
     # 6. Confirm before dropping
     # -----------------------------
     echo
-    read -rp "Drop $stash_id now? (y/N): " drop_ans
+    prompt_read "Drop $stash_id now? (y/N): " drop_ans
     case "$drop_ans" in
         [yY][eE][sS]|[yY])
             echo "Dropping $stash_id ..."

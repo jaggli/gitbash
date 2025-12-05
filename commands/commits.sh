@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2155
 
+# Source common utilities
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# shellcheck source=_utils.sh
+source "$SOURCE_DIR/_utils.sh"
+
 # List recent commits and optionally revert selected ones
 commits() {
     # -----------------------------
@@ -57,7 +62,7 @@ EOF
 
     if ! command -v fzf >/dev/null 2>&1; then
         echo "fzf is not installed."
-        read -rp "Install fzf with Homebrew? (y/N): " ans
+        prompt_read "Install fzf with Homebrew? (y/N): " ans
         case "$ans" in
             [yY][eE][sS]|[yY])
                 echo "Installing fzf with brew..."
@@ -185,7 +190,7 @@ Showing last $count commits" \
     echo ""
 
     local confirm
-    read -rp "Revert these ${#commits_to_revert[@]} commit(s)? (y/N): " confirm
+    prompt_read "Revert these ${#commits_to_revert[@]} commit(s)? (y/N): " confirm
     case "$confirm" in
         [yY][eE][sS]|[yY])
             echo "Reverting commits..."

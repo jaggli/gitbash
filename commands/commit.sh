@@ -1,3 +1,11 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2155
+
+# Source common utilities
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# shellcheck source=_utils.sh
+source "$SOURCE_DIR/_utils.sh"
+
 # Stage all changes and commit with a message.
 # If no commit message argument is given, prompt the user for one.
 commit() {
@@ -84,7 +92,7 @@ EOF
   # If no commit message was provided...
   if [ -z "$msg" ]; then
     # Prompt the user for a commit message (no newline, no extra spaces)
-    read -rp "Commit message: " msg
+    prompt_read "Commit message: " msg
   fi
 
   # Check if there are staged changes
@@ -107,7 +115,7 @@ EOF
     echo
     echo "You have both staged and unstaged changes."
     echo
-    read -rp "Commit [s]taged only, or [a]ll changes? (s/a): " commit_choice
+    prompt_read "Commit [s]taged only, or [a]ll changes? (s/a): " commit_choice
     
     case "$commit_choice" in
       [sS])
