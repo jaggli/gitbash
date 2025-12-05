@@ -153,31 +153,31 @@ EOF
     if [[ -n "$remote_commit" && "$local_commit" != "$remote_commit" ]]; then
       # Check if we're behind the remote
       if git merge-base --is-ancestor "$local_commit" "$remote_commit" 2>/dev/null; then
-        echo "Remote has updates. Pulling first..."
+        print_info "Remote has updates. Pulling first..."
         git pull --rebase origin "$current_branch"
         if [[ $? -ne 0 ]]; then
-          echo "⚠ Failed to pull remote changes. Please resolve conflicts and try again."
+          print_warning "Failed to pull remote changes. Please resolve conflicts and try again."
           return 1
         fi
-        echo "✓ Pulled latest changes."
+        print_success "Pulled latest changes."
       elif ! git merge-base --is-ancestor "$remote_commit" "$local_commit" 2>/dev/null; then
         # Branches have diverged
-        echo "Remote has diverged. Pulling with rebase..."
+        print_info "Remote has diverged. Pulling with rebase..."
         git pull --rebase origin "$current_branch"
         if [[ $? -ne 0 ]]; then
-          echo "⚠ Failed to pull remote changes. Please resolve conflicts and try again."
+          print_warning "Failed to pull remote changes. Please resolve conflicts and try again."
           return 1
         fi
-        echo "✓ Rebased on latest changes."
+        print_success "Rebased on latest changes."
       fi
     fi
     
-    echo "Pushing '$current_branch' to origin..."
+    print_info "Pushing '$current_branch' to origin..."
     git push origin "$current_branch"
     if [[ $? -eq 0 ]]; then
-      echo "✓ Successfully pushed '$current_branch' to origin."
+      print_success "Successfully pushed '$current_branch' to origin."
     else
-      echo "⚠ Failed to push '$current_branch' to origin."
+      print_warning "Failed to push '$current_branch' to origin."
       return 1
     fi
   fi

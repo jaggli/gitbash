@@ -142,7 +142,7 @@ EOF
     # 5. Check if branch already exists
     # -----------------------------
     if git show-ref --verify --quiet "refs/heads/$branch_name"; then
-        echo "⚠ Branch '$branch_name' already exists locally."
+        print_warning "Branch '$branch_name' already exists locally."
         prompt_read "Switch to this branch instead? (Y/n): " ans
         case "$ans" in
             [nN][oO]|[nN])
@@ -151,7 +151,7 @@ EOF
                 ;;
             *)
                 git checkout "$branch_name"
-                echo "✓ Switched to existing branch: $branch_name"
+                print_success "Switched to existing branch: $branch_name"
                 return 0
                 ;;
         esac
@@ -167,37 +167,37 @@ EOF
     elif git show-ref --verify --quiet refs/heads/master; then
         base_branch="master"
     else
-        echo "⚠ Could not detect 'main' or 'master' branch. Creating branch from current HEAD."
+        print_warning "Could not detect 'main' or 'master' branch. Creating branch from current HEAD."
         base_branch=""
     fi
 
     if [[ -n "$base_branch" ]]; then
-        echo "Updating '$base_branch' from origin..."
+        print_info "Updating '$base_branch' from origin..."
         if git fetch origin "$base_branch:$base_branch" 2>/dev/null; then
-            echo "✓ '$base_branch' is up to date."
+            print_success "'$base_branch' is up to date."
         else
-            echo "⚠ Could not update '$base_branch' from origin. Creating branch from local '$base_branch'."
+            print_warning "Could not update '$base_branch' from origin. Creating branch from local '$base_branch'."
         fi
     fi
 
     # -----------------------------
     # 7. Create branch
     # -----------------------------
-    echo "Creating branch..."
+    print_info "Creating branch..."
     if [[ -n "$base_branch" ]]; then
         # Create branch from updated base branch
         if git checkout -b "$branch_name" "$base_branch"; then
-            echo "✓ Successfully created and switched to branch: $branch_name (from $base_branch)"
+            print_success "Successfully created and switched to branch: $branch_name (from $base_branch)"
         else
-            echo "✗ Failed to create branch."
+            print_error "Failed to create branch."
             return 1
         fi
     else
         # Fallback: create from current HEAD
         if git checkout -b "$branch_name"; then
-            echo "✓ Successfully created and switched to branch: $branch_name"
+            print_success "Successfully created and switched to branch: $branch_name"
         else
-            echo "✗ Failed to create branch."
+            print_error "Failed to create branch."
             return 1
         fi
     fi
@@ -205,10 +205,10 @@ EOF
     # -----------------------------
     # 8. Push branch to origin and set up tracking
     # -----------------------------
-    echo "Pushing branch to origin and setting up tracking..."
+    print_info "Pushing branch to origin and setting up tracking..."
     if git push -u origin "$branch_name"; then
-        echo "✓ Successfully pushed '$branch_name' to origin with tracking."
+        print_success "Successfully pushed '$branch_name' to origin with tracking."
     else
-        echo "⚠ Failed to push branch to origin. You can push it later with: git push -u origin $branch_name"
+        print_warning "Failed to push branch to origin. You can push it later with: git push -u origin $branch_name"
     fi
 }

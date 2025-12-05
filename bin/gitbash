@@ -17,17 +17,55 @@ configure_gitbash() {
 
     local current_prefix="${GITBASH_FEATURE_BRANCH_PREFIX:-feature/}"
     local current_merge="${GITBASH_MERGE_COMMAND:-fork}"
+    local current_theme="${GITBASH_THEME:-auto}"
+    local current_stale_months="${GITBASH_STALE_MONTHS:-3}"
+    local current_cleanup_days="${GITBASH_CLEANUP_DAYS:-7}"
 
     echo "Configure gitbash (writes to $CONFIG_FILE)"
     echo
 
-    local input prefix merge_cmd
+    local input prefix merge_cmd theme stale_months cleanup_days
 
+    # Branch prefix
     read -e -p "Feature branch prefix (used by create) [${current_prefix}]: " input
     prefix=${input:-$current_prefix}
 
+    # Merge tool
     read -e -p "Merge tool command (used by update on conflicts) [${current_merge}]: " input
     merge_cmd=${input:-$current_merge}
+
+    # Theme preference
+    echo
+    echo "Theme preference for delta/bat (affects diff highlighting):"
+    echo "  auto  - Use terminal's theme detection"
+    echo "  dark  - Force dark theme"
+    echo "  light - Force light theme (GitHub style)"
+    read -e -p "Theme [${current_theme}]: " input
+    theme=${input:-$current_theme}
+    case "$theme" in
+        auto|dark|light) ;;
+        *) 
+            echo "Invalid theme. Using 'auto'."
+            theme="auto"
+            ;;
+    esac
+
+    # Stale branch threshold
+    echo
+    read -e -p "Stale branch threshold in months (used by stale) [${current_stale_months}]: " input
+    stale_months=${input:-$current_stale_months}
+    if ! [[ "$stale_months" =~ ^[0-9]+$ ]] || [[ "$stale_months" -lt 1 ]]; then
+        echo "Invalid value. Using default of 3 months."
+        stale_months=3
+    fi
+
+    # Cleanup threshold
+    read -e -p "Cleanup threshold in days (used by cleanup) [${current_cleanup_days}]: " input
+    cleanup_days=${input:-$current_cleanup_days}
+    if ! [[ "$cleanup_days" =~ ^[0-9]+$ ]] || [[ "$cleanup_days" -lt 1 ]]; then
+        echo "Invalid value. Using default of 7 days."
+        cleanup_days=7
+    fi
 
     cat > "$CONFIG_FILE" <<EOF
 # gitbash configuration
@@ -35,6 +73,12 @@ configure_gitbash() {
 GITBASH_FEATURE_BRANCH_PREFIX="$prefix"
 # Merge tool command invoked by 'update' when conflicts occur
 GITBASH_MERGE_COMMAND="$merge_cmd"
+# Theme for delta/bat: auto, dark, or light
+GITBASH_THEME="$theme"
+# Stale branch threshold in months (branches older than this in 'stale')
+GITBASH_STALE_MONTHS="$stale_months"
+# Cleanup threshold in days (branches merged more than this many days ago)
+GITBASH_CLEANUP_DAYS="$cleanup_days"
 EOF
 
     echo

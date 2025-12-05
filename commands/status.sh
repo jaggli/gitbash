@@ -74,36 +74,8 @@ EOF
   # -----------------------------
   # 1. Check prerequisites
   # -----------------------------
-  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    echo "Not inside a git repository."
-    return 1
-  fi
-
-  if ! command -v fzf >/dev/null 2>&1; then
-    echo "fzf is not installed."
-
-    # Ask whether to install with Homebrew
-    prompt_read "Install fzf with Homebrew? (y/N): " ans
-    case "$ans" in
-      [yY][eE][sS]|[yY])
-        echo "Installing fzf with brew..."
-        if ! command -v brew >/dev/null 2>&1; then
-          echo "Homebrew is not installed. Aborting."
-          return 1
-        fi
-        brew install fzf || { echo "fzf install failed. Aborting."; return 1; }
-        # Optional: install shell integrations automatically
-        if [[ -f "$(brew --prefix)/opt/fzf/install" ]]; then
-          echo "Running fzf install script..."
-          yes | "$(brew --prefix)/opt/fzf/install"
-        fi
-        ;;
-      *)
-        echo "Aborted (skipped fzf installation)."
-        return 1
-        ;;
-    esac
-  fi
+  require_git_repo || return 1
+  require_fzf || return 1
 
   # -----------------------------
   # 2. Get git status and format with staging info

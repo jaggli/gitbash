@@ -1,3 +1,11 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2155
+
+# Source common utilities
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# shellcheck source=_utils.sh
+source "$SOURCE_DIR/_utils.sh"
+
 stash() {
     # -----------------------------
     # 0. Check for help/version flag
@@ -80,7 +88,7 @@ EOF
         read -r stash_name
 
         if [[ -z "$stash_name" ]]; then
-            echo "Error: Stash name cannot be empty."
+            print_error "Stash name cannot be empty."
             return 1
         fi
     fi
@@ -89,9 +97,9 @@ EOF
     # 4. Create the stash
     # -----------------------------
     if git stash push -u -m "$stash_name"; then
-        echo "✓ Created stash: $stash_name"
+        print_success "Created stash: $stash_name"
     else
-        echo "Error: Failed to create stash."
+        print_error "Failed to create stash."
         return 1
     fi
 }

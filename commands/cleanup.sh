@@ -12,6 +12,8 @@ cleanup() {
     # 0. Check for help/version flag and parse options
     # -----------------------------
     local json_mode=false
+    local dry_run=false
+    local days_threshold="${GITBASH_CLEANUP_DAYS:-7}"
     
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -26,21 +28,26 @@ Usage: cleanup [OPTIONS]
 Find and delete local branches that are no longer needed.
 
 Options:
-  -h, --help    Show this help message
-  --json        Output branch data as JSON (non-interactive)
+  -h, --help       Show this help message
+  --json           Output branch data as JSON (non-interactive)
+  --dry-run        Show what would be deleted without actually deleting
+  --days=N         Override stale threshold (default: 7 days, configurable via GITBASH_CLEANUP_DAYS)
 
 Categories (pre-selected for deletion):
   - Merged branches: Local branches whose remote was merged and deleted
-  - Stale branches: Local branches with no commits in 7+ days
+  - Stale branches: Local branches with no commits in N+ days (default 7)
 
 Not pre-selected (but listed):
-  - Recent branches: Local branches with commits in the last 7 days
+  - Recent branches: Local branches with commits in the last N days
 
 Navigation:
   ↑/↓ or j/k    Navigate through branches
   TAB           Select/deselect branch
   Enter         Delete selected branch(es)
   ESC/Ctrl-C    Exit without action
+
+Configuration:
+  GITBASH_CLEANUP_DAYS - Set default days threshold (run 'gitbash --config')
 
 Notes:
   - Only deletes LOCAL branches (never touches remote)
@@ -54,6 +61,12 @@ Examples:
     [STALE]   feature/abandoned          8 days ago
     [RECENT]  feature/work-in-progress   2 days ago
     ✖ Abort
+
+  $ cleanup --dry-run
+  # Shows what would be deleted without deleting
+
+  $ cleanup --days=14
+  # Use 14-day threshold for stale branches
 
   $ cleanup --json
   [{"last_change_timestamp":1733123456,"author_email":"dev@example.com",...}]
@@ -69,6 +82,18 @@ EOF
                 json_mode=true
                 shift
                 ;;
+            --dry-run)
+                dry_run=true
+                shift
+                ;;
+            --days=*)
+                days_threshold="${1#--days=}"
+                if ! [[ "$days_threshold" =~ ^[0-9]+$ ]] || [[ "$days_threshold" -lt 1 ]]; then
+                    print_error "Invalid days value: $days_threshold"
+                    return 1
+                fi
+                shift
+                ;;
             *)
                 echo "Unknown option: $1"
                 return 1
@@ -82,38 +107,20 @@ EOF
         if [[ "$json_mode" == true ]]; then
             echo "[]"
         else
-            echo "Not inside a git repository." >&2
+            print_error "Not inside a git repository."
         fi
         return 1
     fi
 
     if [[ "$json_mode" == false ]]; then
-        if ! command -v fzf >/dev/null 2>&1; then
-            echo "fzf is not installed."
-            prompt_read "Install fzf with Homebrew? (y/N): " ans
-            case "$ans" in
-                [yY][eE][sS]|[yY])
-                    echo "Installing fzf with brew..."
-                    if ! command -v brew >/dev/null 2>&1; then
-                        echo "Homebrew is not installed. Aborting."
-                        return 1
-                    fi
-                    brew install fzf || { echo "fzf install failed. Aborting."; return 1; }
-                    ;;
-                *)
-                    echo "Aborted (skipped fzf installation)."
-                    return 1
-                    ;;
-            esac
-        fi
+        require_fzf || return 1
     fi
-
     # -----------------------------
     # 2. Fetch and prune to sync with remote
     # -----------------------------
     if ! git fetch --prune origin 2>/dev/null; then
         if [[ "$json_mode" == false ]]; then
-            echo "⚠ Fetch failed; continuing with local data." >&2
+            print_warning "Fetch failed; continuing with local data." >&2
         fi
     fi
 
@@ -141,8 +148,8 @@ EOF
     # 4. Build branch lists
     # -----------------------------
     local abort_label="✖ Abort"
-    local one_week_ago
-    one_week_ago=$(date -v-7d +%s 2>/dev/null || date -d "7 days ago" +%s 2>/dev/null)
+    local threshold_ago
+    threshold_ago=$(date -v-"${days_threshold}d" +%s 2>/dev/null || date -d "${days_threshold} days ago" +%s 2>/dev/null)
 
     # Get list of remote branches (without origin/ prefix)
     local remote_branches
@@ -185,8 +192,8 @@ EOF
         if [[ "$has_remote" == false && -n "$configured_upstream" ]]; then
             # Had upstream but remote is gone = merged and deleted remotely
             merged_branches+=("$entry")
-        elif [[ -n "$last_commit_ts" && "$last_commit_ts" -lt "$one_week_ago" ]]; then
-            # Stale: no commits in 7+ days (pre-select for deletion)
+        elif [[ -n "$last_commit_ts" && "$last_commit_ts" -lt "$threshold_ago" ]]; then
+            # Stale: no commits in N+ days (pre-select for deletion)
             stale_branches+=("$entry")
         else
             # Recent: has recent activity (don't pre-select)
@@ -458,6 +465,16 @@ Found $total_count branches ($preselect_count pre-selected for deletion)" \
     fi
     echo ""
 
+    # Handle dry-run mode
+    if [[ "$dry_run" == true ]]; then
+        print_info "Dry run mode - no branches will be deleted"
+        echo "Would delete ${#branches_to_delete[@]} branch(es):"
+        for branch in "${branches_to_delete[@]}"; do
+            echo "  - $branch"
+        done
+        return 0
+    fi
+
     # Default to Y if only merged branches, otherwise N
     local confirm
     if [[ "$only_merged" == true ]]; then
@@ -482,20 +499,20 @@ Found $total_count branches ($preselect_count pre-selected for deletion)" \
 
     # Switch to base branch if needed
     if [[ "$need_switch" == true ]]; then
-        echo "Switching to '$base_branch'..."
+        print_info "Switching to '$base_branch'..."
         git checkout "$base_branch" || {
-            echo "⚠ Failed to switch to '$base_branch'. Aborting deletion."
+            print_warning "Failed to switch to '$base_branch'. Aborting deletion."
             return 1
         }
     fi
 
-    echo "Deleting branches..."
+    print_info "Deleting branches..."
     for branch in "${branches_to_delete[@]}"; do
         echo "Deleting $branch ..."
         if git branch -D "$branch" 2>/dev/null; then
-            echo "✓ Deleted $branch"
+            print_success "Deleted $branch"
         else
-            echo "✗ Failed to delete $branch"
+            print_error "Failed to delete $branch"
         fi
     done
 }

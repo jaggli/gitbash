@@ -55,29 +55,8 @@ EOF
     # -----------------------------
     # 1. Check prerequisites
     # -----------------------------
-    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        echo "Not inside a git repository."
-        return 1
-    fi
-
-    if ! command -v fzf >/dev/null 2>&1; then
-        echo "fzf is not installed."
-        prompt_read "Install fzf with Homebrew? (y/N): " ans
-        case "$ans" in
-            [yY][eE][sS]|[yY])
-                echo "Installing fzf with brew..."
-                if ! command -v brew >/dev/null 2>&1; then
-                    echo "Homebrew is not installed. Aborting."
-                    return 1
-                fi
-                brew install fzf || { echo "fzf install failed. Aborting."; return 1; }
-                ;;
-            *)
-                echo "Aborted (skipped fzf installation)."
-                return 1
-                ;;
-        esac
-    fi
+    require_git_repo || return 1
+    require_fzf || return 1
 
     # -----------------------------
     # 2. Get commit count
@@ -193,7 +172,7 @@ Showing last $count commits" \
     prompt_read "Revert these ${#commits_to_revert[@]} commit(s)? (y/N): " confirm
     case "$confirm" in
         [yY][eE][sS]|[yY])
-            echo "Reverting commits..."
+            print_info "Reverting commits..."
             
             # Reverse the array to revert oldest first (avoids conflicts)
             local reversed=()
@@ -204,15 +183,15 @@ Showing last $count commits" \
             for hash in "${reversed[@]}"; do
                 echo "Reverting $hash ..."
                 if git revert --no-edit "$hash"; then
-                    echo "✓ Reverted $hash"
+                    print_success "Reverted $hash"
                 else
-                    echo "✗ Failed to revert $hash (conflict?)"
+                    print_error "Failed to revert $hash (conflict?)"
                     echo "  Resolve the conflict and run 'git revert --continue'"
                     return 1
                 fi
             done
             echo ""
-            echo "✓ All selected commits reverted."
+            print_success "All selected commits reverted."
             ;;
         *)
             echo "Revert cancelled."
