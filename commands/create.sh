@@ -196,13 +196,13 @@ TYPES
         print_info "No Jira link provided. Using NOISSUE."
     else
         # First try to match just the issue number pattern (e.g., PROJ-123)
-        issue_number=$(echo "$jira_link" | grep -o -E '^[A-Z]+-[0-9]+$' | head -1)
+        issue_number=$(echo "$jira_link" | grep -o -E '^[A-Z]+-[0-9]+$' | head -1 || true)
         
         # If not a direct match, try to extract from URL
         if [[ -z "$issue_number" ]]; then
             # Match patterns like PROJ-123, ABC-456, etc.
             # Supports both /browse/PROJ-123 and selectedIssue=PROJ-123 formats
-            issue_number=$(echo "$jira_link" | grep -o -E '(browse/|selectedIssue=)[A-Z]+-[0-9]+' | grep -o '[A-Z]\+-[0-9]\+' | head -1)
+            issue_number=$(echo "$jira_link" | grep -o -E '(browse/|selectedIssue=)[A-Z]+-[0-9]+' | grep -o '[A-Z]\+-[0-9]\+' | head -1 || true)
         fi
 
         if [[ -z "$issue_number" ]]; then

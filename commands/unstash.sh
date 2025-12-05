@@ -129,7 +129,7 @@ EOF
     # 4. Extract stash ID safely
     # -----------------------------
     local stash_id
-    stash_id=$(echo "$selection" | grep -o 'stash@{[0-9]\+}')
+    stash_id=$(echo "$selection" | grep -o 'stash@{[0-9]\+}' || true)
 
     if [[ -z "$stash_id" ]]; then
         echo "Error: Could not determine stash ID."

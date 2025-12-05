@@ -128,7 +128,7 @@ EOF
     local stash_ids=()
     local stash_id line
     while IFS= read -r line; do
-        stash_id=$(echo "$line" | grep -o 'stash@{[0-9]\+}')
+        stash_id=$(echo "$line" | grep -o 'stash@{[0-9]\+}' || true)
         if [[ -n "$stash_id" ]]; then
             stash_ids+=("$stash_id")
         fi
