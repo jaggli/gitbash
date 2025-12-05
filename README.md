@@ -7,7 +7,7 @@ Interactive git utilities for bash with fzf-powered menus.
 ### Via npm
 
 ```bash
-npm i -g gitbash
+npm i -g gitbash && gitbash --config
 ```
 
 ### Options
