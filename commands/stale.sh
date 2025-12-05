@@ -13,6 +13,7 @@ stale() {
     local json_mode=false
     local my_mode=false
     local filter_args=()
+    local stale_months="${GITBASH_STALE_MONTHS:-3}"
     
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -31,17 +32,21 @@ Arguments:
   FILTER...     Optional search filter words to pre-fill fzf (joined with spaces)
 
 Options:
-  -h, --help    Show this help message
-  -m, --my      Pre-fill filter with your git username (from git config user.name)
-  --json        Output branch data as JSON (non-interactive)
+  -h, --help      Show this help message
+  -m, --my        Pre-fill filter with your git username (from git config user.name)
+  --json          Output branch data as JSON (non-interactive)
+  --age=N         Override stale threshold in months (default: 3, configurable via GITBASH_STALE_MONTHS)
 
 Features:
   - Lists all remote branches sorted by last commit date (oldest first)
-  - By default, only shows branches older than 3 months (truly stale)
+  - By default, only shows branches older than N months (default 3)
   - Shows branch name, relative date, and author
   - Interactive selection with fzf
   - Preview shows recent commits on the selected branch
   - Delete selected branches directly from the list
+
+Configuration:
+  GITBASH_STALE_MONTHS - Set default threshold in months (run 'gitbash --config')
 
 Navigation:
   ↑/↓ or j/k    Navigate through branches
@@ -57,6 +62,12 @@ Examples:
     feature/another-old-one                4 months ago    Jane Smith
     feature/old-feature                    3 months ago    John Doe
     ✖ Abort
+
+  $ stale --age=1
+  # Show branches older than 1 month
+
+  $ stale --age=6
+  # Show branches older than 6 months
 
   # Press Ctrl-A to show all branches including recent ones
   # Select branches with TAB, press Enter to delete
@@ -86,6 +97,14 @@ EOF
                 ;;
             -m|--my)
                 my_mode=true
+                shift
+                ;;
+            --age=*)
+                stale_months="${1#--age=}"
+                if ! [[ "$stale_months" =~ ^[0-9]+$ ]] || [[ "$stale_months" -lt 1 ]]; then
+                    print_error "Invalid age value: $stale_months"
+                    return 1
+                fi
                 shift
                 ;;
             *)
@@ -142,9 +161,9 @@ EOF
     local abort_label="✖ Abort"
     local max_branch_length=65
     
-    # Calculate date 3 months ago
-    local three_months_ago
-    three_months_ago=$(date -v-3m +%s 2>/dev/null || date -d "3 months ago" +%s 2>/dev/null)
+    # Calculate date N months ago (based on stale_months)
+    local threshold_ago
+    threshold_ago=$(date -v-"${stale_months}m" +%s 2>/dev/null || date -d "${stale_months} months ago" +%s 2>/dev/null)
     
     # Build full branch list (all branches)
     # Format: display_branch | date | author | full_branch (tab-separated, last field is full branch for operations)
@@ -171,7 +190,7 @@ EOF
         grep -v '^origin$' | \
         while IFS='|' read -r branch date author timestamp; do
             # Only include if older than 3 months
-            if [[ "$timestamp" -lt "$three_months_ago" ]]; then
+            if [[ "$timestamp" -lt "$threshold_ago" ]]; then
                 # Remove origin/ prefix for display
                 local full_branch="${branch#origin/}"
                 local display_branch="$full_branch"
@@ -216,7 +235,7 @@ EOF
         while IFS='|' read -r branch rel_date author_name author_email timestamp; do
             [[ -z "$branch" ]] && continue
             # Only include if older than 3 months
-            if [[ "$timestamp" -lt "$three_months_ago" ]]; then
+            if [[ "$timestamp" -lt "$threshold_ago" ]]; then
                 local name="${branch#origin/}"
                 # Remove angle brackets from email
                 author_email="${author_email#<}"
@@ -280,7 +299,7 @@ TOGGLE_EOF
 #!/bin/bash
 state=\$(cat "$state_file")
 if [[ "\$state" == "stale" ]]; then
-    echo "Stale branches (>3 months, oldest first) > "
+    echo "Stale branches (>${stale_months}mo, oldest first) > "
 else
     echo "All branches (oldest first) > "
 fi
@@ -294,7 +313,7 @@ PROMPT_EOF
 state=\$(cat "$state_file")
 if [[ "\$state" == "stale" ]]; then
     echo "[TAB] select | [Ctrl-A] toggle all/stale | [Enter] delete | [ESC] exit
-Showing $stale_count stale branches (older than 3 months)"
+Showing $stale_count stale branches (older than ${stale_months} months)"
 else
     echo "[TAB] select | [Ctrl-A] toggle all/stale | [Enter] delete | [ESC] exit
 Showing all $all_count branches"
@@ -305,13 +324,13 @@ HEADER_EOF
     local selection
     selection=$(
         fzf \
-            --prompt="Stale branches (>3 months, oldest first) > " \
+            --prompt="Stale branches (>${stale_months}mo, oldest first) > " \
             --query="$filter" \
             -i \
             --reverse \
             --border \
             --header="[TAB] select | [Ctrl-A] toggle all/stale | [Enter] delete | [ESC] exit
-Showing $stale_count stale branches (older than 3 months)" \
+Showing $stale_count stale branches (older than ${stale_months} months)" \
             --multi \
             --delimiter=$'\t' \
             --with-nth=1 \

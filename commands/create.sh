@@ -8,24 +8,41 @@ source "$SOURCE_DIR/_utils.sh"
 
 create() {
     # -----------------------------
-    # 0. Check for help/version flag
+    # 0. Check for help/version flag and parse options
     # -----------------------------
-    if [[ "${1:-}" == "-v" || "${1:-}" == "--version" ]]; then
-        echo "gitbash ${FUNCNAME[0]} v$VERSION"
-        return 0
-    fi
-    if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-        cat << 'EOF'
-Usage: create [JIRA_LINK] [TITLE...]
+    local show_type_menu=false
+    local branch_type=""
+    local positional_args=()
+    
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -v|--version)
+                echo "gitbash ${FUNCNAME[0]} v$VERSION"
+                return 0
+                ;;
+            -h|--help)
+                cat << 'EOF'
+Usage: create [OPTIONS] [JIRA_LINK] [TITLE...]
 
-Create a new git branch with the pattern: feature/<ISSUE>-<title>
+Create a new git branch with the pattern: <prefix>/<ISSUE>-<title>
 
 Options:
-  -h, --help    Show this help message
+  -h, --help       Show this help message
+  -t, --type       Show branch type selector menu (feature, bugfix, hotfix, release)
+  --feature        Use 'feature/' prefix (default)
+  --bugfix         Use 'bugfix/' prefix
+  --hotfix         Use 'hotfix/' prefix
+  --release        Use 'release/' prefix
 
 Configuration:
-  - Branch prefix can be changed by editing the 'GITBASH_FEATURE_BRANCH_PREFIX' variable
-  - Default: "feature/"
+  - Default branch prefix can be set via GITBASH_FEATURE_BRANCH_PREFIX in ~/.gitbashrc
+  - Run 'gitbash --config' to set default prefix
+
+Branch Types:
+  feature/  - New features and enhancements
+  bugfix/   - Bug fixes
+  hotfix/   - Urgent production fixes
+  release/  - Release preparation branches
 
 Interactive mode (no arguments):
   $ create
@@ -39,6 +56,20 @@ Interactive mode (no arguments):
   Branch name: feature/PROJ-123-fix-login-bug
   Create this branch? (y/N): y
 
+With type selector:
+  $ create -t PROJ-123 urgent fix
+  Branch type >
+  > feature/ - New features and enhancements
+    bugfix/  - Bug fixes
+    hotfix/  - Urgent production fixes
+    release/ - Release preparation branches
+  
+  # Select hotfix/, creates: hotfix/PROJ-123-urgent-fix
+
+Quick type flags:
+  $ create --bugfix PROJ-456 fix crash
+  # Creates: bugfix/PROJ-456-fix-crash
+
 One-liner mode (with arguments):
   $ create https://jira.company.com/browse/PROJ-123 fix login bug
   Parsed issue number: PROJ-123
@@ -46,33 +77,99 @@ One-liner mode (with arguments):
   Branch name: feature/PROJ-123-fix-login-bug
   Create this branch? (y/N): y
 
-  $ create PROJ-456 add user settings
-  Parsed issue number: PROJ-456
-  
-  Branch name: feature/PROJ-456-add-user-settings
-  Create this branch? (y/N): y
-
 Examples:
   create https://jira.company.com/browse/PROJ-123 make some fixes
   create PROJ-456 implement new feature
-  create https://company.atlassian.net/browse/ABC-789 refactor code
+  create -t PROJ-789 some work                    # Show type menu
+  create --hotfix PROJ-999 critical fix           # Use hotfix prefix
 
 EOF
-        return 0
+                return 0
+                ;;
+            -t|--type)
+                show_type_menu=true
+                shift
+                ;;
+            --feature)
+                branch_type="feature/"
+                shift
+                ;;
+            --bugfix)
+                branch_type="bugfix/"
+                shift
+                ;;
+            --hotfix)
+                branch_type="hotfix/"
+                shift
+                ;;
+            --release)
+                branch_type="release/"
+                shift
+                ;;
+            *)
+                positional_args+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    # -----------------------------
+    # 1. Determine branch prefix
+    # -----------------------------
+    local branch_prefix
+    if [[ -n "$branch_type" ]]; then
+        branch_prefix="$branch_type"
+    elif [[ "$show_type_menu" == true ]]; then
+        if ! command -v fzf >/dev/null 2>&1; then
+            print_error "fzf is required for type selector. Install it or use --feature/--bugfix/--hotfix/--release flags."
+            return 1
+        fi
+
+        local type_options
+        type_options=$(cat << 'TYPES'
+feature/ - New features and enhancements
+bugfix/  - Bug fixes  
+hotfix/  - Urgent production fixes
+release/ - Release preparation branches
+TYPES
+)
+
+        local selected_type
+        selected_type=$(echo "$type_options" | fzf --prompt="Branch type > " \
+                  -i \
+                  --reverse \
+                  --border \
+                  --header="Select branch type" \
+                  --no-multi \
+                  --bind=enter:accept \
+        ) </dev/tty || true
+
+        if [[ -z "$selected_type" ]]; then
+            echo "Aborted."
+            return 1
+        fi
+
+        # Extract just the prefix (first word)
+        branch_prefix=$(echo "$selected_type" | awk '{print $1}')
+    else
+        branch_prefix="${GITBASH_FEATURE_BRANCH_PREFIX:-feature/}"
     fi
 
     # -----------------------------
-    # 1. Get Jira link from user (or from arguments)
+    # 2. Get Jira link from user (or from arguments)
     # -----------------------------
     local jira_link
     local branch_title
     
-    if [[ -n "${1:-}" ]]; then
+    if [[ ${#positional_args[@]} -gt 0 ]]; then
         # Arguments provided - use one-liner mode
-        jira_link="$1"
-        shift
+        jira_link="${positional_args[0]}"
         # Join remaining arguments as title
-        branch_title="$*"
+        if [[ ${#positional_args[@]} -gt 1 ]]; then
+            branch_title="${positional_args[*]:1}"
+        else
+            branch_title=""
+        fi
     else
         # Interactive mode
         echo "Enter Jira link (e.g., https://jira.company.com/browse/PROJ-123):"
@@ -131,7 +228,7 @@ EOF
     # -----------------------------
     # 4. Construct branch name
     # -----------------------------
-    local branch_prefix="${GITBASH_FEATURE_BRANCH_PREFIX:-feature/}"
+    # branch_prefix is set earlier from type menu, flag, or config
     local branch_name="${branch_prefix}${issue_number}-${branch_title}"
     
     echo

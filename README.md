@@ -2,6 +2,8 @@
 
 Interactive git utilities for bash with fzf-powered menus.
 
+![screenshot-status..png](./doc/screenshot-status.png)
+
 ## Installation
 
 ### Via npm
@@ -17,33 +19,6 @@ gitbash --help      # Show help
 gitbash --version   # Show version
 gitbash --init      # Print shell init code
 gitbash --config    # Interactive configuration wizard
-```
-
-### Shell Aliases
-
-Add these aliases to your `.zshrc` or `.bashrc` for individual command access:
-
-```bash
-alias branch="gitbash branch"
-alias cleanstash="gitbash cleanstash"
-alias cleanup="gitbash cleanup"
-alias commit="gitbash commit"
-alias commits="gitbash commits"
-alias create="gitbash create"
-alias pr="gitbash pr"
-alias stale="gitbash stale"
-alias stash="gitbash stash"
-alias stashes="gitbash stashes"
-alias status="gitbash status"
-alias switch="gitbash switch"
-alias unstash="gitbash unstash"
-alias update="gitbash update"
-```
-
-Or use the built-in shell integration, for all commands:
-
-```bash
-eval "$(gitbash --init)"
 ```
 
 ### Dependencies
@@ -214,6 +189,29 @@ List recent commits with option to revert. Multi-select with TAB to revert multi
 ```bash
 commits        # Show last 20 commits
 commits 50     # Show last 50 commits
+```
+
+### Individual aliases
+
+Instead of adding every command via `eval "$(gitbash --init)"` in `.zshrc` or `.bashrc`
+direct usage with `gitbash [command]` is also possible. Or if desired, individual aliases
+can be made.
+
+```bash
+alias branch="gitbash branch"
+alias cleanstash="gitbash cleanstash"
+alias cleanup="gitbash cleanup"
+alias commit="gitbash commit"
+alias commits="gitbash commits"
+alias create="gitbash create"
+alias pr="gitbash pr"
+alias stale="gitbash stale"
+alias stash="gitbash stash"
+alias stashes="gitbash stashes"
+alias status="gitbash status"
+alias switch="gitbash switch"
+alias unstash="gitbash unstash"
+alias update="gitbash update"
 ```
 
 ## License

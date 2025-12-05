@@ -11,6 +11,8 @@ source "$SOURCE_DIR/_utils.sh"
 commit() {
   local should_push=false
   local staged_only=false
+  local amend_mode=false
+  local show_prefix_menu=false
   local msg_parts=()
 
   # Parse arguments
@@ -27,9 +29,23 @@ Usage: commit [MESSAGE] [OPTIONS]
 Stage all changes (git add -A) and commit with a message.
 
 Options:
-  -p, --push    Push to origin after successful commit
-  -s, --staged  Commit only staged changes (skip prompt, ignore unstaged)
-  -h, --help    Show this help message
+  -p, --push      Push to origin after successful commit
+  -s, --staged    Commit only staged changes (skip prompt, ignore unstaged)
+  -a, --amend     Amend the last commit instead of creating a new one
+  -t, --type      Show conventional commit type selector (feat, fix, docs, etc.)
+  -h, --help      Show this help message
+
+Conventional Commit Types (with --type):
+  feat:     A new feature
+  fix:      A bug fix
+  docs:     Documentation only changes
+  style:    Code style changes (formatting, whitespace)
+  refactor: Code change that neither fixes a bug nor adds a feature
+  perf:     Performance improvement
+  test:     Adding or fixing tests
+  build:    Build system or dependency changes
+  ci:       CI/CD configuration changes
+  chore:    Other changes that don't modify src or test files
 
 Interactive mode (no message):
   $ commit
@@ -42,16 +58,19 @@ With message argument:
   [main 5d6e7f8] implement new feature
    3 files changed, 42 insertions(+), 8 deletions(-)
 
+With type selector:
+  $ commit -t fix broken tests
+  # Shows type menu, then commits as "fix: broken tests"
+
+Amend last commit:
+  $ commit --amend fix typo in docs
+  [main abc123] fix typo in docs
+   1 file changed, 1 insertion(+)
+
 With push option:
   $ commit update documentation -p
   [main 9a8b7c6] update documentation
    1 file changed, 10 insertions(+), 3 deletions(-)
-  Pushing 'main' to origin...
-  ✓ Successfully pushed 'main' to origin.
-
-  $ commit -p hotfix: critical bug
-  [main 3c2d1e0] hotfix: critical bug
-   2 files changed, 15 insertions(+), 5 deletions(-)
   Pushing 'main' to origin...
   ✓ Successfully pushed 'main' to origin.
 
@@ -61,6 +80,8 @@ Examples:
   commit refactor auth module --push        # Commit and push
   commit -p update dependencies             # Commit and push (short flag)
   commit -s -p fix bug                      # Commit only staged and push
+  commit -t add user endpoint               # Conventional commit with type menu
+  commit --amend fix typo                   # Amend last commit
 
 EOF
         return 0
@@ -73,9 +94,17 @@ EOF
         staged_only=true
         shift
         ;;
+      -a|--amend)
+        amend_mode=true
+        shift
+        ;;
+      -t|--type)
+        show_prefix_menu=true
+        shift
+        ;;
       -*)
         echo "Unknown option: $1"
-        echo "Usage: commit [message] [-p|--push] [-s|--staged]"
+        echo "Usage: commit [message] [-p|--push] [-s|--staged] [-a|--amend] [-t|--type]"
         return 1
         ;;
       *)
@@ -98,6 +127,58 @@ EOF
     prompt_read "Commit message: " msg
   fi
 
+  # Show conventional commit type menu if requested
+  if [[ "$show_prefix_menu" == true ]]; then
+    if ! command -v fzf >/dev/null 2>&1; then
+      print_error "fzf is required for type selector. Install it or provide message directly."
+      return 1
+    fi
+
+    local type_options
+    type_options=$(cat << 'TYPES'
+feat     - A new feature
+fix      - A bug fix
+docs     - Documentation only changes
+style    - Code style changes (formatting, whitespace)
+refactor - Code change that neither fixes nor adds a feature
+perf     - Performance improvement
+test     - Adding or fixing tests
+build    - Build system or dependency changes
+ci       - CI/CD configuration changes
+chore    - Other changes that don't modify src/test files
+TYPES
+)
+
+    local selected_type
+    selected_type=$(echo "$type_options" | fzf --prompt="Commit type > " \
+              -i \
+              --reverse \
+              --border \
+              --header="Select conventional commit type" \
+              --no-multi \
+              --bind=enter:accept \
+    ) </dev/tty || true
+
+    if [[ -z "$selected_type" ]]; then
+      echo "Aborted."
+      return 1
+    fi
+
+    # Extract just the type keyword (first word)
+    local type_keyword
+    type_keyword=$(echo "$selected_type" | awk '{print $1}')
+    
+    # Prepend to message
+    msg="${type_keyword}: ${msg}"
+    print_info "Commit message: $msg"
+  fi
+
+  # Build commit flags
+  local commit_flags=()
+  if [[ "$amend_mode" == true ]]; then
+    commit_flags+=("--amend")
+  fi
+
   # Check if there are staged changes
   local has_staged
   has_staged=$(git diff --cached --name-only)
@@ -105,8 +186,28 @@ EOF
   local has_unstaged
   has_unstaged=$(git diff --name-only)
 
+  # For amend mode, we might not need new changes
+  if [[ "$amend_mode" == true ]]; then
+    if [[ -z "$has_staged" && -z "$has_unstaged" ]]; then
+      print_info "Amending commit message only..."
+      git commit --amend -m "$msg"
+    else
+      # Has changes to add
+      if [[ "$staged_only" == true ]]; then
+        if [[ -z "$has_staged" ]]; then
+          print_info "Amending commit message only (no staged changes)..."
+          git commit --amend -m "$msg"
+        else
+          print_info "Amending with staged changes..."
+          git commit --amend -m "$msg"
+        fi
+      else
+        print_info "Amending with all changes..."
+        git add -A && git commit --amend -m "$msg"
+      fi
+    fi
   # If --staged flag is set, only commit staged changes
-  if [[ "$staged_only" == true ]]; then
+  elif [[ "$staged_only" == true ]]; then
     if [[ -z "$has_staged" ]]; then
       echo "No staged changes to commit."
       return 1
