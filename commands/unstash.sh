@@ -129,7 +129,7 @@ EOF
               --preview='
                     sel=$(echo {} | grep -o "stash@{[0-9]\+}" || true);
                     if [[ -n "$sel" ]]; then
-                        git stash show -p "$sel";
+                        git stash show -p "$sel" | delta 2>/dev/null || git stash show -p "$sel";
                     else
                         echo "No preview";
                     fi

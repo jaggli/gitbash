@@ -32,3 +32,26 @@ prompt_read_edit() {
         read -e -rp "$prompt" "$varname"
     fi
 }
+
+# Get the diff command to use (delta if installed, otherwise git diff)
+# Usage: get_diff_cmd
+# Returns the command name to use for diffs
+get_diff_cmd() {
+    if command -v delta >/dev/null 2>&1; then
+        echo "delta"
+    else
+        echo "git diff"
+    fi
+}
+
+# Show a diff using delta if available, otherwise git diff
+# Usage: show_diff [git diff args...]
+# Example: show_diff --cached
+# Example: show_diff HEAD~1
+show_diff() {
+    if command -v delta >/dev/null 2>&1; then
+        git diff "$@" | delta
+    else
+        git diff "$@"
+    fi
+}
