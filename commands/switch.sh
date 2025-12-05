@@ -136,10 +136,13 @@ EOF
   # -----------------------------
   # 5. Switch to branch
   # -----------------------------
+  local switch_success=false
   if [[ "$branch_type" == "local" ]]; then
     # Switch to local branch
     echo "Switching to local branch: $branch_name"
-    git checkout "$branch_name"
+    if git checkout "$branch_name"; then
+      switch_success=true
+    fi
   else
     # Handle remote branch
     local local_branch="${branch_name#*/}"  # Remove origin/ prefix
@@ -147,15 +150,52 @@ EOF
     # Check if local branch already exists
     if git show-ref --verify --quiet "refs/heads/$local_branch"; then
       echo "Switching to existing local branch: $local_branch"
-      git checkout "$local_branch"
+      if git checkout "$local_branch"; then
+        switch_success=true
+      fi
     else
       echo "Creating local tracking branch: $local_branch (tracking $branch_name)"
-      git checkout -b "$local_branch" --track "$branch_name"
+      if git checkout -b "$local_branch" --track "$branch_name"; then
+        switch_success=true
+      fi
     fi
   fi
 
-  if [[ $? -eq 0 ]]; then
-    print_success "Successfully switched to branch: $(git rev-parse --abbrev-ref HEAD)"
+  if [[ "$switch_success" == true ]]; then
+    print_success "Switched to branch: $(git rev-parse --abbrev-ref HEAD)"
+    
+    # -----------------------------
+    # 6. Check if branch is behind upstream and offer to pull
+    # -----------------------------
+    local upstream behind_count
+    upstream=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || true)
+    
+    if [[ -n "$upstream" ]]; then
+      # Fetch to get latest info (silently)
+      git fetch origin 2>/dev/null || true
+      
+      # Check how many commits we're behind
+      behind_count=$(git rev-list --count HEAD..@{upstream} 2>/dev/null || echo "0")
+      
+      if [[ "$behind_count" -gt 0 ]]; then
+        print_warning "Branch is $behind_count commit(s) behind '$upstream'"
+        local pull_answer
+        prompt_read "Pull latest changes? (Y/n): " pull_answer
+        case "$pull_answer" in
+          [nN][oO]|[nN])
+            print_info "Skipped pulling. Run 'git pull' when ready."
+            ;;
+          *)
+            if git pull; then
+              print_success "Successfully pulled latest changes."
+            else
+              print_error "Pull failed. You may need to resolve conflicts."
+              return 1
+            fi
+            ;;
+        esac
+      fi
+    fi
   else
     print_error "Failed to switch branch."
     return 1
