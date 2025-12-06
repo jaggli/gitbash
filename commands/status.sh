@@ -292,21 +292,16 @@ EOF
       done
       
       echo
-      prompt_read "Would you like to commit and push these changes? (Y/n): " ans
-      case "$ans" in
-        [nN][oO]|[nN])
-          echo "Continuing..."
-          ;;
-        *)
-          # Source commit.sh if commit function not available
-          if ! declare -f commit >/dev/null 2>&1; then
-            source "$SOURCE_DIR/commit.sh"
-          fi
-          # Use the commit function with staged and push flags
-          commit -s -p
-          break
-          ;;
-      esac
+      echo "Ready to commit and push staged changes."
+      echo "Press Ctrl+C to abort."
+      echo
+      # Source commit.sh if commit function not available
+      if ! declare -f commit >/dev/null 2>&1; then
+        source "$SOURCE_DIR/commit.sh"
+      fi
+      # Directly prompt for commit message (user can Ctrl+C to abort)
+      commit -s -p
+      break
     fi
   done
 }
