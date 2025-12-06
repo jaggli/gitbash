@@ -38,18 +38,31 @@ configure_gitbash() {
 
     # Issue parsing
     echo
-    read -e -p "Disable Jira issue parsing in branch names? (yes/no) [${current_no_issue_parsing}]: " input
-    no_issue_parsing=${input:-$current_no_issue_parsing}
-    case "$no_issue_parsing" in
-        yes|no) ;;
+    # Invert current value for display (no_issue_parsing="no" means enabled=yes)
+    local current_enabled="yes"
+    if [[ "$current_no_issue_parsing" == "yes" ]]; then
+        current_enabled="no"
+    fi
+    
+    read -e -p "Enable Jira issue parsing in branch names? (yes/no) [${current_enabled}]: " input
+    local enable_parsing=${input:-$current_enabled}
+    
+    # Convert answer to no_issue_parsing variable (inverted logic)
+    case "$enable_parsing" in
+        yes)
+            no_issue_parsing="no"
+            ;;
+        no)
+            no_issue_parsing="yes"
+            ;;
         *)
-            echo "Invalid value. Using 'no'."
+            echo "Invalid value. Using 'yes' (parsing enabled)."
             no_issue_parsing="no"
             ;;
     esac
 
     # Issue parsing fallback (only ask if parsing is enabled)
-    if [[ "$no_issue_parsing" == "no" ]]; then
+    if [[ "$enable_parsing" == "yes" ]]; then
         read -e -p "Fallback prefix when no issue number is provided [${current_issue_fallback}]: " input
         issue_fallback=${input:-$current_issue_fallback}
     else
