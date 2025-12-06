@@ -7,6 +7,19 @@ SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 source "$SOURCE_DIR/_utils.sh"
 
 create() {
+    # Load configuration
+    local no_issue_parsing="${GITBASH_CREATE_NO_ISSUE_PARSING:-no}"
+    local issue_fallback="${GITBASH_CREATE_ISSUE_PARSING_FALLBACK:-NOISSUE}"
+    
+    # Load branch prefix with backward compatibility
+    local branch_prefix_config="${GITBASH_CREATE_BRANCH_PREFIX:-}"
+    if [[ -z "$branch_prefix_config" && -n "${GITBASH_FEATURE_BRANCH_PREFIX:-}" ]]; then
+        # Migrate old variable: remove "feature/" prefix
+        branch_prefix_config="${GITBASH_FEATURE_BRANCH_PREFIX#feature/}"
+    fi
+    # Remove trailing slash if present (will be added automatically when used)
+    branch_prefix_config="${branch_prefix_config%/}"
+
     # -----------------------------
     # 0. Check for help/version flag and parse options
     # -----------------------------
@@ -24,19 +37,20 @@ create() {
                 cat << 'EOF'
 Usage: create [OPTIONS] [JIRA_LINK] [TITLE...]
 
-Create a new git branch with the pattern: <prefix>/<ISSUE>-<title>
+Create a new git branch with optional Jira issue parsing.
 
 Options:
   -h, --help       Show this help message
   -t, --type       Show branch type selector menu (feature, bugfix, hotfix, release)
-  --feature        Use 'feature/' prefix (default)
-  --bugfix         Use 'bugfix/' prefix
-  --hotfix         Use 'hotfix/' prefix
-  --release        Use 'release/' prefix
+  --feature        Use 'feature/' type (default)
+  --bugfix         Use 'bugfix/' type
+  --hotfix         Use 'hotfix/' type
+  --release        Use 'release/' type
 
-Configuration:
-  - Default branch prefix can be set via GITBASH_FEATURE_BRANCH_PREFIX in ~/.gitbashrc
-  - Run 'gitbash --config' to set default prefix
+Configuration (run 'gitbash --config'):
+  - GITBASH_CREATE_BRANCH_PREFIX: Custom prefix between type and issue (default: "")
+  - GITBASH_CREATE_NO_ISSUE_PARSING: Disable Jira parsing (yes/no, default: "no")
+  - GITBASH_CREATE_ISSUE_PARSING_FALLBACK: Fallback when no issue (default: "NOISSUE")
 
 Branch Types:
   feature/  - New features and enhancements
@@ -44,44 +58,48 @@ Branch Types:
   hotfix/   - Urgent production fixes
   release/  - Release preparation branches
 
-Interactive mode (no arguments):
+Branch Name Format:
+  <type><custom-prefix><issue>-<title>  (with issue parsing)
+  <type><custom-prefix><title>          (without issue parsing)
+
+Examples with custom prefix "awesome-team" (no trailing slash needed):
+
+  With issue parsing enabled (default):
+    $ create PROJ-123 fix login bug
+    # → feature/awesome-team/PROJ-123-fix-login-bug
+    
+    $ create fix bug
+    # → feature/awesome-team/NOISSUE-fix-bug (uses fallback)
+    
+    $ create --hotfix PROJ-999 critical fix
+    # → hotfix/awesome-team/PROJ-999-critical-fix
+
+  With issue parsing disabled (GITBASH_CREATE_NO_ISSUE_PARSING="yes"):
+    $ create fix login bug
+    # → feature/awesome-team/fix-login-bug
+    
+    $ create --hotfix enhance security
+    # → hotfix/awesome-team/enhance-security
+
+Examples with empty prefix (GITBASH_CREATE_BRANCH_PREFIX=""):
+
+  With parsing enabled:
+    $ create PROJ-123 fix bug
+    # → feature/PROJ-123-fix-bug
+
+  With parsing disabled:
+    $ create enhance login screen
+    # → feature/enhance-login-screen
+
+Interactive Mode:
   $ create
-  Enter Jira link (e.g., https://jira.company.com/browse/PROJ-123):
-  > https://jira.company.com/browse/PROJ-123
-  Parsed issue number: PROJ-123
+  # Prompts for Jira link (if parsing enabled) and title
 
-  Enter branch title (will be converted to lowercase with dashes):
-  > Fix Login Bug
-  
-  Branch name: feature/PROJ-123-fix-login-bug
-  Create this branch? (y/N): y
-
-With type selector:
-  $ create -t PROJ-123 urgent fix
-  Branch type >
-  > feature/ - New features and enhancements
-    bugfix/  - Bug fixes
-    hotfix/  - Urgent production fixes
-    release/ - Release preparation branches
-  
-  # Select hotfix/, creates: hotfix/PROJ-123-urgent-fix
-
-Quick type flags:
-  $ create --bugfix PROJ-456 fix crash
-  # Creates: bugfix/PROJ-456-fix-crash
-
-One-liner mode (with arguments):
-  $ create https://jira.company.com/browse/PROJ-123 fix login bug
-  Parsed issue number: PROJ-123
-  
-  Branch name: feature/PROJ-123-fix-login-bug
-  Create this branch? (y/N): y
-
-Examples:
+More Examples:
   create https://jira.company.com/browse/PROJ-123 make some fixes
   create PROJ-456 implement new feature
   create -t PROJ-789 some work                    # Show type menu
-  create --hotfix PROJ-999 critical fix           # Use hotfix prefix
+  create --hotfix PROJ-999 critical fix           # Use hotfix type
 
 EOF
                 return 0
@@ -149,19 +167,26 @@ TYPES
             return 1
         fi
 
-        # Extract just the prefix (first word)
+        # Extract just the type prefix (first word)
         branch_prefix=$(echo "$selected_type" | awk '{print $1}')
     else
-        branch_prefix="${GITBASH_FEATURE_BRANCH_PREFIX:-feature/}"
+        # Use default feature/ type
+        branch_prefix="feature/"
     fi
 
     # -----------------------------
-    # 2. Get Jira link from user (or from arguments)
+    # 2. Get Jira link from user (or from arguments) - skip if parsing disabled
     # -----------------------------
     local jira_link
     local branch_title
     
-    if [[ ${#positional_args[@]} -gt 0 ]]; then
+    if [[ "$no_issue_parsing" == "yes" ]]; then
+        # Issue parsing disabled - treat all args as branch title
+        if [[ ${#positional_args[@]} -gt 0 ]]; then
+            branch_title="${positional_args[*]}"
+        fi
+        jira_link=""
+    elif [[ ${#positional_args[@]} -gt 0 ]]; then
         # Arguments provided - use one-liner mode
         # Use array index 1 for zsh compatibility (zsh arrays are 1-indexed, bash uses 0)
         if [[ -n "${ZSH_VERSION:-}" ]]; then
@@ -190,10 +215,13 @@ TYPES
     # -----------------------------
     local issue_number
     
-    if [[ -z "$jira_link" ]]; then
-        # No Jira link provided, use NOISSUE
-        issue_number="NOISSUE"
-        print_info "No Jira link provided. Using NOISSUE."
+    if [[ "$no_issue_parsing" == "yes" ]]; then
+        # Issue parsing disabled - no issue number in branch name
+        issue_number=""
+    elif [[ -z "$jira_link" ]]; then
+        # No Jira link provided, use configured fallback
+        issue_number="$issue_fallback"
+        print_info "No Jira link provided. Using $issue_fallback."
     else
         # First try to match just the issue number pattern (e.g., PROJ-123)
         issue_number=$(echo "$jira_link" | grep -o -E '^[A-Z]+-[0-9]+$' | head -1 || true)
@@ -206,8 +234,8 @@ TYPES
         fi
 
         if [[ -z "$issue_number" ]]; then
-            print_warning "Could not parse issue number from Jira link. Using NOISSUE."
-            issue_number="NOISSUE"
+            print_warning "Could not parse issue number from Jira link. Using $issue_fallback."
+            issue_number="$issue_fallback"
             # If parsing failed and we had arguments, include the first arg in the title
             if [[ -n "$branch_title" ]]; then
                 branch_title="$jira_link $branch_title"
@@ -238,8 +266,20 @@ TYPES
     # -----------------------------
     # 4. Construct branch name
     # -----------------------------
-    # branch_prefix is set earlier from type menu, flag, or config
-    local branch_name="${branch_prefix}${issue_number}-${branch_title}"
+    # branch_prefix contains the type (feature/, hotfix/, etc.)
+    # branch_prefix_config is the custom prefix inserted between type and issue
+    # Format: <type>/<custom-prefix>/<issue>-<title> or <type>/<custom-prefix>/<title>
+    local branch_name
+    local custom_prefix_part=""
+    if [[ -n "$branch_prefix_config" ]]; then
+        custom_prefix_part="${branch_prefix_config}/"
+    fi
+    
+    if [[ -n "$issue_number" ]]; then
+        branch_name="${branch_prefix}${custom_prefix_part}${issue_number}-${branch_title}"
+    else
+        branch_name="${branch_prefix}${custom_prefix_part}${branch_title}"
+    fi
     
     echo "Branch name: $branch_name"
 

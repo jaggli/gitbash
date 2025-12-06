@@ -32,29 +32,6 @@ brew install git-delta  # Better diff highlighting
 brew install bat        # File preview with syntax highlighting
 ```
 
-### Configuration
-
-gitbash reads configuration from `~/.gitbashrc` if it exists. You can set the following variables:
-
-```bash
-# Prefix for feature branches (default: "feature/")
-GITBASH_FEATURE_BRANCH_PREFIX="feature/"
-
-# Merge tool command invoked by 'update' when conflicts occur (default: "fork")
-GITBASH_MERGE_COMMAND="fork"
-
-# Theme for delta/bat diff highlighting: auto, dark, or light (default: "light")
-GITBASH_THEME="light"
-
-# Stale branch threshold in months for 'stale' command (default: 3)
-GITBASH_STALE_MONTHS=3
-
-# Cleanup threshold in days - branches merged more than this many days ago (default: 7)
-GITBASH_CLEANUP_DAYS=7
-```
-
-You can create this file manually or use `gitbash --config` to configure interactively.
-
 ## Commands
 
 ### branch
@@ -73,11 +50,38 @@ branch --version    # Show version
 create [JIRA_LINK|ISSUE] [TITLE...]
 ```
 
-Create feature branch with Jira parsing. Updates main first, pushes and tracks.
+Create feature branch with optional Jira parsing. Updates main first, pushes and tracks.
 
+**Branch Name Format:** `<type>/<custom-prefix>/<issue>-<title>` or `<type>/<custom-prefix>/<title>`
+
+**Examples with custom prefix** (`GITBASH_CREATE_BRANCH_PREFIX="awesome-team"`):
+
+With issue parsing enabled (default):
 ```bash
-create PROJ-123 fix login bug  # → feature/PROJ-123-fix-login-bug
-create                          # Interactive mode
+create PROJ-123 fix login bug           # → feature/awesome-team/PROJ-123-fix-login-bug
+create fix bug                          # → feature/awesome-team/NOISSUE-fix-bug
+create --hotfix PROJ-999 critical fix   # → hotfix/awesome-team/PROJ-999-critical-fix
+create                                  # Interactive mode with Jira prompt
+```
+
+With issue parsing disabled (`GITBASH_CREATE_NO_ISSUE_PARSING="yes"`):
+```bash
+create fix login bug                    # → feature/awesome-team/fix-login-bug
+create --hotfix enhance security        # → hotfix/awesome-team/enhance-security
+create                                  # Interactive mode (no Jira prompt)
+```
+
+**Examples with empty prefix** (`GITBASH_CREATE_BRANCH_PREFIX=""`, default):
+
+With parsing enabled:
+```bash
+create PROJ-123 fix bug                 # → feature/PROJ-123-fix-bug
+create fix bug                          # → feature/NOISSUE-fix-bug
+```
+
+With parsing disabled:
+```bash
+create enhance login screen             # → feature/enhance-login-screen
 ```
 
 ### switch
@@ -201,6 +205,39 @@ List recent commits with option to revert. Multi-select with TAB to revert multi
 commits        # Show last 20 commits
 commits 50     # Show last 50 commits
 ```
+
+### Configuration
+
+gitbash reads configuration from `~/.gitbashrc` if it exists. You can set the following variables:
+
+```bash
+# Branch prefix inserted between type and issue number (default: "")
+# No trailing slash needed - it's added automatically
+# Format: <type>/<prefix>/<issue>-<title> or <type>/<prefix>/<title>
+# Examples: "awesome-team" or "" for no prefix
+GITBASH_CREATE_BRANCH_PREFIX=""
+
+# Merge tool command invoked by 'update' when conflicts occur (default: "fork")
+GITBASH_MERGE_COMMAND="fork"
+
+# Disable Jira issue number parsing in branch names: yes or no (default: "no")
+GITBASH_CREATE_NO_ISSUE_PARSING="no"
+
+# Fallback prefix when no issue number is provided (default: "NOISSUE")
+# Only used when GITBASH_CREATE_NO_ISSUE_PARSING="no"
+GITBASH_CREATE_ISSUE_PARSING_FALLBACK="NOISSUE"
+
+# Theme for delta/bat diff highlighting: auto, dark, or light (default: "light")
+GITBASH_THEME="light"
+
+# Stale branch threshold in months for 'stale' command (default: 3)
+GITBASH_STALE_MONTHS=3
+
+# Cleanup threshold in days - branches merged more than this many days ago (default: 7)
+GITBASH_CLEANUP_DAYS=7
+```
+
+You can create this file manually or use `gitbash --config` to configure interactively.
 
 ### Individual aliases
 
