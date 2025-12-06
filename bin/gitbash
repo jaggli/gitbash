@@ -51,6 +51,7 @@ configure_gitbash() {
     prefix="${prefix%/}"
 
     # Merge tool
+    echo
     read -e -p "Merge tool command (used by update on conflicts) [${current_merge}]: " input
     merge_cmd=${input:-$current_merge}
 
