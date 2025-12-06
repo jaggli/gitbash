@@ -54,14 +54,15 @@ Create feature branch with optional Jira parsing. Updates main first, pushes and
 
 **With issue parsing enabled** (default, `GITBASH_CREATE_NO_ISSUE_PARSING="no"`):
 ```bash
-create PROJ-123 fix login bug  # → feature/PROJ-123-fix-login-bug
-create fix bug                 # → feature/NOISSUE-fix-bug (or custom fallback)
+create https://your-company.atlassian.net/browse/PROJ-123 fix login bug   # → feature/PROJ-123-fix-login-bug
+create PROJ-123 fix login bug   # → feature/PROJ-123-fix-login-bug
+create fix bug                  # → feature/NOISSUE-fix-bug (or custom fallback)
 create                          # Interactive mode with Jira prompt
 ```
 
 **With issue parsing disabled** (`GITBASH_CREATE_NO_ISSUE_PARSING="yes"`):
 ```bash
-create fix login bug           # → feature/fix-login-bug
+create fix login bug            # → feature/fix-login-bug
 create                          # Interactive mode (no Jira prompt)
 ```
 
