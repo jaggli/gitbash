@@ -52,18 +52,36 @@ create [JIRA_LINK|ISSUE] [TITLE...]
 
 Create feature branch with optional Jira parsing. Updates main first, pushes and tracks.
 
-**With issue parsing enabled** (default, `GITBASH_CREATE_NO_ISSUE_PARSING="no"`):
+**Branch Name Format:** `<type><custom-prefix><issue>-<title>` or `<type><custom-prefix><title>`
+
+**Examples with custom prefix** (`GITBASH_CREATE_BRANCH_PREFIX="awesome-team/"`):
+
+With issue parsing enabled (default):
 ```bash
-create https://your-company.atlassian.net/browse/PROJ-123 fix login bug   # → feature/PROJ-123-fix-login-bug
-create PROJ-123 fix login bug   # → feature/PROJ-123-fix-login-bug
-create fix bug                  # → feature/NOISSUE-fix-bug (or custom fallback)
-create                          # Interactive mode with Jira prompt
+create PROJ-123 fix login bug           # → feature/awesome-team/PROJ-123-fix-login-bug
+create fix bug                          # → feature/awesome-team/NOISSUE-fix-bug
+create --hotfix PROJ-999 critical fix   # → hotfix/awesome-team/PROJ-999-critical-fix
+create                                  # Interactive mode with Jira prompt
 ```
 
-**With issue parsing disabled** (`GITBASH_CREATE_NO_ISSUE_PARSING="yes"`):
+With issue parsing disabled (`GITBASH_CREATE_NO_ISSUE_PARSING="yes"`):
 ```bash
-create fix login bug            # → feature/fix-login-bug
-create                          # Interactive mode (no Jira prompt)
+create fix login bug                    # → feature/awesome-team/fix-login-bug
+create --hotfix enhance security        # → hotfix/awesome-team/enhance-security
+create                                  # Interactive mode (no Jira prompt)
+```
+
+**Examples with empty prefix** (`GITBASH_CREATE_BRANCH_PREFIX=""`, default):
+
+With parsing enabled:
+```bash
+create PROJ-123 fix bug                 # → feature/PROJ-123-fix-bug
+create fix bug                          # → feature/NOISSUE-fix-bug
+```
+
+With parsing disabled:
+```bash
+create enhance login screen             # → feature/enhance-login-screen
 ```
 
 ### switch
@@ -193,8 +211,10 @@ commits 50     # Show last 50 commits
 gitbash reads configuration from `~/.gitbashrc` if it exists. You can set the following variables:
 
 ```bash
-# Prefix for feature branches (default: "feature/")
-GITBASH_FEATURE_BRANCH_PREFIX="feature/"
+# Branch prefix inserted between type and issue number (default: "")
+# Format: <type><prefix><issue>-<title> or <type><prefix><title>
+# Examples: "awesome-team/" or "" for no prefix
+GITBASH_CREATE_BRANCH_PREFIX=""
 
 # Merge tool command invoked by 'update' when conflicts occur (default: "fork")
 GITBASH_MERGE_COMMAND="fork"

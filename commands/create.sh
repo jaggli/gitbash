@@ -10,6 +10,13 @@ create() {
     # Load configuration
     local no_issue_parsing="${GITBASH_CREATE_NO_ISSUE_PARSING:-no}"
     local issue_fallback="${GITBASH_CREATE_ISSUE_PARSING_FALLBACK:-NOISSUE}"
+    
+    # Load branch prefix with backward compatibility
+    local branch_prefix_config="${GITBASH_CREATE_BRANCH_PREFIX:-}"
+    if [[ -z "$branch_prefix_config" && -n "${GITBASH_FEATURE_BRANCH_PREFIX:-}" ]]; then
+        # Migrate old variable: remove "feature/" prefix
+        branch_prefix_config="${GITBASH_FEATURE_BRANCH_PREFIX#feature/}"
+    fi
 
     # -----------------------------
     # 0. Check for help/version flag and parse options
@@ -33,13 +40,13 @@ Create a new git branch with optional Jira issue parsing.
 Options:
   -h, --help       Show this help message
   -t, --type       Show branch type selector menu (feature, bugfix, hotfix, release)
-  --feature        Use 'feature/' prefix (default)
-  --bugfix         Use 'bugfix/' prefix
-  --hotfix         Use 'hotfix/' prefix
-  --release        Use 'release/' prefix
+  --feature        Use 'feature/' type (default)
+  --bugfix         Use 'bugfix/' type
+  --hotfix         Use 'hotfix/' type
+  --release        Use 'release/' type
 
 Configuration (run 'gitbash --config'):
-  - GITBASH_FEATURE_BRANCH_PREFIX: Default branch prefix (default: "feature/")
+  - GITBASH_CREATE_BRANCH_PREFIX: Custom prefix between type and issue (default: "")
   - GITBASH_CREATE_NO_ISSUE_PARSING: Disable Jira parsing (yes/no, default: "no")
   - GITBASH_CREATE_ISSUE_PARSING_FALLBACK: Fallback when no issue (default: "NOISSUE")
 
@@ -49,32 +56,48 @@ Branch Types:
   hotfix/   - Urgent production fixes
   release/  - Release preparation branches
 
-Branch Name Patterns:
+Branch Name Format:
+  <type><custom-prefix><issue>-<title>  (with issue parsing)
+  <type><custom-prefix><title>          (without issue parsing)
 
-With issue parsing enabled (default):
-  Pattern: <prefix>/<ISSUE>-<title>
-  
-  $ create PROJ-123 fix login bug
-  # → feature/PROJ-123-fix-login-bug
-  
-  $ create fix bug
-  # → feature/NOISSUE-fix-bug (uses fallback)
+Examples with custom prefix "awesome-team/":
 
-With issue parsing disabled (GITBASH_CREATE_NO_ISSUE_PARSING="yes"):
-  Pattern: <prefix>/<title>
-  
-  $ create fix login bug
-  # → feature/fix-login-bug
+  With issue parsing enabled (default):
+    $ create PROJ-123 fix login bug
+    # → feature/awesome-team/PROJ-123-fix-login-bug
+    
+    $ create fix bug
+    # → feature/awesome-team/NOISSUE-fix-bug (uses fallback)
+    
+    $ create --hotfix PROJ-999 critical fix
+    # → hotfix/awesome-team/PROJ-999-critical-fix
+
+  With issue parsing disabled (GITBASH_CREATE_NO_ISSUE_PARSING="yes"):
+    $ create fix login bug
+    # → feature/awesome-team/fix-login-bug
+    
+    $ create --hotfix enhance security
+    # → hotfix/awesome-team/enhance-security
+
+Examples with empty prefix (GITBASH_CREATE_BRANCH_PREFIX=""):
+
+  With parsing enabled:
+    $ create PROJ-123 fix bug
+    # → feature/PROJ-123-fix-bug
+
+  With parsing disabled:
+    $ create enhance login screen
+    # → feature/enhance-login-screen
 
 Interactive Mode:
   $ create
   # Prompts for Jira link (if parsing enabled) and title
 
-Examples:
+More Examples:
   create https://jira.company.com/browse/PROJ-123 make some fixes
   create PROJ-456 implement new feature
   create -t PROJ-789 some work                    # Show type menu
-  create --hotfix PROJ-999 critical fix           # Use hotfix prefix
+  create --hotfix PROJ-999 critical fix           # Use hotfix type
 
 EOF
                 return 0
@@ -142,10 +165,11 @@ TYPES
             return 1
         fi
 
-        # Extract just the prefix (first word)
+        # Extract just the type prefix (first word)
         branch_prefix=$(echo "$selected_type" | awk '{print $1}')
     else
-        branch_prefix="${GITBASH_FEATURE_BRANCH_PREFIX:-feature/}"
+        # Use default feature/ type
+        branch_prefix="feature/"
     fi
 
     # -----------------------------
@@ -249,12 +273,14 @@ TYPES
     # -----------------------------
     # 4. Construct branch name
     # -----------------------------
-    # branch_prefix is set earlier from type menu, flag, or config
+    # branch_prefix contains the type (feature/, hotfix/, etc.)
+    # branch_prefix_config is the custom prefix inserted between type and issue
+    # Format: <type><custom-prefix><issue>-<title> or <type><custom-prefix><title>
     local branch_name
     if [[ -n "$issue_number" ]]; then
-        branch_name="${branch_prefix}${issue_number}-${branch_title}"
+        branch_name="${branch_prefix}${branch_prefix_config}${issue_number}-${branch_title}"
     else
-        branch_name="${branch_prefix}${branch_title}"
+        branch_name="${branch_prefix}${branch_prefix_config}${branch_title}"
     fi
     
     echo "Branch name: $branch_name"

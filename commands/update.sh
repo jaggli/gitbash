@@ -8,7 +8,7 @@ source "$SOURCE_DIR/_utils.sh"
 
 # Update the current branch with the latest version of master/main
 update() {
-  local merge_tool="${GITBASH_FEATURE_BRANCH_PREFIX:-}"
+  local merge_tool="${GITBASH_MERGE_COMMAND:-fork}"
   local should_push=false
 
   # Parse arguments

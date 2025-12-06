@@ -15,7 +15,15 @@ load_config() {
 configure_gitbash() {
     load_config
 
-    local current_prefix="${GITBASH_FEATURE_BRANCH_PREFIX:-feature/}"
+    # Backward compatibility: migrate GITBASH_FEATURE_BRANCH_PREFIX to GITBASH_CREATE_BRANCH_PREFIX
+    local current_prefix="${GITBASH_CREATE_BRANCH_PREFIX:-}"
+    if [[ -z "$current_prefix" && -n "${GITBASH_FEATURE_BRANCH_PREFIX:-}" ]]; then
+        # Remove "feature/" prefix from old variable
+        current_prefix="${GITBASH_FEATURE_BRANCH_PREFIX#feature/}"
+    fi
+    # Default to empty if still not set
+    current_prefix="${current_prefix:-}"
+    
     local current_merge="${GITBASH_MERGE_COMMAND:-fork}"
     local current_theme="${GITBASH_THEME:-auto}"
     local current_stale_months="${GITBASH_STALE_MONTHS:-3}"
@@ -29,7 +37,8 @@ configure_gitbash() {
     local input prefix merge_cmd theme stale_months cleanup_days no_issue_parsing issue_fallback
 
     # Branch prefix
-    read -e -p "Feature branch prefix (used by create) [${current_prefix}]: " input
+    echo "Branch prefix (inserted between type and issue, e.g., 'team-name/' or '')"
+    read -e -p "Prefix for all branch types [${current_prefix}]: " input
     prefix=${input:-$current_prefix}
 
     # Merge tool
@@ -104,8 +113,9 @@ configure_gitbash() {
 
     cat > "$CONFIG_FILE" <<EOF
 # gitbash configuration
-# Prefix for feature branches created by 'create'
-GITBASH_FEATURE_BRANCH_PREFIX="$prefix"
+# Branch prefix inserted between type and issue (e.g., 'team-name/' or '')
+# Format: <type><prefix><issue>-<title> or <type><prefix><title>
+GITBASH_CREATE_BRANCH_PREFIX="$prefix"
 # Merge tool command invoked by 'update' when conflicts occur
 GITBASH_MERGE_COMMAND="$merge_cmd"
 # Disable Jira issue number parsing in branch names (yes/no)
