@@ -21,6 +21,8 @@ configure_gitbash() {
         # Remove "feature/" prefix from old variable
         current_prefix="${GITBASH_FEATURE_BRANCH_PREFIX#feature/}"
     fi
+    # Remove trailing slash if present
+    current_prefix="${current_prefix%/}"
     # Default to empty if still not set
     current_prefix="${current_prefix:-}"
     
@@ -38,13 +40,15 @@ configure_gitbash() {
 
     # Branch prefix
     echo "Branch prefix (inserted between type and branch name):"
-    echo "A good prefix helps organize branches by team or subproject."
+    echo "Team names are typically used to organize branches by team or subproject."
     echo "Examples:"
-    echo "  ''              → feature/PROJ-123-fix-bug"
-    echo "  'team/'         → feature/team/PROJ-123-fix-bug"
-    echo "  'awesome-team/' → hotfix/awesome-team/PROJ-999-critical-fix"
+    echo "  ''             → feature/PROJ-123-fix-bug"
+    echo "  'team'         → feature/team/PROJ-123-fix-bug"
+    echo "  'awesome-team' → hotfix/awesome-team/PROJ-999-critical-fix"
     read -e -p "Prefix for all branch types [${current_prefix}]: " input
     prefix=${input:-$current_prefix}
+    # Remove trailing slash if present (will be added automatically)
+    prefix="${prefix%/}"
 
     # Merge tool
     read -e -p "Merge tool command (used by update on conflicts) [${current_merge}]: " input
@@ -118,8 +122,9 @@ configure_gitbash() {
 
     cat > "$CONFIG_FILE" <<EOF
 # gitbash configuration
-# Branch prefix inserted between type and issue (e.g., 'team-name/' or '')
-# Format: <type><prefix><issue>-<title> or <type><prefix><title>
+# Branch prefix inserted between type and issue (e.g., 'team-name' or '')
+# No trailing slash needed - it's added automatically
+# Format: <type>/<prefix>/<issue>-<title> or <type>/<prefix>/<title>
 GITBASH_CREATE_BRANCH_PREFIX="$prefix"
 # Merge tool command invoked by 'update' when conflicts occur
 GITBASH_MERGE_COMMAND="$merge_cmd"

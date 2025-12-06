@@ -52,9 +52,9 @@ create [JIRA_LINK|ISSUE] [TITLE...]
 
 Create feature branch with optional Jira parsing. Updates main first, pushes and tracks.
 
-**Branch Name Format:** `<type><custom-prefix><issue>-<title>` or `<type><custom-prefix><title>`
+**Branch Name Format:** `<type>/<custom-prefix>/<issue>-<title>` or `<type>/<custom-prefix>/<title>`
 
-**Examples with custom prefix** (`GITBASH_CREATE_BRANCH_PREFIX="awesome-team/"`):
+**Examples with custom prefix** (`GITBASH_CREATE_BRANCH_PREFIX="awesome-team"`):
 
 With issue parsing enabled (default):
 ```bash
@@ -212,8 +212,9 @@ gitbash reads configuration from `~/.gitbashrc` if it exists. You can set the fo
 
 ```bash
 # Branch prefix inserted between type and issue number (default: "")
-# Format: <type><prefix><issue>-<title> or <type><prefix><title>
-# Examples: "awesome-team/" or "" for no prefix
+# No trailing slash needed - it's added automatically
+# Format: <type>/<prefix>/<issue>-<title> or <type>/<prefix>/<title>
+# Examples: "awesome-team" or "" for no prefix
 GITBASH_CREATE_BRANCH_PREFIX=""
 
 # Merge tool command invoked by 'update' when conflicts occur (default: "fork")

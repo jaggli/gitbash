@@ -17,6 +17,8 @@ create() {
         # Migrate old variable: remove "feature/" prefix
         branch_prefix_config="${GITBASH_FEATURE_BRANCH_PREFIX#feature/}"
     fi
+    # Remove trailing slash if present (will be added automatically when used)
+    branch_prefix_config="${branch_prefix_config%/}"
 
     # -----------------------------
     # 0. Check for help/version flag and parse options
@@ -60,7 +62,7 @@ Branch Name Format:
   <type><custom-prefix><issue>-<title>  (with issue parsing)
   <type><custom-prefix><title>          (without issue parsing)
 
-Examples with custom prefix "awesome-team/":
+Examples with custom prefix "awesome-team" (no trailing slash needed):
 
   With issue parsing enabled (default):
     $ create PROJ-123 fix login bug
@@ -275,12 +277,17 @@ TYPES
     # -----------------------------
     # branch_prefix contains the type (feature/, hotfix/, etc.)
     # branch_prefix_config is the custom prefix inserted between type and issue
-    # Format: <type><custom-prefix><issue>-<title> or <type><custom-prefix><title>
+    # Format: <type>/<custom-prefix>/<issue>-<title> or <type>/<custom-prefix>/<title>
     local branch_name
+    local custom_prefix_part=""
+    if [[ -n "$branch_prefix_config" ]]; then
+        custom_prefix_part="${branch_prefix_config}/"
+    fi
+    
     if [[ -n "$issue_number" ]]; then
-        branch_name="${branch_prefix}${branch_prefix_config}${issue_number}-${branch_title}"
+        branch_name="${branch_prefix}${custom_prefix_part}${issue_number}-${branch_title}"
     else
-        branch_name="${branch_prefix}${branch_prefix_config}${branch_title}"
+        branch_name="${branch_prefix}${custom_prefix_part}${branch_title}"
     fi
     
     echo "Branch name: $branch_name"
