@@ -45,7 +45,9 @@ configure_gitbash() {
     echo "  ''             → feature/PROJ-123-fix-bug"
     echo "  'team'         → feature/team/PROJ-123-fix-bug"
     echo "  'awesome-team' → hotfix/awesome-team/PROJ-999-critical-fix"
-    echo "Tip: Enter a single dash '-' to explicitly clear the prefix"
+    if [[ -n "$current_prefix" ]]; then
+        echo "Tip: Enter a single dash '-' to explicitly clear the prefix"
+    fi
     read -e -p "Branch prefix [${current_prefix}]: " prefix
     # If user just pressed Enter, keep current value
     # If user entered a single dash, clear it
