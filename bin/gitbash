@@ -39,13 +39,13 @@ configure_gitbash() {
     local input prefix merge_cmd theme stale_months cleanup_days no_issue_parsing issue_fallback
 
     # Branch prefix
-    echo "Branch prefix (inserted between type and branch name):"
+    echo "Branch prefix"
     echo "Team names are typically used to organize branches by team or subproject."
-    echo "Examples:"
+    echo "Inserted between type and branch name, examples:"
     echo "  ''             → feature/PROJ-123-fix-bug"
     echo "  'team'         → feature/team/PROJ-123-fix-bug"
     echo "  'awesome-team' → hotfix/awesome-team/PROJ-999-critical-fix"
-    read -e -p "Prefix for all branch types [${current_prefix}]: " input
+    read -e -p "Branch prefix [${current_prefix}]: " input
     prefix=${input:-$current_prefix}
     # Remove trailing slash if present (will be added automatically)
     prefix="${prefix%/}"
