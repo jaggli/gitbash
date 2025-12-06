@@ -183,11 +183,7 @@ TYPES
     if [[ "$no_issue_parsing" == "yes" ]]; then
         # Issue parsing disabled - treat all args as branch title
         if [[ ${#positional_args[@]} -gt 0 ]]; then
-            if [[ -n "${ZSH_VERSION:-}" ]]; then
-                branch_title="${positional_args[*]}"
-            else
-                branch_title="${positional_args[*]}"
-            fi
+            branch_title="${positional_args[*]}"
         fi
         jira_link=""
     elif [[ ${#positional_args[@]} -gt 0 ]]; then
@@ -210,13 +206,8 @@ TYPES
         fi
     else
         # Interactive mode
-        if [[ "$no_issue_parsing" == "yes" ]]; then
-            # Skip Jira link prompt when parsing is disabled
-            jira_link=""
-        else
-            echo "Enter Jira link (e.g., https://jira.company.com/browse/PROJ-123) or press Enter to skip:"
-            prompt_read " > " jira_link
-        fi
+        echo "Enter Jira link (e.g., https://jira.company.com/browse/PROJ-123) or press Enter to skip:"
+        prompt_read " > " jira_link
     fi
 
     # -----------------------------
