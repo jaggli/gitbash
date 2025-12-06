@@ -20,11 +20,13 @@ configure_gitbash() {
     local current_theme="${GITBASH_THEME:-auto}"
     local current_stale_months="${GITBASH_STALE_MONTHS:-3}"
     local current_cleanup_days="${GITBASH_CLEANUP_DAYS:-7}"
+    local current_no_issue_parsing="${GITBASH_CREATE_NO_ISSUE_PARSING:-no}"
+    local current_issue_fallback="${GITBASH_CREATE_ISSUE_PARSING_FALLBACK:-NOISSUE}"
 
     echo "Configure gitbash (writes to $CONFIG_FILE)"
     echo
 
-    local input prefix merge_cmd theme stale_months cleanup_days
+    local input prefix merge_cmd theme stale_months cleanup_days no_issue_parsing issue_fallback
 
     # Branch prefix
     read -e -p "Feature branch prefix (used by create) [${current_prefix}]: " input
@@ -33,6 +35,26 @@ configure_gitbash() {
     # Merge tool
     read -e -p "Merge tool command (used by update on conflicts) [${current_merge}]: " input
     merge_cmd=${input:-$current_merge}
+
+    # Issue parsing
+    echo
+    read -e -p "Disable Jira issue parsing in branch names? (yes/no) [${current_no_issue_parsing}]: " input
+    no_issue_parsing=${input:-$current_no_issue_parsing}
+    case "$no_issue_parsing" in
+        yes|no) ;;
+        *)
+            echo "Invalid value. Using 'no'."
+            no_issue_parsing="no"
+            ;;
+    esac
+
+    # Issue parsing fallback (only ask if parsing is enabled)
+    if [[ "$no_issue_parsing" == "no" ]]; then
+        read -e -p "Fallback prefix when no issue number is provided [${current_issue_fallback}]: " input
+        issue_fallback=${input:-$current_issue_fallback}
+    else
+        issue_fallback="${current_issue_fallback}"
+    fi
 
     # Theme preference
     echo
@@ -73,6 +95,10 @@ configure_gitbash() {
 GITBASH_FEATURE_BRANCH_PREFIX="$prefix"
 # Merge tool command invoked by 'update' when conflicts occur
 GITBASH_MERGE_COMMAND="$merge_cmd"
+# Disable Jira issue number parsing in branch names (yes/no)
+GITBASH_CREATE_NO_ISSUE_PARSING="$no_issue_parsing"
+# Fallback prefix when no issue number is provided (only used if parsing is enabled)
+GITBASH_CREATE_ISSUE_PARSING_FALLBACK="$issue_fallback"
 # Theme for delta/bat: auto, dark, or light
 GITBASH_THEME="$theme"
 # Stale branch threshold in months (branches older than this in 'stale')
