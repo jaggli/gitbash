@@ -12,6 +12,7 @@ stale() {
     # -----------------------------
     local json_mode=false
     local my_mode=false
+    local all_mode=false
     local filter_args=()
     local stale_months="${GITBASH_STALE_MONTHS:-3}"
     
@@ -33,6 +34,7 @@ Arguments:
 
 Options:
   -h, --help      Show this help message
+  -a, --all       Start in 'all branches' mode (default is stale mode)
   -m, --my        Pre-fill filter with your git username (from git config user.name)
   --json          Output branch data as JSON (non-interactive)
   --age=N         Override stale threshold in months (default: 3, configurable via GITBASH_STALE_MONTHS)
@@ -69,8 +71,9 @@ Examples:
   $ stale --age=6
   # Show branches older than 6 months
 
-  # Press Ctrl-A to show all branches including recent ones
-  # Select branches with TAB, press Enter to delete
+  $ stale --all
+  # Start with all branches visible (including recent ones)
+  # Press Ctrl-A to toggle between all/stale view
 
   $ stale --my
   # Pre-fills fzf filter with your git username to show only your branches
@@ -93,6 +96,10 @@ EOF
                 ;;
             --json)
                 json_mode=true
+                shift
+                ;;
+            -a|--all)
+                all_mode=true
                 shift
                 ;;
             -m|--my)
@@ -266,11 +273,31 @@ EOF
     local stale_file=$(mktemp)
     local all_file=$(mktemp)
     local state_file=$(mktemp)
-    echo "$stale_branch_list" > "$stale_file"
-    echo "$abort_label" >> "$stale_file"
-    echo "$all_branch_list" > "$all_file"
-    echo "$abort_label" >> "$all_file"
-    echo "stale" > "$state_file"
+    
+    # Write stale branches with header
+    {
+        echo "══ Stale branches (>${stale_months}mo, oldest first) ══"
+        if [[ -n "$stale_branch_list" ]]; then
+            echo "$stale_branch_list"
+        fi
+        echo "$abort_label"
+    } > "$stale_file"
+    
+    # Write all branches with header
+    {
+        echo "══ All branches (oldest first) ══"
+        if [[ -n "$all_branch_list" ]]; then
+            echo "$all_branch_list"
+        fi
+        echo "$abort_label"
+    } > "$all_file"
+    
+    # Set initial state based on --all flag
+    if [[ "$all_mode" == true ]]; then
+        printf "all" > "$state_file"
+    else
+        printf "stale" > "$state_file"
+    fi
 
     # -----------------------------
     # 6. Run fzf picker with preview
@@ -278,64 +305,46 @@ EOF
     local stale_count=$(echo "$stale_branch_list" | grep -c . || echo "0")
     local all_count=$(echo "$all_branch_list" | grep -c . || echo "0")
     
-    # Create toggle script
+    # Create toggle script  
     local toggle_script=$(mktemp)
     cat > "$toggle_script" << TOGGLE_EOF
 #!/bin/bash
-state=\$(cat "$state_file")
+state=\$(cat "$state_file" | tr -d '\n')
+# Toggle: if currently stale, switch to all; if currently all, switch to stale
 if [[ "\$state" == "stale" ]]; then
-    echo "all" > "$state_file"
+    # Switching FROM stale TO all
+    printf "all" > "$state_file"
     cat "$all_file"
 else
-    echo "stale" > "$state_file"
+    # Switching FROM all TO stale
+    printf "stale" > "$state_file"
     cat "$stale_file"
 fi
 TOGGLE_EOF
     chmod +x "$toggle_script"
     
-    # Create prompt script
-    local prompt_script=$(mktemp)
-    cat > "$prompt_script" << PROMPT_EOF
-#!/bin/bash
-state=\$(cat "$state_file")
-if [[ "\$state" == "stale" ]]; then
-    echo "Stale branches (>${stale_months}mo, oldest first) > "
-else
-    echo "All branches (oldest first) > "
-fi
-PROMPT_EOF
-    chmod +x "$prompt_script"
-    
-    # Create header script  
-    local header_script=$(mktemp)
-    cat > "$header_script" << HEADER_EOF
-#!/bin/bash
-state=\$(cat "$state_file")
-if [[ "\$state" == "stale" ]]; then
-    echo "[TAB] select | [Ctrl-A] toggle all/stale | [Enter] delete | [ESC] exit
-Showing $stale_count stale branches (older than ${stale_months} months)"
-else
-    echo "[TAB] select | [Ctrl-A] toggle all/stale | [Enter] delete | [ESC] exit
-Showing all $all_count branches"
-fi
-HEADER_EOF
-    chmod +x "$header_script"
+    # Set initial input file based on mode
+    local initial_input_file
+    if [[ "$all_mode" == true ]]; then
+        initial_input_file="$all_file"
+    else
+        initial_input_file="$stale_file"
+    fi
     
     local selection
     selection=$(
-        fzf \
-            --prompt="Stale branches (>${stale_months}mo, oldest first) > " \
+        cat "$initial_input_file" | fzf \
             --query="$filter" \
             -i \
             --reverse \
             --border \
-            --header="[TAB] select | [Ctrl-A] toggle all/stale | [Enter] delete | [ESC] exit
-Showing $stale_count stale branches (older than ${stale_months} months)" \
+            --header="[TAB] select | [Ctrl-A] toggle all/stale | [Enter] delete | [ESC] exit" \
+            --header-lines=1 \
             --multi \
             --delimiter=$'\t' \
             --with-nth=1 \
             --bind=enter:accept \
-            --bind="ctrl-a:reload($toggle_script)+transform-prompt($prompt_script)+transform-header($header_script)" \
+            --bind="ctrl-a:reload(bash $toggle_script)+clear-query" \
             --preview='
                 line={}
                 if [[ "$line" == "✖ Abort" ]]; then
@@ -350,7 +359,7 @@ Showing $stale_count stale branches (older than ${stale_months} months)" \
                 fi
             ' \
             --preview-window=right:35% \
-            < "$stale_file"
+            < "$initial_input_file"
     ) </dev/tty || true
     
     # Cleanup temp files
