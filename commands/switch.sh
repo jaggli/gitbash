@@ -110,7 +110,9 @@ EOF
     local matching_branches
     matching_branches=$(echo "$branch_list" | grep -iv '───' | grep -i "$filter" || true)
     local match_count
-    match_count=$(echo "$matching_branches" | grep -c . || echo "0")
+    match_count=$(echo "$matching_branches" | grep -c . 2>/dev/null || echo "0")
+    # Ensure match_count is numeric
+    [[ -z "$match_count" ]] && match_count=0
     
     if [[ "$match_count" -eq 1 ]]; then
       # Single match - skip fzf
