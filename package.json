@@ -39,5 +39,13 @@
   ],
   "engines": {
     "node": ">=14"
+  },
+  "scripts": {
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.8"
   }
 }
