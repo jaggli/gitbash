@@ -276,7 +276,7 @@ EOF
     
     # Write stale branches with header
     {
-        echo "══ Stale branches (>${stale_months}mo, oldest first) ══"
+        echo "══ Stale branches (>${stale_months}mo, oldest first) ══ [TAB] select | [Ctrl-A] toggle all/stale | [Enter] delete | [ESC] exit"
         if [[ -n "$stale_branch_list" ]]; then
             echo "$stale_branch_list"
         fi
@@ -285,7 +285,7 @@ EOF
     
     # Write all branches with header
     {
-        echo "══ All branches (oldest first) ══"
+        echo "══ All branches (oldest first) ══ [TAB] select | [Ctrl-A] toggle all/stale | [Enter] delete | [ESC] exit"
         if [[ -n "$all_branch_list" ]]; then
             echo "$all_branch_list"
         fi
@@ -338,7 +338,6 @@ TOGGLE_EOF
             -i \
             --reverse \
             --border \
-            --header="[TAB] select | [Ctrl-A] toggle all/stale | [Enter] delete | [ESC] exit" \
             --header-lines=1 \
             --multi \
             --delimiter=$'\t' \
@@ -363,7 +362,7 @@ TOGGLE_EOF
     ) </dev/tty || true
     
     # Cleanup temp files
-    rm -f "$stale_file" "$all_file" "$state_file" "$toggle_script" "$prompt_script" "$header_script"
+    rm -f "$stale_file" "$all_file" "$state_file" "$toggle_script"
 
     # ESC or Ctrl-C
     if [[ -z "$selection" ]]; then
