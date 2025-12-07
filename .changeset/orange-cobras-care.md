@@ -2,4 +2,4 @@
 "gitbash": patch
 ---
 
-Fix #18
+Fix bug in switch for no-match filtes #18
