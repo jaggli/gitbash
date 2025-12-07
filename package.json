@@ -43,7 +43,7 @@
   "scripts": {
     "changeset": "changeset",
     "version": "changeset version",
-    "release": "changeset publish"
+    "release": "npm run version && VERSION=$(node -p \"require('./package.json').version\") && git tag \"v$VERSION\" && ./bin/gitbash commit -p \"chore: release v$VERSION\" && git push --tags && npm publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8"
