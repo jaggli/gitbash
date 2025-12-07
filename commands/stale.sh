@@ -237,12 +237,12 @@ EOF
             echo "$str"
         }
         
-        # Build JSON from stale branches
+        # Build JSON from branches (all or stale based on --all flag)
         {
         while IFS='|' read -r branch rel_date author_name author_email timestamp; do
             [[ -z "$branch" ]] && continue
-            # Only include if older than 3 months
-            if [[ "$timestamp" -lt "$threshold_ago" ]]; then
+            # Include based on all_mode flag
+            if [[ "$all_mode" == true ]] || [[ "$timestamp" -lt "$threshold_ago" ]]; then
                 local name="${branch#origin/}"
                 # Remove angle brackets from email
                 author_email="${author_email#<}"
@@ -273,10 +273,14 @@ EOF
     local stale_file=$(mktemp)
     local all_file=$(mktemp)
     local state_file=$(mktemp)
+    local toggle_script=$(mktemp)
+    
+    # Ensure cleanup on exit
+    trap 'rm -f "$stale_file" "$all_file" "$state_file" "$toggle_script"' EXIT INT TERM
     
     # Write stale branches with header
     {
-        echo "══ Stale branches (>${stale_months}mo, oldest first) ══"
+        echo "══ Stale branches (>${stale_months}mo, oldest first) ══ [TAB] select | [Ctrl-A] toggle all/stale | [Enter] delete | [ESC] exit"
         if [[ -n "$stale_branch_list" ]]; then
             echo "$stale_branch_list"
         fi
@@ -285,7 +289,7 @@ EOF
     
     # Write all branches with header
     {
-        echo "══ All branches (oldest first) ══"
+        echo "══ All branches (oldest first) ══ [TAB] select | [Ctrl-A] toggle all/stale | [Enter] delete | [ESC] exit"
         if [[ -n "$all_branch_list" ]]; then
             echo "$all_branch_list"
         fi
@@ -305,8 +309,7 @@ EOF
     local stale_count=$(echo "$stale_branch_list" | grep -c . || echo "0")
     local all_count=$(echo "$all_branch_list" | grep -c . || echo "0")
     
-    # Create toggle script  
-    local toggle_script=$(mktemp)
+    # Create toggle script
     cat > "$toggle_script" << TOGGLE_EOF
 #!/bin/bash
 state=\$(cat "$state_file" | tr -d '\n')
@@ -338,7 +341,6 @@ TOGGLE_EOF
             -i \
             --reverse \
             --border \
-            --header="[TAB] select | [Ctrl-A] toggle all/stale | [Enter] delete | [ESC] exit" \
             --header-lines=1 \
             --multi \
             --delimiter=$'\t' \
@@ -361,9 +363,6 @@ TOGGLE_EOF
             --preview-window=right:35% \
             < "$initial_input_file"
     ) </dev/tty || true
-    
-    # Cleanup temp files
-    rm -f "$stale_file" "$all_file" "$state_file" "$toggle_script" "$prompt_script" "$header_script"
 
     # ESC or Ctrl-C
     if [[ -z "$selection" ]]; then
