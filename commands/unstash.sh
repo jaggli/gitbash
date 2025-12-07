@@ -146,17 +146,17 @@ EOF
     fi
 
     # -----------------------------
-    # 6. Confirm before dropping
+    # 6. Confirm before dropping (default: Yes)
     # -----------------------------
     echo
-    prompt_read "Drop $stash_id now? (y/N): " drop_ans
+    prompt_read "Drop $stash_id now? (Y/n): " drop_ans
     case "$drop_ans" in
-        [yY][eE][sS]|[yY])
-            echo "Dropping $stash_id ..."
-            git stash drop "$stash_id"
+        [nN][oO]|[nN])
+            echo "Stash NOT dropped."
             ;;
         *)
-            echo "Stash NOT dropped."
+            echo "Dropping $stash_id ..."
+            git stash drop "$stash_id"
             ;;
     esac
 }
