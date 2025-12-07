@@ -273,6 +273,10 @@ EOF
     local stale_file=$(mktemp)
     local all_file=$(mktemp)
     local state_file=$(mktemp)
+    local toggle_script=$(mktemp)
+    
+    # Ensure cleanup on exit
+    trap 'rm -f "$stale_file" "$all_file" "$state_file" "$toggle_script"' EXIT INT TERM
     
     # Write stale branches with header
     {
@@ -305,8 +309,7 @@ EOF
     local stale_count=$(echo "$stale_branch_list" | grep -c . || echo "0")
     local all_count=$(echo "$all_branch_list" | grep -c . || echo "0")
     
-    # Create toggle script  
-    local toggle_script=$(mktemp)
+    # Create toggle script
     cat > "$toggle_script" << TOGGLE_EOF
 #!/bin/bash
 state=\$(cat "$state_file" | tr -d '\n')
@@ -360,9 +363,6 @@ TOGGLE_EOF
             --preview-window=right:35% \
             < "$initial_input_file"
     ) </dev/tty || true
-    
-    # Cleanup temp files
-    rm -f "$stale_file" "$all_file" "$state_file" "$toggle_script"
 
     # ESC or Ctrl-C
     if [[ -z "$selection" ]]; then
