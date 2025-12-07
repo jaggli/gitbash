@@ -131,20 +131,31 @@ EOF
             bat --color=always --style=numbers --theme=\"GitHub\" "$file" 2>/dev/null || cat "$file" 2>/dev/null || echo "Cannot preview file";
           elif [[ "$file_status" =~ ^[MAC] ]]; then
             # Staged file - show cached diff
-            echo "=== STAGED CHANGES ===";
-            echo;
-            git diff --cached --color=always "$file" 2>/dev/null | delta --light 2>/dev/null || git diff --cached --color=always "$file" 2>/dev/null;
-            if git diff --color=always "$file" 2>/dev/null | grep -q .; then
+            staged_diff=$(git diff --cached --color=always "$file" 2>/dev/null);
+            unstaged_diff=$(git diff --color=always "$file" 2>/dev/null);
+            
+            # Only show staged section if there are staged changes
+            if [[ -n "$staged_diff" ]]; then
+              echo "=== STAGED CHANGES ===";
               echo;
+              echo "$staged_diff" | delta --light 2>/dev/null || echo "$staged_diff";
+            fi
+            
+            # Only show unstaged section if there are unstaged changes
+            if [[ -n "$unstaged_diff" ]]; then
+              [[ -n "$staged_diff" ]] && echo;
               echo "=== UNSTAGED CHANGES ===";
               echo;
-              git diff --color=always "$file" 2>/dev/null | delta --light 2>/dev/null || git diff --color=always "$file" 2>/dev/null;
+              echo "$unstaged_diff" | delta --light 2>/dev/null || echo "$unstaged_diff";
             fi
           else
             # Unstaged changes
-            echo "=== UNSTAGED CHANGES ===";
-            echo;
-            git diff --color=always "$file" 2>/dev/null | delta --light 2>/dev/null || git diff --color=always "$file" 2>/dev/null;
+            unstaged_diff=$(git diff --color=always "$file" 2>/dev/null);
+            if [[ -n "$unstaged_diff" ]]; then
+              echo "=== UNSTAGED CHANGES ===";
+              echo;
+              echo "$unstaged_diff" | delta --light 2>/dev/null || echo "$unstaged_diff";
+            fi
           fi
         ' \
         --preview-window=right:60% \
