@@ -237,12 +237,12 @@ EOF
             echo "$str"
         }
         
-        # Build JSON from stale branches
+        # Build JSON from branches (all or stale based on --all flag)
         {
         while IFS='|' read -r branch rel_date author_name author_email timestamp; do
             [[ -z "$branch" ]] && continue
-            # Only include if older than 3 months
-            if [[ "$timestamp" -lt "$threshold_ago" ]]; then
+            # Include based on all_mode flag
+            if [[ "$all_mode" == true ]] || [[ "$timestamp" -lt "$threshold_ago" ]]; then
                 local name="${branch#origin/}"
                 # Remove angle brackets from email
                 author_email="${author_email#<}"
