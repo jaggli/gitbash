@@ -1,5 +1,12 @@
 # gitbash
 
+## 1.6.1
+
+### Patch Changes
+
+- 7b6b022: fix version output
+- 9475dfd: fix script import dir
+
 ## 1.6.0
 
 ### Minor Changes
