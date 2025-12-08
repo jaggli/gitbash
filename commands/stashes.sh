@@ -151,25 +151,19 @@ EOF
     # -----------------------------
     case "$selection" in
         "$stash_option")
-            # Source stash.sh if stash function not available
-            if ! declare -f stash >/dev/null 2>&1; then
-                source "$SOURCE_DIR/stash.sh"
-            fi
-            stash
+            # Find gitbash root directory
+            GITBASH_ROOT="$(cd "$SOURCE_DIR/.." && pwd)"
+            "$GITBASH_ROOT/bin/gitbash" stash
             ;;
         "$unstash_option")
-            # Source unstash.sh if unstash function not available
-            if ! declare -f unstash >/dev/null 2>&1; then
-                source "$SOURCE_DIR/unstash.sh"
-            fi
-            unstash
+            # Find gitbash root directory
+            GITBASH_ROOT="$(cd "$SOURCE_DIR/.." && pwd)"
+            "$GITBASH_ROOT/bin/gitbash" unstash
             ;;
         "$cleanup_option")
-            # Source cleanstash.sh if cleanstash function not available
-            if ! declare -f cleanstash >/dev/null 2>&1; then
-                source "$SOURCE_DIR/cleanstash.sh"
-            fi
-            cleanstash
+            # Find gitbash root directory
+            GITBASH_ROOT="$(cd "$SOURCE_DIR/.." && pwd)"
+            "$GITBASH_ROOT/bin/gitbash" cleanstash
             ;;
         "$abort_label")
             echo "Aborted."

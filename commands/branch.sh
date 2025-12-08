@@ -152,25 +152,19 @@ EOF
     # -----------------------------
     case "$selection" in
         "$create_option")
-            # Source create.sh if create function not available
-            if ! declare -f create >/dev/null 2>&1; then
-                source "$SOURCE_DIR/create.sh"
-            fi
-            create
+            # Find gitbash root directory
+            GITBASH_ROOT="$(cd "$SOURCE_DIR/.." && pwd)"
+            "$GITBASH_ROOT/bin/gitbash" create
             ;;
         "$switch_option")
-            # Source switch.sh if switch function not available
-            if ! declare -f switch >/dev/null 2>&1; then
-                source "$SOURCE_DIR/switch.sh"
-            fi
-            switch
+            # Find gitbash root directory
+            GITBASH_ROOT="$(cd "$SOURCE_DIR/.." && pwd)"
+            "$GITBASH_ROOT/bin/gitbash" switch
             ;;
         "$update_option")
-            # Source update.sh if update function not available
-            if ! declare -f update >/dev/null 2>&1; then
-                source "$SOURCE_DIR/update.sh"
-            fi
-            update
+            # Find gitbash root directory
+            GITBASH_ROOT="$(cd "$SOURCE_DIR/.." && pwd)"
+            "$GITBASH_ROOT/bin/gitbash" update
             ;;
         "$abort_label")
             echo "Aborted."
