@@ -71,9 +71,14 @@ EOF
     return 1
   fi
 
-  # Check for uncommitted changes
-  if ! git diff-index --quiet HEAD -- 2>/dev/null; then
-    echo "You have uncommitted changes."
+  # Check for uncommitted changes or untracked files
+  local has_changes=false
+  if ! git diff-index --quiet HEAD -- 2>/dev/null || [[ -n "$(git ls-files --others --exclude-standard)" ]]; then
+    has_changes=true
+  fi
+  
+  if [[ "$has_changes" == true ]]; then
+    echo "You have uncommitted changes or untracked files."
     echo ""
     
     # Source _utils.sh for prompt_read
@@ -92,8 +97,8 @@ EOF
         SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
         GITBASH_ROOT="$(cd "$SOURCE_DIR/.." && pwd)"
         
-        # Run commit with stage flag (without push) using local gitbash
-        "$GITBASH_ROOT/bin/gitbash" commit -s
+        # Run status command for interactive staging and committing
+        "$GITBASH_ROOT/bin/gitbash" status
         if [[ $? -ne 0 ]]; then
           echo "Commit cancelled or failed. Aborting PR creation."
           return 1
