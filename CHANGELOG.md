@@ -1,5 +1,11 @@
 # gitbash
 
+## 1.6.5
+
+### Patch Changes
+
+- b9d90e8: refactor docs
+
 ## 1.6.4
 
 ### Patch Changes
