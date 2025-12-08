@@ -2,7 +2,7 @@
 
 Interactive git utilities for bash with fzf-powered menus.
 
-![screenshot-status.png](./doc/screenshot-status.png)
+![screenshot-status.png](./docs/screenshot-status.png)
 
 ## Installation
 
