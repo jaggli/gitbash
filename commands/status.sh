@@ -306,10 +306,12 @@ EOF
       echo "Ready to commit and push staged changes."
       echo "Press Ctrl+C to abort."
       echo
-      # Find gitbash root directory (two levels up from commands/)
-      GITBASH_ROOT="$(cd "$SOURCE_DIR/.." && pwd)"
+      # Use SCRIPT_DIR from parent or compute it
+      if [[ -z "${SCRIPT_DIR:-}" ]]; then
+        SCRIPT_DIR="$(cd "$SOURCE_DIR/.." && pwd)"
+      fi
       # Directly prompt for commit message (user can Ctrl+C to abort)
-      "$GITBASH_ROOT/bin/gitbash" commit -s -p
+      "$SCRIPT_DIR/bin/gitbash" commit -s -p
       break
     fi
   done
