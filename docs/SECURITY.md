@@ -22,8 +22,6 @@ We take security vulnerabilities seriously and appreciate your efforts to respon
 - **Email:** `matthias.jaeggli@gmail.com`
 - **Do not** open a public GitHub issue for security concerns.
 
-If you use encrypted communication, you may include a PGP key here.
-
 ### Response Expectations
 
 - We will acknowledge your report **within 48 hours**.
