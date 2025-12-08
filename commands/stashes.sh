@@ -151,25 +151,13 @@ EOF
     # -----------------------------
     case "$selection" in
         "$stash_option")
-            # Use SCRIPT_DIR from parent or compute it
-            if [[ -z "${SCRIPT_DIR:-}" ]]; then
-              SCRIPT_DIR="$(cd "$SOURCE_DIR/.." && pwd)"
-            fi
-            "$SCRIPT_DIR/bin/gitbash" stash
+            gitbash stash
             ;;
         "$unstash_option")
-            # Use SCRIPT_DIR from parent or compute it
-            if [[ -z "${SCRIPT_DIR:-}" ]]; then
-              SCRIPT_DIR="$(cd "$SOURCE_DIR/.." && pwd)"
-            fi
-            "$SCRIPT_DIR/bin/gitbash" unstash
+            gitbash unstash
             ;;
         "$cleanup_option")
-            # Use SCRIPT_DIR from parent or compute it
-            if [[ -z "${SCRIPT_DIR:-}" ]]; then
-              SCRIPT_DIR="$(cd "$SOURCE_DIR/.." && pwd)"
-            fi
-            "$SCRIPT_DIR/bin/gitbash" cleanstash
+            gitbash cleanstash
             ;;
         "$abort_label")
             echo "Aborted."

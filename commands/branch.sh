@@ -152,25 +152,13 @@ EOF
     # -----------------------------
     case "$selection" in
         "$create_option")
-            # Use SCRIPT_DIR from parent or compute it
-            if [[ -z "${SCRIPT_DIR:-}" ]]; then
-              SCRIPT_DIR="$(cd "$SOURCE_DIR/.." && pwd)"
-            fi
-            "$SCRIPT_DIR/bin/gitbash" create
+            gitbash create
             ;;
         "$switch_option")
-            # Use SCRIPT_DIR from parent or compute it
-            if [[ -z "${SCRIPT_DIR:-}" ]]; then
-              SCRIPT_DIR="$(cd "$SOURCE_DIR/.." && pwd)"
-            fi
-            "$SCRIPT_DIR/bin/gitbash" switch
+            gitbash switch
             ;;
         "$update_option")
-            # Use SCRIPT_DIR from parent or compute it
-            if [[ -z "${SCRIPT_DIR:-}" ]]; then
-              SCRIPT_DIR="$(cd "$SOURCE_DIR/.." && pwd)"
-            fi
-            "$SCRIPT_DIR/bin/gitbash" update
+            gitbash update
             ;;
         "$abort_label")
             echo "Aborted."
