@@ -1,5 +1,11 @@
 # gitbash
 
+## 1.6.4
+
+### Patch Changes
+
+- 8001953: Add comparison table in documentation
+
 ## 1.6.3
 
 ### Patch Changes
