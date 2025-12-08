@@ -1,5 +1,11 @@
 # gitbash
 
+## 1.6.7
+
+### Patch Changes
+
+- d74d704: improve wording in readme
+
 ## 1.6.6
 
 ### Patch Changes
