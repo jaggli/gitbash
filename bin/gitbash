@@ -176,9 +176,9 @@ check_dependencies() {
     local missing_required=()
     local missing_optional=()
 
-    # Required dependencies
+    # Optional dependencies (fzf is optional; commands will try to run without it)
     if ! command -v fzf >/dev/null 2>&1; then
-        missing_required+=("fzf")
+        missing_optional+=("fzf")
     fi
 
     # Optional dependencies
@@ -201,9 +201,9 @@ check_dependencies() {
 
     # Show status of each dependency
     if command -v fzf >/dev/null 2>&1; then
-        echo "  ✓ fzf (required)"
+        echo "  ✓ fzf (optional)"
     else
-        echo "  ✗ fzf (required) - fuzzy finder for interactive selection"
+        echo "  ✗ fzf (optional) - fuzzy finder for interactive selection"
     fi
 
     if command -v delta >/dev/null 2>&1; then

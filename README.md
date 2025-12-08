@@ -1,6 +1,7 @@
 # gitbash
 
-Interactive git utilities for bash with fzf-powered menus.
+Pure bash, zero dependency git commands. Reduce repetitive typing and supercharge git workflows with interactive previews and safe cleanup - see a [full comparison](./docs/workflows.md).
+Optional interactive previews, feturing [fzf](https://github.com/junegunn/fzf), [delta](https://github.com/dandavison/delta) and [bat](https://github.com/sharkdp/bat)
 
 ![screenshot-status.png](./docs/screenshot-status.png)
 
@@ -24,10 +25,8 @@ gitbash --config    # Interactive configuration wizard
 ### Dependencies
 
 ```bash
-# Required
-brew install fzf
-
 # Optional (recommended)
+brew install fzf        # Interactive menus and previews
 brew install git-delta  # Better diff highlighting
 brew install bat        # File preview with syntax highlighting
 ```
@@ -57,6 +56,7 @@ Create feature branch with optional Jira parsing. Updates main first, pushes and
 **Examples with custom prefix** (`GITBASH_CREATE_BRANCH_PREFIX="awesome-team"`):
 
 With issue parsing enabled (default):
+
 ```bash
 create PROJ-123 fix login bug           # → feature/awesome-team/PROJ-123-fix-login-bug
 create fix bug                          # → feature/awesome-team/NOISSUE-fix-bug
@@ -65,6 +65,7 @@ create                                  # Interactive mode with Jira prompt
 ```
 
 With issue parsing disabled (`GITBASH_CREATE_NO_ISSUE_PARSING="yes"`):
+
 ```bash
 create fix login bug                    # → feature/awesome-team/fix-login-bug
 create --hotfix enhance security        # → hotfix/awesome-team/enhance-security
@@ -74,12 +75,14 @@ create                                  # Interactive mode (no Jira prompt)
 **Examples with empty prefix** (`GITBASH_CREATE_BRANCH_PREFIX=""`, default):
 
 With parsing enabled:
+
 ```bash
 create PROJ-123 fix bug                 # → feature/PROJ-123-fix-bug
 create fix bug                          # → feature/NOISSUE-fix-bug
 ```
 
 With parsing disabled:
+
 ```bash
 create enhance login screen             # → feature/enhance-login-screen
 ```
