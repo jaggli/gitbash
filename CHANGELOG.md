@@ -1,5 +1,21 @@
 # gitbash
 
+## 1.6.0
+
+### Minor Changes
+
+- 1f8edda: Add a full changelog of what happened in the past
+
+### Patch Changes
+
+- 1a2b4da: Fix bug when there was still an old file present to display everything twice, fixes #20
+- e014088: chore: Better and easier one-line release command in package.json
+- f094076: Fix bug in switch for no-match filtes #18
+- e4f91c0: Fix stale --all --json
+- 6d87faa: hide empty sections in preview when using status(), fixes #15
+- d8184da: After successfully applying a stash, the default answer is Y to drop the stash
+- 316a2f8: pr offers to commit and push if there are uncommited changes, fixes #26
+
 ## 1.5.0
 
 ### Minor Changes
