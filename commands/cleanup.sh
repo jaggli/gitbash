@@ -164,21 +164,14 @@ EOF
     recent_branches=()
 
     # Variables for loop (declared once to avoid zsh output on redeclaration)
-    local last_commit_ts relative_date author_email author_name
     local has_remote configured_upstream entry
 
     # Process each local branch
-    while IFS= read -r branch; do
+    while IFS='|' read -r branch last_commit_ts relative_date author_email author_name; do
         # Skip base branch
         [[ "$branch" == "$base_branch" ]] && continue
         [[ -z "$branch" ]] && continue
 
-        # Get last commit info for all branches
-        last_commit_ts=$(git log -1 --format='%ct' "$branch" 2>/dev/null)
-        relative_date=$(git log -1 --format='%cr' "$branch" 2>/dev/null)
-        author_email=$(git log -1 --format='%ae' "$branch" 2>/dev/null)
-        author_name=$(git log -1 --format='%an' "$branch" 2>/dev/null)
-        
         # Check if remote branch exists
         has_remote=false
         if echo "$remote_branches" | grep -qx "$branch"; then
@@ -201,7 +194,7 @@ EOF
             # Recent: has recent activity (don't pre-select)
             recent_branches+=("$entry")
         fi
-    done < <(git for-each-ref --format='%(refname:short)' refs/heads)
+    done < <(git for-each-ref --format='%(refname:short)|%(committerdate:unix)|%(committerdate:relative)|%(committeremail)|%(committername)' refs/heads)
 
     # Sort each category by timestamp (most recent first), compatible with bash 3.x (no mapfile)
     _sort_desc() {
