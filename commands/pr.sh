@@ -1,4 +1,5 @@
 ## pr opens the current pr, if in repo
+# shellcheck shell=bash
 pr() {
   local should_push=false
 
@@ -87,6 +88,7 @@ EOF
       source "$SOURCE_DIR/_utils.sh"
     fi
     
+    local commit_answer
     prompt_read "Would you like to commit them first? (Y/n): " commit_answer
     case "$commit_answer" in
       [nN][oO]|[nN])
@@ -94,24 +96,33 @@ EOF
         ;;
       *)
         # Run status command for interactive staging and committing
-        gitbash status
-        if [[ $? -ne 0 ]]; then
+        local local_before
+        local local_after
+        local_before=$(git rev-parse --verify HEAD 2>/dev/null || true)
+        if ! gitbash status; then
           echo "Commit cancelled or failed. Aborting PR creation."
           return 1
         fi
-        
-        # If -p wasn't specified, offer to push the fresh commit
-        if [[ "$should_push" != true ]]; then
-          echo ""
-          prompt_read "Push the fresh commit to origin? (Y/n): " push_answer
-          case "$push_answer" in
-            [nN][oO]|[nN])
-              echo "Continuing without pushing..."
-              ;;
-            *)
-              should_push=true
-              ;;
-          esac
+        local_after=$(git rev-parse --verify HEAD 2>/dev/null || true)
+
+        # Only offer to push if a new commit was actually created
+        if [[ "$local_after" != "$local_before" ]]; then
+          # If -p wasn't specified, offer to push the fresh commit
+          if [[ "$should_push" != true ]]; then
+            local push_answer
+            echo ""
+            prompt_read "Push the fresh commit to origin? (Y/n): " push_answer
+            case "$push_answer" in
+              [nN][oO]|[nN])
+                echo "Continuing without pushing..."
+                ;;
+              *)
+                should_push=true
+                ;;
+            esac
+          fi
+        else
+          echo "No new commit was created. Continuing without pushing..."
         fi
         ;;
     esac
@@ -138,15 +149,16 @@ EOF
   if [[ "$should_push" == true ]]; then
     # Check if remote has updates and pull first
     git fetch origin "$branch" 2>/dev/null
-    local local_commit=$(git rev-parse HEAD)
-    local remote_commit=$(git rev-parse "origin/$branch" 2>/dev/null)
+    local local_commit
+    local remote_commit
+    local_commit=$(git rev-parse HEAD)
+    remote_commit=$(git rev-parse "origin/$branch" 2>/dev/null)
     
     if [[ -n "$remote_commit" && "$local_commit" != "$remote_commit" ]]; then
       # Check if we're behind the remote
       if git merge-base --is-ancestor "$local_commit" "$remote_commit" 2>/dev/null; then
         echo "Remote has updates. Pulling first..."
-        git pull --rebase origin "$branch"
-        if [[ $? -ne 0 ]]; then
+        if ! git pull --rebase origin "$branch"; then
           echo "⚠ Failed to pull remote changes. Please resolve conflicts and try again."
           return 1
         fi
@@ -155,7 +167,7 @@ EOF
         # Branches have diverged
         echo "Remote has diverged. Pulling with rebase..."
         git pull --rebase origin "$branch"
-        if [[ $? -ne 0 ]]; then
+        if ! git pull --rebase origin "$branch"; then
           echo "⚠ Failed to pull remote changes. Please resolve conflicts and try again."
           return 1
         fi
@@ -164,8 +176,7 @@ EOF
     fi
     
     echo "Pushing '$branch' to origin..."
-    git push origin "$branch"
-    if [[ $? -eq 0 ]]; then
+    if git push origin "$branch"; then
       echo "✓ Successfully pushed '$branch' to origin."
     else
       echo "⚠ Failed to push '$branch' to origin."
