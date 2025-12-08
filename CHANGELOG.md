@@ -1,5 +1,12 @@
 # gitbash
 
+## 1.6.2
+
+### Patch Changes
+
+- 68aacec: Improve cleanup performance
+- f778d26: fix internal tool calling
+
 ## 1.6.1
 
 ### Patch Changes
