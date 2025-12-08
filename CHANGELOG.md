@@ -1,5 +1,11 @@
 # gitbash
 
+## 1.6.3
+
+### Patch Changes
+
+- chore: cleanup repository
+
 ## 1.6.2
 
 ### Patch Changes
