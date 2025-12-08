@@ -151,19 +151,25 @@ EOF
     # -----------------------------
     case "$selection" in
         "$stash_option")
-            # Find gitbash root directory
-            GITBASH_ROOT="$(cd "$SOURCE_DIR/.." && pwd)"
-            "$GITBASH_ROOT/bin/gitbash" stash
+            # Use SCRIPT_DIR from parent or compute it
+            if [[ -z "${SCRIPT_DIR:-}" ]]; then
+              SCRIPT_DIR="$(cd "$SOURCE_DIR/.." && pwd)"
+            fi
+            "$SCRIPT_DIR/bin/gitbash" stash
             ;;
         "$unstash_option")
-            # Find gitbash root directory
-            GITBASH_ROOT="$(cd "$SOURCE_DIR/.." && pwd)"
-            "$GITBASH_ROOT/bin/gitbash" unstash
+            # Use SCRIPT_DIR from parent or compute it
+            if [[ -z "${SCRIPT_DIR:-}" ]]; then
+              SCRIPT_DIR="$(cd "$SOURCE_DIR/.." && pwd)"
+            fi
+            "$SCRIPT_DIR/bin/gitbash" unstash
             ;;
         "$cleanup_option")
-            # Find gitbash root directory
-            GITBASH_ROOT="$(cd "$SOURCE_DIR/.." && pwd)"
-            "$GITBASH_ROOT/bin/gitbash" cleanstash
+            # Use SCRIPT_DIR from parent or compute it
+            if [[ -z "${SCRIPT_DIR:-}" ]]; then
+              SCRIPT_DIR="$(cd "$SOURCE_DIR/.." && pwd)"
+            fi
+            "$SCRIPT_DIR/bin/gitbash" cleanstash
             ;;
         "$abort_label")
             echo "Aborted."

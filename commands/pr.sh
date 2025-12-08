@@ -93,12 +93,14 @@ EOF
         echo "Continuing without committing..."
         ;;
       *)
-        # Find gitbash root directory (two levels up from commands/)
-        SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-        GITBASH_ROOT="$(cd "$SOURCE_DIR/.." && pwd)"
+        # Use SCRIPT_DIR from parent or compute it
+        if [[ -z "${SCRIPT_DIR:-}" ]]; then
+          SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+          SCRIPT_DIR="$(cd "$SOURCE_DIR/.." && pwd)"
+        fi
         
         # Run status command for interactive staging and committing
-        "$GITBASH_ROOT/bin/gitbash" status
+        "$SCRIPT_DIR/bin/gitbash" status
         if [[ $? -ne 0 ]]; then
           echo "Commit cancelled or failed. Aborting PR creation."
           return 1

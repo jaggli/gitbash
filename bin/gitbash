@@ -325,8 +325,11 @@ while [[ -L "$SOURCE" ]]; do
 done
 SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 
+# Export so sourced command files can use it
+export SCRIPT_DIR
+
 COMMANDS_DIR="$SCRIPT_DIR/commands"
-VERSION="$(grep -o '"version": *"[^"]*"' "$SCRIPT_DIR/package.json" | cut -d'"' -f4)"
+VERSION="$(grep -o '"version": *"[^"]*"' "$SCRIPT_DIR/package.json" | head -1 | cut -d'"' -f4)"
 
 # Available commands
 COMMANDS=(

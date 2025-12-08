@@ -152,19 +152,25 @@ EOF
     # -----------------------------
     case "$selection" in
         "$create_option")
-            # Find gitbash root directory
-            GITBASH_ROOT="$(cd "$SOURCE_DIR/.." && pwd)"
-            "$GITBASH_ROOT/bin/gitbash" create
+            # Use SCRIPT_DIR from parent or compute it
+            if [[ -z "${SCRIPT_DIR:-}" ]]; then
+              SCRIPT_DIR="$(cd "$SOURCE_DIR/.." && pwd)"
+            fi
+            "$SCRIPT_DIR/bin/gitbash" create
             ;;
         "$switch_option")
-            # Find gitbash root directory
-            GITBASH_ROOT="$(cd "$SOURCE_DIR/.." && pwd)"
-            "$GITBASH_ROOT/bin/gitbash" switch
+            # Use SCRIPT_DIR from parent or compute it
+            if [[ -z "${SCRIPT_DIR:-}" ]]; then
+              SCRIPT_DIR="$(cd "$SOURCE_DIR/.." && pwd)"
+            fi
+            "$SCRIPT_DIR/bin/gitbash" switch
             ;;
         "$update_option")
-            # Find gitbash root directory
-            GITBASH_ROOT="$(cd "$SOURCE_DIR/.." && pwd)"
-            "$GITBASH_ROOT/bin/gitbash" update
+            # Use SCRIPT_DIR from parent or compute it
+            if [[ -z "${SCRIPT_DIR:-}" ]]; then
+              SCRIPT_DIR="$(cd "$SOURCE_DIR/.." && pwd)"
+            fi
+            "$SCRIPT_DIR/bin/gitbash" update
             ;;
         "$abort_label")
             echo "Aborted."
