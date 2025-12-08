@@ -1,7 +1,7 @@
 # gitbash
 
 Pure bash, zero dependency git commands. Reduce repetitive typing and supercharge git workflows with interactive previews and safe cleanup - see a [full comparison](./docs/workflows.md).
-Optional interactive previews, feturing [fzf](https://github.com/junegunn/fzf), [delta](https://github.com/dandavison/delta) and [bat](https://github.com/sharkdp/bat)
+Optional interactive previews, feturing [fzf](https://github.com/junegunn/fzf), [delta](https://github.com/dandavison/delta) and [bat](https://github.com/sharkdp/bat).
 
 ![screenshot-status.png](./docs/screenshot-status.png)
 
