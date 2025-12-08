@@ -1,5 +1,11 @@
 # gitbash
 
+## 1.6.6
+
+### Patch Changes
+
+- ff0a179: remove links from readme, to hopefully display readme in npm again
+
 ## 1.6.5
 
 ### Patch Changes
