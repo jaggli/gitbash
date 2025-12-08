@@ -1,6 +1,6 @@
 # gitbash
 
-Pure bash, zero dependency git commands. Reduce repetitive typing and supercharge git workflows with interactive previews and safe cleanup - see a [full comparison](./docs/workflows.md).
+Pure bash, zero-dependency git utilities. Reduce repetitive typing and supercharge git workflows with optional interactive previews and safe cleanup — see a [full comparison](./docs/workflows.md).
 
 ![screenshot-status.png](./docs/screenshot-status.png)
 
