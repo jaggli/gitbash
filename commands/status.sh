@@ -306,12 +306,10 @@ EOF
       echo "Ready to commit and push staged changes."
       echo "Press Ctrl+C to abort."
       echo
-      # Source commit.sh if commit function not available
-      if ! declare -f commit >/dev/null 2>&1; then
-        source "$SOURCE_DIR/commit.sh"
-      fi
+      # Find gitbash root directory (two levels up from commands/)
+      GITBASH_ROOT="$(cd "$SOURCE_DIR/.." && pwd)"
       # Directly prompt for commit message (user can Ctrl+C to abort)
-      commit -s -p
+      "$GITBASH_ROOT/bin/gitbash" commit -s -p
       break
     fi
   done
