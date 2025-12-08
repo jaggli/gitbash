@@ -71,6 +71,52 @@ EOF
     return 1
   fi
 
+  # Check for uncommitted changes
+  if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+    echo "You have uncommitted changes."
+    echo ""
+    
+    # Source _utils.sh for prompt_read
+    if ! declare -f prompt_read >/dev/null 2>&1; then
+      SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+      source "$SOURCE_DIR/_utils.sh"
+    fi
+    
+    prompt_read "Would you like to commit them first? (Y/n): " commit_answer
+    case "$commit_answer" in
+      [nN][oO]|[nN])
+        echo "Continuing without committing..."
+        ;;
+      *)
+        # Find gitbash root directory (two levels up from commands/)
+        SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+        GITBASH_ROOT="$(cd "$SOURCE_DIR/.." && pwd)"
+        
+        # Run commit with stage flag (without push) using local gitbash
+        "$GITBASH_ROOT/bin/gitbash" commit -s
+        if [[ $? -ne 0 ]]; then
+          echo "Commit cancelled or failed. Aborting PR creation."
+          return 1
+        fi
+        
+        # If -p wasn't specified, offer to push the fresh commit
+        if [[ "$should_push" != true ]]; then
+          echo ""
+          prompt_read "Push the fresh commit to origin? (Y/n): " push_answer
+          case "$push_answer" in
+            [nN][oO]|[nN])
+              echo "Continuing without pushing..."
+              ;;
+            *)
+              should_push=true
+              ;;
+          esac
+        fi
+        ;;
+    esac
+    echo ""
+  fi
+
   # Remote URL (e.g. git@github.com:user/repo.git or https://github.com/user/repo.git)
   remote=$(git config --get remote.origin.url)
 
