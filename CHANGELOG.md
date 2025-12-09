@@ -1,5 +1,11 @@
 # gitbash
 
+## 1.8.0
+
+### Minor Changes
+
+- 85ab3fe: Add local user settings override
+
 ## 1.7.0
 
 ### Minor Changes
