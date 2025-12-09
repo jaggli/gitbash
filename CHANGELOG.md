@@ -1,5 +1,11 @@
 # gitbash
 
+## 1.8.1
+
+### Patch Changes
+
+- ce7bc07: fix double listing in stale
+
 ## 1.8.0
 
 ### Minor Changes
