@@ -15,10 +15,11 @@ npm i -g gitbash && gitbash --config
 ### Options
 
 ```bash
-gitbash --help      # Show help
-gitbash --version   # Show version
-gitbash --init      # Print shell init code
-gitbash --config    # Interactive configuration wizard
+gitbash --help         # Show help
+gitbash --version      # Show version
+gitbash --init         # Print shell init code
+gitbash --config       # Interactive configuration wizard
+gitbash --config-local # Configure local overrides for current repository
 ```
 
 ### Dependencies
@@ -240,6 +241,18 @@ GITBASH_CLEANUP_DAYS=7
 ```
 
 You can create this file manually or use `gitbash --config` to configure interactively.
+
+#### Local Configuration
+
+gitbash also supports repository-specific configuration overrides. Run `gitbash --config-local` inside a git repository to create a `.gitbashrc` file in the repository root.
+
+Local settings override the global `~/.gitbashrc` for that repository only. This is useful for:
+
+- Different branch prefixes per project (e.g., team names)
+- Project-specific issue parsing settings
+- Different stale/cleanup thresholds per repository
+
+The interactive wizard will show each setting's current global value and ask if you want to override it locally. Only overridden values are written to the local config.
 
 ### Individual aliases
 

@@ -2,12 +2,23 @@
 # shellcheck disable=SC2155
 # Common utilities for gitbash commands - compatible with bash and zsh
 
-# Load config file if it exists
+# Load config files if they exist
+# Global config first, then local repo config (which can override global)
 CONFIG_FILE="$HOME/.gitbashrc"
+LOCAL_CONFIG_FILE=".gitbashrc"
+
 if [[ -f "$CONFIG_FILE" ]]; then
     # shellcheck disable=SC1090
     source "$CONFIG_FILE"
 fi
+
+# Source local config from repo root if present (overrides global)
+_repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
+if [[ -n "$_repo_root" && -f "$_repo_root/$LOCAL_CONFIG_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$_repo_root/$LOCAL_CONFIG_FILE"
+fi
+unset _repo_root
 
 # Color codes for consistent output
 COLOR_RED='\033[0;31m'
