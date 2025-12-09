@@ -1,5 +1,15 @@
 # gitbash
 
+## 1.7.0
+
+### Minor Changes
+
+- 2bf4222: Add local config overrides, fixes #33
+
+### Patch Changes
+
+- 55eebb4: Don't ask for push, if there was nothing commited in pr
+
 ## 1.6.7
 
 ### Patch Changes
