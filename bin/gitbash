@@ -4,11 +4,23 @@
 set -euo pipefail
 
 CONFIG_FILE="$HOME/.gitbashrc"
+LOCAL_CONFIG_FILE=".gitbashrc"
 
 load_config() {
+    # Source global config first
     if [[ -f "$CONFIG_FILE" ]]; then
         # shellcheck disable=SC1090
         source "$CONFIG_FILE"
+    fi
+    
+    # Source local config from repo root if present (overrides global)
+    local repo_root
+    if repo_root=$(git rev-parse --show-toplevel 2>/dev/null); then
+        local local_config="$repo_root/$LOCAL_CONFIG_FILE"
+        if [[ -f "$local_config" ]]; then
+            # shellcheck disable=SC1090
+            source "$local_config"
+        fi
     fi
 }
 
@@ -48,7 +60,7 @@ configure_gitbash() {
     if [[ -n "$current_prefix" ]]; then
         echo "Tip: Enter a single dash '-' to explicitly clear the prefix"
     fi
-    read -e -p "Branch prefix [${current_prefix}]: " prefix
+    read -re -p "Branch prefix [${current_prefix}]: " prefix
     # If user just pressed Enter, keep current value
     # If user entered a single dash, clear it
     if [[ -z "$prefix" ]]; then
@@ -61,7 +73,7 @@ configure_gitbash() {
 
     # Merge tool
     echo
-    read -e -p "Merge tool command (used by update on conflicts) [${current_merge}]: " input
+    read -re -p "Merge tool command (used by update on conflicts) [${current_merge}]: " input
     merge_cmd=${input:-$current_merge}
 
     # Issue parsing
@@ -72,7 +84,7 @@ configure_gitbash() {
         current_enabled="no"
     fi
     
-    read -e -p "Enable Jira issue parsing in branch names? (yes/no) [${current_enabled}]: " input
+    read -re -p "Enable Jira issue parsing in branch names? (yes/no) [${current_enabled}]: " input
     local enable_parsing=${input:-$current_enabled}
     
     # Convert answer to no_issue_parsing variable (inverted logic)
@@ -91,7 +103,7 @@ configure_gitbash() {
 
     # Issue parsing fallback (only ask if parsing is enabled)
     if [[ "$enable_parsing" == "yes" ]]; then
-        read -e -p "Fallback prefix when no issue number is provided [${current_issue_fallback}]: " input
+        read -re -p "Fallback prefix when no issue number is provided [${current_issue_fallback}]: " input
         issue_fallback=${input:-$current_issue_fallback}
     else
         issue_fallback="${current_issue_fallback}"
@@ -103,7 +115,7 @@ configure_gitbash() {
     echo "  auto  - Use terminal's theme detection"
     echo "  dark  - Force dark theme"
     echo "  light - Force light theme (GitHub style)"
-    read -e -p "Theme [${current_theme}]: " input
+    read -re -p "Theme [${current_theme}]: " input
     theme=${input:-$current_theme}
     case "$theme" in
         auto|dark|light) ;;
@@ -115,7 +127,7 @@ configure_gitbash() {
 
     # Stale branch threshold
     echo
-    read -e -p "Stale branch threshold in months (used by stale) [${current_stale_months}]: " input
+    read -re -p "Stale branch threshold in months (used by stale) [${current_stale_months}]: " input
     stale_months=${input:-$current_stale_months}
     if ! [[ "$stale_months" =~ ^[0-9]+$ ]] || [[ "$stale_months" -lt 1 ]]; then
         echo "Invalid value. Using default of 3 months."
@@ -123,7 +135,7 @@ configure_gitbash() {
     fi
 
     # Cleanup threshold
-    read -e -p "Cleanup threshold in days (used by cleanup) [${current_cleanup_days}]: " input
+    read -re -p "Cleanup threshold in days (used by cleanup) [${current_cleanup_days}]: " input
     cleanup_days=${input:-$current_cleanup_days}
     if ! [[ "$cleanup_days" =~ ^[0-9]+$ ]] || [[ "$cleanup_days" -lt 1 ]]; then
         echo "Invalid value. Using default of 7 days."
@@ -169,6 +181,182 @@ EOF
 
     # Check for shell integration
     check_shell_integration
+}
+
+configure_local_gitbash() {
+    # Check if we're in a git repository
+    local repo_root
+    if ! repo_root=$(git rev-parse --show-toplevel 2>/dev/null); then
+        echo "Error: Not inside a git repository." >&2
+        exit 1
+    fi
+    
+    local local_config="$repo_root/$LOCAL_CONFIG_FILE"
+    
+    # Load global config first to get current defaults
+    load_config
+    
+    # Backward compatibility: migrate GITBASH_FEATURE_BRANCH_PREFIX to GITBASH_CREATE_BRANCH_PREFIX
+    local current_prefix="${GITBASH_CREATE_BRANCH_PREFIX:-}"
+    if [[ -z "$current_prefix" && -n "${GITBASH_FEATURE_BRANCH_PREFIX:-}" ]]; then
+        # Remove "feature/" prefix from old variable
+        current_prefix="${GITBASH_FEATURE_BRANCH_PREFIX#feature/}"
+    fi
+    # Remove trailing slash if present
+    current_prefix="${current_prefix%/}"
+    
+    echo "Configure local gitbash overrides for this repository"
+    echo "Config will be saved to: $local_config"
+    echo
+    echo "Press Enter to keep global setting, or enter a new value to override."
+    echo "Enter '-' to explicitly unset a local override."
+    echo
+
+    local overrides=()
+    local input
+    
+    # Branch prefix (current_prefix already set above with backward compatibility)
+    echo "1. Branch prefix"
+    echo "   Current (global): ${current_prefix:-'(empty)'}"
+    read -re -p "   Local override: " input
+    if [[ -n "$input" ]]; then
+        if [[ "$input" == "-" ]]; then
+            overrides+=("GITBASH_CREATE_BRANCH_PREFIX=\"\"")
+            echo "   → Will use empty prefix locally"
+        else
+            input="${input%/}"  # Remove trailing slash
+            overrides+=("GITBASH_CREATE_BRANCH_PREFIX=\"$input\"")
+            echo "   → Will use '$input' locally"
+        fi
+    else
+        echo "   → Keeping global setting"
+    fi
+    echo
+
+    # Merge command
+    local current_merge="${GITBASH_MERGE_COMMAND:-fork}"
+    echo "2. Merge tool command (used by update on conflicts)"
+    echo "   Current (global): $current_merge"
+    read -re -p "   Local override: " input
+    if [[ -n "$input" && "$input" != "-" ]]; then
+        overrides+=("GITBASH_MERGE_COMMAND=\"$input\"")
+        echo "   → Will use '$input' locally"
+    else
+        echo "   → Keeping global setting"
+    fi
+    echo
+
+    # Issue parsing
+    local current_no_issue_parsing="${GITBASH_CREATE_NO_ISSUE_PARSING:-no}"
+    local current_enabled="yes"
+    [[ "$current_no_issue_parsing" == "yes" ]] && current_enabled="no"
+    echo "3. Enable Jira issue parsing in branch names? (yes/no)"
+    echo "   Current (global): $current_enabled"
+    read -re -p "   Local override: " input
+    if [[ -n "$input" && "$input" != "-" ]]; then
+        case "$input" in
+            yes)
+                overrides+=("GITBASH_CREATE_NO_ISSUE_PARSING=\"no\"")
+                echo "   → Will enable parsing locally"
+                ;;
+            no)
+                overrides+=("GITBASH_CREATE_NO_ISSUE_PARSING=\"yes\"")
+                echo "   → Will disable parsing locally"
+                ;;
+            *)
+                echo "   → Invalid value, keeping global setting"
+                ;;
+        esac
+    else
+        echo "   → Keeping global setting"
+    fi
+    echo
+
+    # Issue fallback
+    local current_issue_fallback="${GITBASH_CREATE_ISSUE_PARSING_FALLBACK:-NOISSUE}"
+    echo "4. Fallback prefix when no issue number is provided"
+    echo "   Current (global): $current_issue_fallback"
+    read -re -p "   Local override: " input
+    if [[ -n "$input" && "$input" != "-" ]]; then
+        overrides+=("GITBASH_CREATE_ISSUE_PARSING_FALLBACK=\"$input\"")
+        echo "   → Will use '$input' locally"
+    else
+        echo "   → Keeping global setting"
+    fi
+    echo
+
+    # Theme
+    local current_theme="${GITBASH_THEME:-auto}"
+    echo "5. Theme for delta/bat (auto/dark/light)"
+    echo "   Current (global): $current_theme"
+    read -re -p "   Local override: " input
+    if [[ -n "$input" && "$input" != "-" ]]; then
+        case "$input" in
+            auto|dark|light)
+                overrides+=("GITBASH_THEME=\"$input\"")
+                echo "   → Will use '$input' locally"
+                ;;
+            *)
+                echo "   → Invalid value, keeping global setting"
+                ;;
+        esac
+    else
+        echo "   → Keeping global setting"
+    fi
+    echo
+
+    # Stale months
+    local current_stale_months="${GITBASH_STALE_MONTHS:-3}"
+    echo "6. Stale branch threshold in months"
+    echo "   Current (global): $current_stale_months"
+    read -re -p "   Local override: " input
+    if [[ -n "$input" && "$input" != "-" ]]; then
+        if [[ "$input" =~ ^[0-9]+$ ]] && [[ "$input" -ge 1 ]]; then
+            overrides+=("GITBASH_STALE_MONTHS=\"$input\"")
+            echo "   → Will use '$input' locally"
+        else
+            echo "   → Invalid value, keeping global setting"
+        fi
+    else
+        echo "   → Keeping global setting"
+    fi
+    echo
+
+    # Cleanup days
+    local current_cleanup_days="${GITBASH_CLEANUP_DAYS:-7}"
+    echo "7. Cleanup threshold in days"
+    echo "   Current (global): $current_cleanup_days"
+    read -re -p "   Local override: " input
+    if [[ -n "$input" && "$input" != "-" ]]; then
+        if [[ "$input" =~ ^[0-9]+$ ]] && [[ "$input" -ge 1 ]]; then
+            overrides+=("GITBASH_CLEANUP_DAYS=\"$input\"")
+            echo "   → Will use '$input' locally"
+        else
+            echo "   → Invalid value, keeping global setting"
+        fi
+    else
+        echo "   → Keeping global setting"
+    fi
+    echo
+
+    # Check if any overrides were set
+    if [[ ${#overrides[@]} -eq 0 ]]; then
+        echo "No local overrides configured."
+        return 0
+    fi
+
+    # Write local config file
+    {
+        echo "# Local gitbash configuration overrides for this repository"
+        echo "# Generated by 'gitbash --config-local'"
+        echo "# These settings override the global ~/.gitbashrc"
+        echo
+        for override in "${overrides[@]}"; do
+            echo "$override"
+        done
+    } > "$local_config"
+
+    echo "Saved local configuration to $local_config"
 }
 
 # Check and offer to install dependencies
@@ -241,7 +429,7 @@ check_dependencies() {
     # Offer to install missing dependencies
     echo
     local install_deps
-    read -e -p "Install missing dependencies with Homebrew? (Y/n): " install_deps
+    read -re -p "Install missing dependencies with Homebrew? (Y/n): " install_deps
     case "$install_deps" in
         [nN][oO]|[nN])
             echo "Skipped dependency installation."
@@ -296,7 +484,7 @@ check_shell_integration() {
         echo
         echo "Shell integration not found in $shell_rc"
         local add_init
-        read -e -p "Add 'eval \"\$(gitbash --init)\"' to $shell_rc? (Y/n): " add_init
+        read -re -p "Add 'eval \"\$(gitbash --init)\"' to $shell_rc? (Y/n): " add_init
         case "$add_init" in
             [nN][oO]|[nN])
                 echo "Skipped shell integration."
@@ -358,6 +546,7 @@ Usage:
     gitbash --help
     gitbash --init
     gitbash --config
+    gitbash --config-local
 
 Commands:
   branch      Interactive menu for branch operations
@@ -376,10 +565,11 @@ Commands:
   update      Merge latest main/master into current branch
 
 Options:
-  -h, --help     Show this help message
-  -v, --version  Show version number
-  --init         Print shell initialization code (for sourcing)
-    --config       Configure gitbash and save to ~/.gitbashrc
+  -h, --help       Show this help message
+  -v, --version    Show version number
+  --init           Print shell initialization code (for sourcing)
+  --config         Configure gitbash and save to ~/.gitbashrc
+  --config-local   Configure local overrides for current repository
 
 Examples:
   gitbash commit fix bug -p     # Commit and push
@@ -436,6 +626,10 @@ main() {
             ;;
         --config)
             configure_gitbash
+            exit 0
+            ;;
+        --config-local)
+            configure_local_gitbash
             exit 0
             ;;
         *)
