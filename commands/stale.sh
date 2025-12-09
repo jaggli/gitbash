@@ -177,7 +177,7 @@ EOF
     local all_branch_list
     all_branch_list=$(git for-each-ref --sort=committerdate --format='%(refname:short)|%(committerdate:relative)|%(authorname)|%(committerdate:unix)' refs/remotes/origin | \
         grep -v 'origin/HEAD' | \
-        grep -v '^origin$' | \
+        grep -v '^origin|' | \
         while IFS='|' read -r branch date author timestamp; do
             # Remove origin/ prefix for display
             local full_branch="${branch#origin/}"
@@ -194,7 +194,7 @@ EOF
     local stale_branch_list
     stale_branch_list=$(git for-each-ref --sort=committerdate --format='%(refname:short)|%(committerdate:relative)|%(authorname)|%(committerdate:unix)' refs/remotes/origin | \
         grep -v 'origin/HEAD' | \
-        grep -v '^origin$' | \
+        grep -v '^origin|' | \
         while IFS='|' read -r branch date author timestamp; do
             # Only include if older than 3 months
             if [[ "$timestamp" -lt "$threshold_ago" ]]; then
@@ -262,7 +262,7 @@ EOF
                 
                 json_output+="{\"last_change_timestamp\":$timestamp,\"author_email\":\"$author_email\",\"author_name\":\"$author_name\",\"name\":\"$name\",\"last_change_relative\":\"$rel_date\"}"
             fi
-        done < <(git for-each-ref --sort=committerdate --format='%(refname:short)|%(committerdate:relative)|%(authorname)|%(authoremail)|%(committerdate:unix)' refs/remotes/origin 2>/dev/null | grep -v 'origin/HEAD' | grep -v '^origin$' || true)
+        done < <(git for-each-ref --sort=committerdate --format='%(refname:short)|%(committerdate:relative)|%(authorname)|%(authoremail)|%(committerdate:unix)' refs/remotes/origin 2>/dev/null | grep -v 'origin/HEAD' | grep -v '^origin|' || true)
         } &>/dev/null
         json_output+="]"
         echo "$json_output"
