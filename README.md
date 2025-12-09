@@ -20,6 +20,7 @@ gitbash --version      # Show version
 gitbash --init         # Print shell init code
 gitbash --config       # Interactive configuration wizard
 gitbash --config-local # Configure local overrides for current repository
+gitbash --config-user  # Configure user-specific overrides (excluded from git)
 ```
 
 ### Dependencies
@@ -253,6 +254,18 @@ Local settings override the global `~/.gitbashrc` for that repository only. This
 - Different stale/cleanup thresholds per repository
 
 The interactive wizard will show each setting's current global value and ask if you want to override it locally. Only overridden values are written to the local config.
+
+#### User Configuration
+
+For personal settings that should not be committed to version control, run `gitbash --config-user` to create a `.gitbashrc-user` file in the repository root.
+
+User settings override both global (`~/.gitbashrc`) and local (`.gitbashrc`) settings. The file is automatically added to `.gitignore`.
+
+**Configuration priority (highest to lowest):**
+
+1. `.gitbashrc-user` - User-specific settings (not committed)
+2. `.gitbashrc` - Repository settings (can be committed)
+3. `~/.gitbashrc` - Global settings
 
 ### Individual aliases
 

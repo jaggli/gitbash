@@ -3,9 +3,10 @@
 # Common utilities for gitbash commands - compatible with bash and zsh
 
 # Load config files if they exist
-# Global config first, then local repo config (which can override global)
+# Global config first, then local repo config, then user config (which can override)
 CONFIG_FILE="$HOME/.gitbashrc"
 LOCAL_CONFIG_FILE=".gitbashrc"
+USER_CONFIG_FILE=".gitbashrc-user"
 
 if [[ -f "$CONFIG_FILE" ]]; then
     # shellcheck disable=SC1090
@@ -17,6 +18,12 @@ _repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
 if [[ -n "$_repo_root" && -f "$_repo_root/$LOCAL_CONFIG_FILE" ]]; then
     # shellcheck disable=SC1090
     source "$_repo_root/$LOCAL_CONFIG_FILE"
+fi
+
+# Source user config from repo root if present (overrides both)
+if [[ -n "$_repo_root" && -f "$_repo_root/$USER_CONFIG_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$_repo_root/$USER_CONFIG_FILE"
 fi
 unset _repo_root
 

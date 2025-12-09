@@ -5,6 +5,7 @@ set -euo pipefail
 
 CONFIG_FILE="$HOME/.gitbashrc"
 LOCAL_CONFIG_FILE=".gitbashrc"
+USER_CONFIG_FILE=".gitbashrc-user"
 
 load_config() {
     # Source global config first
@@ -20,6 +21,13 @@ load_config() {
         if [[ -f "$local_config" ]]; then
             # shellcheck disable=SC1090
             source "$local_config"
+        fi
+        
+        # Source user config from repo root if present (overrides both)
+        local user_config="$repo_root/$USER_CONFIG_FILE"
+        if [[ -f "$user_config" ]]; then
+            # shellcheck disable=SC1090
+            source "$user_config"
         fi
     fi
 }
@@ -359,6 +367,198 @@ configure_local_gitbash() {
     echo "Saved local configuration to $local_config"
 }
 
+configure_user_gitbash() {
+    # Check if we're in a git repository
+    local repo_root
+    if ! repo_root=$(git rev-parse --show-toplevel 2>/dev/null); then
+        echo "Error: Not inside a git repository." >&2
+        exit 1
+    fi
+    
+    local user_config="$repo_root/$USER_CONFIG_FILE"
+    local gitignore="$repo_root/.gitignore"
+    
+    # Load all configs to get current effective values
+    load_config
+    
+    # Backward compatibility: migrate GITBASH_FEATURE_BRANCH_PREFIX to GITBASH_CREATE_BRANCH_PREFIX
+    local current_prefix="${GITBASH_CREATE_BRANCH_PREFIX:-}"
+    if [[ -z "$current_prefix" && -n "${GITBASH_FEATURE_BRANCH_PREFIX:-}" ]]; then
+        # Remove "feature/" prefix from old variable
+        current_prefix="${GITBASH_FEATURE_BRANCH_PREFIX#feature/}"
+    fi
+    # Remove trailing slash if present
+    current_prefix="${current_prefix%/}"
+    
+    echo "Configure user-specific gitbash overrides for this repository"
+    echo "Config will be saved to: $user_config"
+    echo "This file is intended for personal settings and excluded from version control."
+    echo
+    echo "Press Enter to keep current setting, or enter a new value to override."
+    echo "Enter '-' to explicitly unset an override."
+    echo
+
+    local overrides=()
+    local input
+    
+    # Branch prefix
+    echo "1. Branch prefix"
+    echo "   Current (effective): ${current_prefix:-'(empty)'}"
+    read -re -p "   User override: " input
+    if [[ -n "$input" ]]; then
+        if [[ "$input" == "-" ]]; then
+            overrides+=("GITBASH_CREATE_BRANCH_PREFIX=\"\"")
+            echo "   → Will use empty prefix"
+        else
+            input="${input%/}"  # Remove trailing slash
+            overrides+=("GITBASH_CREATE_BRANCH_PREFIX=\"$input\"")
+            echo "   → Will use '$input'"
+        fi
+    else
+        echo "   → Keeping current setting"
+    fi
+    echo
+
+    # Merge command
+    local current_merge="${GITBASH_MERGE_COMMAND:-fork}"
+    echo "2. Merge tool command (used by update on conflicts)"
+    echo "   Current (effective): $current_merge"
+    read -re -p "   User override: " input
+    if [[ -n "$input" && "$input" != "-" ]]; then
+        overrides+=("GITBASH_MERGE_COMMAND=\"$input\"")
+        echo "   → Will use '$input'"
+    else
+        echo "   → Keeping current setting"
+    fi
+    echo
+
+    # Issue parsing
+    local current_no_issue_parsing="${GITBASH_CREATE_NO_ISSUE_PARSING:-no}"
+    local current_enabled="yes"
+    [[ "$current_no_issue_parsing" == "yes" ]] && current_enabled="no"
+    echo "3. Enable Jira issue parsing in branch names? (yes/no)"
+    echo "   Current (effective): $current_enabled"
+    read -re -p "   User override: " input
+    if [[ -n "$input" && "$input" != "-" ]]; then
+        case "$input" in
+            yes)
+                overrides+=("GITBASH_CREATE_NO_ISSUE_PARSING=\"no\"")
+                echo "   → Will enable parsing"
+                ;;
+            no)
+                overrides+=("GITBASH_CREATE_NO_ISSUE_PARSING=\"yes\"")
+                echo "   → Will disable parsing"
+                ;;
+            *)
+                echo "   → Invalid value, keeping current setting"
+                ;;
+        esac
+    else
+        echo "   → Keeping current setting"
+    fi
+    echo
+
+    # Issue fallback
+    local current_issue_fallback="${GITBASH_CREATE_ISSUE_PARSING_FALLBACK:-NOISSUE}"
+    echo "4. Fallback prefix when no issue number is provided"
+    echo "   Current (effective): $current_issue_fallback"
+    read -re -p "   User override: " input
+    if [[ -n "$input" && "$input" != "-" ]]; then
+        overrides+=("GITBASH_CREATE_ISSUE_PARSING_FALLBACK=\"$input\"")
+        echo "   → Will use '$input'"
+    else
+        echo "   → Keeping current setting"
+    fi
+    echo
+
+    # Theme
+    local current_theme="${GITBASH_THEME:-auto}"
+    echo "5. Theme for delta/bat (auto/dark/light)"
+    echo "   Current (effective): $current_theme"
+    read -re -p "   User override: " input
+    if [[ -n "$input" && "$input" != "-" ]]; then
+        case "$input" in
+            auto|dark|light)
+                overrides+=("GITBASH_THEME=\"$input\"")
+                echo "   → Will use '$input'"
+                ;;
+            *)
+                echo "   → Invalid value, keeping current setting"
+                ;;
+        esac
+    else
+        echo "   → Keeping current setting"
+    fi
+    echo
+
+    # Stale months
+    local current_stale_months="${GITBASH_STALE_MONTHS:-3}"
+    echo "6. Stale branch threshold in months"
+    echo "   Current (effective): $current_stale_months"
+    read -re -p "   User override: " input
+    if [[ -n "$input" && "$input" != "-" ]]; then
+        if [[ "$input" =~ ^[0-9]+$ ]] && [[ "$input" -ge 1 ]]; then
+            overrides+=("GITBASH_STALE_MONTHS=\"$input\"")
+            echo "   → Will use '$input'"
+        else
+            echo "   → Invalid value, keeping current setting"
+        fi
+    else
+        echo "   → Keeping current setting"
+    fi
+    echo
+
+    # Cleanup days
+    local current_cleanup_days="${GITBASH_CLEANUP_DAYS:-7}"
+    echo "7. Cleanup threshold in days"
+    echo "   Current (effective): $current_cleanup_days"
+    read -re -p "   User override: " input
+    if [[ -n "$input" && "$input" != "-" ]]; then
+        if [[ "$input" =~ ^[0-9]+$ ]] && [[ "$input" -ge 1 ]]; then
+            overrides+=("GITBASH_CLEANUP_DAYS=\"$input\"")
+            echo "   → Will use '$input'"
+        else
+            echo "   → Invalid value, keeping current setting"
+        fi
+    else
+        echo "   → Keeping current setting"
+    fi
+    echo
+
+    # Check if any overrides were set
+    if [[ ${#overrides[@]} -eq 0 ]]; then
+        echo "No user overrides configured."
+        return 0
+    fi
+
+    # Write user config file
+    {
+        echo "# User-specific gitbash configuration overrides for this repository"
+        echo "# Generated by 'gitbash --config-user'"
+        echo "# These settings override both global (~/.gitbashrc) and local (.gitbashrc) settings"
+        echo "# This file should NOT be committed to version control"
+        echo
+        for override in "${overrides[@]}"; do
+            echo "$override"
+        done
+    } > "$user_config"
+
+    echo "Saved user configuration to $user_config"
+    
+    # Add to .gitignore if not already present
+    if [[ -f "$gitignore" ]]; then
+        if ! grep -qxF "$USER_CONFIG_FILE" "$gitignore"; then
+            echo "$USER_CONFIG_FILE" >> "$gitignore"
+            echo "Added '$USER_CONFIG_FILE' to .gitignore"
+        else
+            echo "'$USER_CONFIG_FILE' already in .gitignore"
+        fi
+    else
+        echo "$USER_CONFIG_FILE" > "$gitignore"
+        echo "Created .gitignore with '$USER_CONFIG_FILE'"
+    fi
+}
+
 # Check and offer to install dependencies
 check_dependencies() {
     local missing_required=()
@@ -547,6 +747,7 @@ Usage:
     gitbash --init
     gitbash --config
     gitbash --config-local
+    gitbash --config-user
 
 Commands:
   branch      Interactive menu for branch operations
@@ -570,6 +771,7 @@ Options:
   --init           Print shell initialization code (for sourcing)
   --config         Configure gitbash and save to ~/.gitbashrc
   --config-local   Configure local overrides for current repository
+  --config-user    Configure user-specific overrides (excluded from git)
 
 Examples:
   gitbash commit fix bug -p     # Commit and push
@@ -630,6 +832,10 @@ main() {
             ;;
         --config-local)
             configure_local_gitbash
+            exit 0
+            ;;
+        --config-user)
+            configure_user_gitbash
             exit 0
             ;;
         *)
