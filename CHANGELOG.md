@@ -1,5 +1,11 @@
 # gitbash
 
+## 1.8.2
+
+### Patch Changes
+
+- 82a8b7f: Fix a bug in `switch` for direct selection
+
 ## 1.8.1
 
 ### Patch Changes
