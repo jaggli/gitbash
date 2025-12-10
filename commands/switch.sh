@@ -114,7 +114,7 @@ EOF
     # Ensure match_count is numeric
     [[ -z "$match_count" ]] && match_count=0
     
-    if [[ "$match_count" -eq 1 ]]; then
+    if [[ "$match_count" == "1" ]]; then
       # Single match - skip fzf
       selected_branch="$matching_branches"
       print_info "Single match found, switching directly..."
