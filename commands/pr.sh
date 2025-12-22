@@ -81,15 +81,21 @@ EOF
   if [[ "$has_changes" == true ]]; then
     echo "You have uncommitted changes or untracked files."
     echo ""
-    
-    # Source _utils.sh for prompt_read
+
+    # Source _utils.sh for prompt_read (status may use prompts)
     if ! declare -f prompt_read >/dev/null 2>&1; then
       SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
       source "$SOURCE_DIR/_utils.sh"
     fi
-    
+
     local commit_answer
-    prompt_read "Would you like to commit them first? (Y/n): " commit_answer
+    # If -p/--push was provided, assume the user wants to commit (don't ask)
+    if [[ "$should_push" == true ]]; then
+      commit_answer="y"
+    else
+      prompt_read "Would you like to commit them first? (Y/n): " commit_answer
+    fi
+
     case "$commit_answer" in
       [nN][oO]|[nN])
         echo "Continuing without committing..."
