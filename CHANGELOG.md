@@ -1,5 +1,12 @@
 # gitbash
 
+## 1.9.1
+
+### Patch Changes
+
+- dc7dfd5: confirm branch deletions
+- 66ed630: Switch backspace does not delete branch
+
 ## 1.9.0
 
 ### Minor Changes
