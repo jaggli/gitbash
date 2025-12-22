@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+## switch selects and switches git branches using fzf
+# shellcheck shell=bash
 # shellcheck disable=SC2155
 
 # Source common utilities
@@ -76,6 +78,9 @@ EOF
   # Get local branches
   local local_branches
   local_branches=$(git branch --format='%(refname:short)')
+  # Get merged local branches (merged into HEAD) in a portable way
+  local merged_local_branches
+  merged_local_branches=$(git branch --merged | sed 's/^..//' | sed '/^$/d' || true)
   
   # Get remote branches, filter out those that already exist locally
   local remote_branches
@@ -91,8 +96,21 @@ EOF
   local branch_list
   branch_list=$(
     {
-      # List local branches
-      echo "$local_branches" | sed 's/^/local: /'
+      # List local branches, marking merged ones as 'merged:' (but keep current branch as local)
+      echo "$local_branches" | while IFS= read -r lb; do
+        # Skip empty lines
+        [[ -z "$lb" ]] && continue
+        if [[ "$lb" == "$current_branch" ]]; then
+          echo "local: $lb"
+        elif [[ "$lb" == "master" || "$lb" == "main" ]]; then
+          # Keep main branches labelled as local
+          echo "local: $lb"
+        elif echo "$merged_local_branches" | grep -xq -- "${lb}" 2>/dev/null; then
+          echo "merged: $lb"
+        else
+          echo "local: $lb"
+        fi
+      done
       # Spacer (only if there are remote branches to show)
       if [[ -n "$remote_branches" ]]; then
         echo "─────────────────────────────"
@@ -101,6 +119,12 @@ EOF
       fi
     }
   )
+
+  # If no branches were found, bail out to avoid fzf listing files
+  if [[ -z "$(echo "$branch_list" | sed -n '1p' || true)" ]]; then
+    echo "No branches found in this repository."
+    return 0
+  fi
 
   # -----------------------------
   # 3b. Check for single match when filter is provided
@@ -131,19 +155,87 @@ EOF
   # 3c. Use fzf if no single match
   # -----------------------------
   if [[ -z "$selected_branch" ]]; then
-    selected_branch=$(
-      fzf \
-        --height=40% \
-        --reverse \
-        --border \
-        --prompt="Select branch: " \
-        --query="${filter_for_fzf:-$filter}" \
-        -i \
-        --preview="branch=\$(echo {} | sed 's/^[^:]*: //'); if [[ \"\$branch\" == *───* ]]; then echo 'Spacer - not selectable'; else git log --color=always -n 1 --format='%C(bold cyan)Author:%C(reset) %an%n%C(bold cyan)Date:%C(reset) %ar (%ad)%n%C(bold cyan)Message:%C(reset) %s%n' --date=format:'%Y-%m-%d %H:%M' \"\$branch\" 2>/dev/null && echo && git log --oneline --color=always -n 10 \"\$branch\" 2>/dev/null; fi" \
-        --preview-window=right:50% \
-        --header="Current: $current_branch" \
-        <<< "$branch_list"
-    ) </dev/tty || true
+    # Write branch list to a temp file so fzf can reload after deletions
+      branches_file=$(mktemp)
+      printf '%s\n' "$branch_list" > "$branches_file"
+
+    # Create a small helper script to delete the selected branch safely.
+    delete_script=$(mktemp)
+    cat > "$delete_script" <<'DEL_SH'
+#!/usr/bin/env bash
+line="$1"
+branches_file="$2"
+
+if [[ "$line" == *───* ]]; then
+  echo "Spacer - not deletable"
+  exit 0
+fi
+
+type="${line%%:*}"
+branch="${line#*: }"
+
+if [[ "$type" == "local" || "$type" == "merged" ]]; then
+  if git branch -D "$branch"; then
+    echo "Deleted local $branch"
+    awk -v l="$line" '$0!=l' "$branches_file" > "$branches_file".new && mv "$branches_file".new "$branches_file"
+  else
+    echo "Failed to delete $branch"
+  fi
+else
+  echo "Remote branch deletion is disabled in this UI. Delete remote branches manually with: git push <remote> --delete <branch>"
+  exit 0
+fi
+DEL_SH
+    chmod +x "$delete_script"
+
+    # Loop running fzf so we can handle delete keys via --expect and reload after deletion
+    selected_branch=""
+    while true; do
+        fzf_out=$(
+          fzf \
+            --height=40% \
+            --reverse \
+            --border \
+            --expect=enter,delete,ctrl-d,ctrl-h,backspace \
+            --query="${filter_for_fzf:-$filter}" \
+            -i \
+            --preview="branch=\$(echo {} | sed 's/^[^:]*: //'); if [[ \"\$branch\" == *───* ]]; then echo 'Spacer - not selectable'; else git log --color=always -n 1 --format='%C(bold cyan)Author:%C(reset) %an%n%C(bold cyan)Date:%C(reset) %ar (%ad)%n%C(bold cyan)Message:%C(reset) %s%n' --date=format:'%Y-%m-%d %H:%M' \"\$branch\" 2>/dev/null && echo && git log --oneline --color=always -n 10 \"\$branch\" 2>/dev/null; fi" \
+            --preview-window=right:50% \
+            --header="[Enter] switch | [Del/Ctrl-D] delete (local only) | [Esc] exit | Current: $current_branch" \
+            < "$branches_file"
+        ) </dev/tty || true
+
+      key_pressed=$(echo "$fzf_out" | head -n1)
+      selection=$(echo "$fzf_out" | tail -n +2 | head -n1)
+
+      # No selection or escape
+      if [[ -z "$key_pressed" && -z "$selection" ]]; then
+        selected_branch=""
+        break
+      fi
+
+      if [[ "$key_pressed" == "enter" ]]; then
+        selected_branch="$selection"
+        break
+      fi
+
+      if [[ "$key_pressed" == "delete" || "$key_pressed" == "ctrl-d" || "$key_pressed" == "ctrl-h" || "$key_pressed" == "backspace" ]]; then
+        # perform deletion on the selected line and continue loop
+        if [[ -n "$selection" ]]; then
+          "$delete_script" "$selection" "$branches_file"
+        fi
+        continue
+      fi
+
+      # If there is a selection without a key, treat as accept
+      if [[ -n "$selection" ]]; then
+        selected_branch="$selection"
+        break
+      fi
+    done
+
+    # Clean up temp files
+    rm -f "$delete_script" "$branches_file"
   fi
 
   # -----------------------------
@@ -168,7 +260,7 @@ EOF
   # 5. Switch to branch
   # -----------------------------
   local switch_success=false
-  if [[ "$branch_type" == "local" ]]; then
+  if [[ "$branch_type" == "local" || "$branch_type" == "merged" ]]; then
     # Switch to local branch
     echo "Switching to local branch: $branch_name"
     if git checkout "$branch_name"; then
