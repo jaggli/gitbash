@@ -1,5 +1,17 @@
 # gitbash
 
+## 1.9.0
+
+### Minor Changes
+
+- fc22578: Add delete option to switch
+
+### Patch Changes
+
+- 57ad8b9: Improve zero match in switch, fixes #51
+- fef572f: only allow delete local branches fixes #45
+- baffd8b: Don't confirm, the commit if there are changes, AND the -p was provided. So -p assumes commiting
+
 ## 1.8.2
 
 ### Patch Changes
