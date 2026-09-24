@@ -184,7 +184,7 @@ EOF
         --query="$query" \
         --delimiter=$'\t' \
         --with-nth=1 \
-        --bind="del:execute($bin_q switch --delete-branch {})+reload($bin_q switch --list-branches)" \
+        --bind="del:execute($bin_q switch --delete-branch {} < /dev/tty > /dev/tty 2>&1)+reload($bin_q switch --list-branches)" \
         --preview="
           type=\$(printf '%s' {} | cut -f2); name=\$(printf '%s' {} | cut -f3)
           case \"\$type\" in
@@ -210,7 +210,8 @@ EOF
   local branch_type branch_name
   branch_type=$(printf '%s' "$selected" | cut -f2)
   branch_name=$(printf '%s' "$selected" | cut -f3)
-  if [[ "$branch_type" == "spacer" || -z "$branch_name" ]]; then
+  # Only accept well-formed list lines ("<label>\t<type>\t<name>")
+  if [[ ( "$branch_type" != "local" && "$branch_type" != "remote" ) || -z "$branch_name" ]]; then
     echo "No branch selected."
     return 0
   fi

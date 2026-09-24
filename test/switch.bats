@@ -40,7 +40,7 @@ setup() {
 
 @test "the Del key is bound to delete + reload" {
     run gb switch
-    fzf_args | grep -q '^--bind=del:execute(.* switch --delete-branch {})+reload(.* switch --list-branches)$'
+    fzf_args | grep -q '^--bind=del:execute(.* switch --delete-branch {} < /dev/tty > /dev/tty 2>&1)+reload(.* switch --list-branches)$'
 }
 
 @test "deleting asks first and defaults to no" {
