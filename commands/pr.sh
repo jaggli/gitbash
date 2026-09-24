@@ -1,11 +1,83 @@
-## pr opens the current pr, if in repo
-# shellcheck shell=bash
+#!/usr/bin/env bash
+
+# Source common utilities
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=_utils.sh
+source "$SOURCE_DIR/_utils.sh"
+
+# Convert a remote URL to the repository's web URL (credentials and .git removed).
+# Handles https://[user[:token]@]host/path, ssh://[user@]host[:port]/path and user@host:path.
+_pr_web_base() {
+  local url="$1" scheme="https" rest host path
+  case "$url" in
+    http://*|https://*)
+      scheme="${url%%://*}"
+      rest="${url#*://}"
+      host="${rest%%/*}"
+      host="${host##*@}"
+      path="${rest#*/}"
+      ;;
+    ssh://*)
+      rest="${url#ssh://}"
+      host="${rest%%/*}"
+      host="${host##*@}"
+      host="${host%%:*}"
+      path="${rest#*/}"
+      ;;
+    *@*:*)
+      host="${url%%:*}"
+      host="${host##*@}"
+      path="${url#*:}"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+  path="${path%/}"
+  path="${path%.git}"
+  if [[ -z "$host" || -z "$path" || ( -n "$rest" && "$path" == "$rest" ) ]]; then
+    return 1
+  fi
+
+  # Azure DevOps SSH: ssh.dev.azure.com:v3/org/project/repo
+  if [[ "$host" == "ssh.dev.azure.com" && "$path" == v3/*/*/* ]]; then
+    local org project repo
+    path="${path#v3/}"
+    org="${path%%/*}"; path="${path#*/}"
+    project="${path%%/*}"; repo="${path#*/}"
+    echo "https://dev.azure.com/$org/$project/_git/$repo"
+    return 0
+  fi
+  echo "$scheme://$host/$path"
+}
+
+# Web URL for creating a pull/merge request for a branch
+_pr_create_url() {
+  local base="$1" branch="$2" encoded
+  encoded=$(gb_urlencode "$branch")
+  case "$base" in
+    *gitlab*)
+      echo "$base/-/merge_requests/new?merge_request%5Bsource_branch%5D=$encoded"
+      ;;
+    *bitbucket.org/*)
+      echo "$base/pull-requests/new?source=$encoded"
+      ;;
+    *dev.azure.com/*|*visualstudio.com/*)
+      echo "$base/pullrequestcreate?sourceRef=$encoded"
+      ;;
+    *)
+      echo "$base/compare/$encoded?expand=1"
+      ;;
+  esac
+}
+
+# Open the current branch's pull request (or the page to create one)
 pr() {
   local should_push=false
+  local print_only=false
 
-  # Parse arguments
   while [[ $# -gt 0 ]]; do
-    case $1 in
+    case "$1" in
       -v|--version)
         echo "gitbash ${FUNCNAME[0]} v$VERSION"
         return 0
@@ -15,36 +87,30 @@ pr() {
 Usage: pr [OPTIONS]
 
 Open the current branch's pull request in your browser.
-If no PR exists, opens GitHub's compare page to create one.
+If no pull request exists yet, opens the page to create one.
 
 Options:
-  -p, --push    Push current branch to origin before opening PR
+  -p, --push    Push the current branch before opening
+  --print       Print the URL instead of opening it
+  -y, --yes     Don't ask for confirmations
   -h, --help    Show this help message
 
 Behavior:
-  - Must be run inside a git repository
-  - Uses the 'origin' remote URL
-  - Opens a compare URL for the current branch
-  - Automatically converts SSH URLs to HTTPS
+  - Uncommitted changes: offers to commit them first (via 'commit')
+  - Branch not on the remote yet: offers to push it
+  - With the GitHub CLI (gh) installed and logged in, an existing PR is opened directly
+  - Otherwise opens the create page for the hosting service:
+      GitHub / GitHub Enterprise   <repo>/compare/<branch>?expand=1
+      GitLab                       <repo>/-/merge_requests/new?...
+      Bitbucket                    <repo>/pull-requests/new?source=<branch>
+      Azure DevOps                 <repo>/pullrequestcreate?sourceRef=<branch>
+  - Works with SSH and HTTPS remotes; credentials in the remote URL are never used
+  - Opens the browser with 'open' (macOS) or 'xdg-open' (Linux), otherwise prints the URL
 
 Examples:
   $ pr
-  # Opens: https://github.com/user/repo/compare/feature-branch?expand=1
-
-  $ git checkout feature/helix/LOVE-123-fix-bug
-  $ pr
-  # Opens: https://github.com/user/repo/compare/feature/helix/LOVE-123-fix-bug?expand=1
-
-  # Push before opening PR
   $ pr -p
-  Pushing 'feature-branch' to origin...
-  ✓ Successfully pushed 'feature-branch' to origin.
-  # Opens: https://github.com/user/repo/compare/feature-branch?expand=1
-
-Notes:
-  - Works with both SSH and HTTPS remote URLs
-  - Opens in your default browser using the 'open' command
-  - Branch name is automatically URL-encoded by the browser
+  $ pr --print
 
 EOF
         return 0
@@ -53,146 +119,92 @@ EOF
         should_push=true
         shift
         ;;
-      -*)
-        echo "Unknown option: $1"
-        echo "Usage: pr [-p|--push]"
-        return 1
+      --print)
+        print_only=true
+        shift
+        ;;
+      -y|--yes)
+        GITBASH_ASSUME_YES=1
+        shift
         ;;
       *)
-        echo "Unknown argument: $1"
-        echo "Usage: pr [-p|--push]"
+        print_error "Unknown argument: $1"
+        echo "Usage: pr [-p|--push] [--print] [-y|--yes]" >&2
         return 1
         ;;
     esac
   done
 
-  # Ensure we're inside a Git repo
-  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    echo "Not inside a git repository."
+  require_git_repo || return 1
+
+  local remote remote_url branch base
+  remote=$(gb_remote)
+  if ! remote_url=$(git config --get "remote.$remote.url"); then
+    print_error "No remote '$remote' found."
+    return 1
+  fi
+  if ! branch=$(gb_current_branch); then
+    print_error "Detached HEAD: check out a branch first."
+    return 1
+  fi
+  if ! base=$(_pr_web_base "$remote_url"); then
+    print_error "Don't know how to open '$remote_url' in a browser."
     return 1
   fi
 
-  # Check for uncommitted changes or untracked files
-  local has_changes=false
-  if ! git diff-index --quiet HEAD -- 2>/dev/null || [[ -n "$(git ls-files --others --exclude-standard)" ]]; then
-    has_changes=true
-  fi
-  
-  if [[ "$has_changes" == true ]]; then
+  # -----------------------------
+  # 1. Uncommitted changes
+  # -----------------------------
+  if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
     echo "You have uncommitted changes or untracked files."
-    echo ""
-
-    # Source _utils.sh for prompt_read (status may use prompts)
-    if ! declare -f prompt_read >/dev/null 2>&1; then
-      SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-      source "$SOURCE_DIR/_utils.sh"
-    fi
-
-    local commit_answer
-    # If -p/--push was provided, assume the user wants to commit (don't ask)
-    if [[ "$should_push" == true ]]; then
-      commit_answer="y"
-    else
-      prompt_read "Would you like to commit them first? (Y/n): " commit_answer
-    fi
-
-    case "$commit_answer" in
-      [nN][oO]|[nN])
-        echo "Continuing without committing..."
-        ;;
-      *)
-        # Run status command for interactive staging and committing
-        local local_before
-        local local_after
-        local_before=$(git rev-parse --verify HEAD 2>/dev/null || true)
-        if ! gitbash status; then
-          echo "Commit cancelled or failed. Aborting PR creation."
-          return 1
-        fi
-        local_after=$(git rev-parse --verify HEAD 2>/dev/null || true)
-
-        # Only offer to push if a new commit was actually created
-        if [[ "$local_after" != "$local_before" ]]; then
-          # If -p wasn't specified, offer to push the fresh commit
-          if [[ "$should_push" != true ]]; then
-            local push_answer
-            echo ""
-            prompt_read "Push the fresh commit to origin? (Y/n): " push_answer
-            case "$push_answer" in
-              [nN][oO]|[nN])
-                echo "Continuing without pushing..."
-                ;;
-              *)
-                should_push=true
-                ;;
-            esac
-          fi
-        else
-          echo "No new commit was created. Continuing without pushing..."
-        fi
-        ;;
-    esac
-    echo ""
-  fi
-
-  # Remote URL (e.g. git@github.com:user/repo.git or https://github.com/user/repo.git)
-  remote=$(git config --get remote.origin.url)
-
-  if [[ -z "$remote" ]]; then
-    echo "No remote 'origin' found."
-    return 1
-  fi
-
-  # Convert SSH URLs to HTTPS URLs
-  remote_https=$remote
-  remote_https=${remote_https/git@github.com:/https://github.com/}
-  remote_https=${remote_https%.git}
-
-  # Current branch
-  branch=$(git rev-parse --abbrev-ref HEAD)
-
-  # Push if requested
-  if [[ "$should_push" == true ]]; then
-    # Check if remote has updates and pull first
-    git fetch origin "$branch" 2>/dev/null
-    local local_commit
-    local remote_commit
-    local_commit=$(git rev-parse HEAD)
-    remote_commit=$(git rev-parse "origin/$branch" 2>/dev/null)
-    
-    if [[ -n "$remote_commit" && "$local_commit" != "$remote_commit" ]]; then
-      # Check if we're behind the remote
-      if git merge-base --is-ancestor "$local_commit" "$remote_commit" 2>/dev/null; then
-        echo "Remote has updates. Pulling first..."
-        if ! git pull --rebase origin "$branch"; then
-          echo "⚠ Failed to pull remote changes. Please resolve conflicts and try again."
-          return 1
-        fi
-        echo "✓ Pulled latest changes."
-      elif ! git merge-base --is-ancestor "$remote_commit" "$local_commit" 2>/dev/null; then
-        # Branches have diverged
-        echo "Remote has diverged. Pulling with rebase..."
-        git pull --rebase origin "$branch"
-        if ! git pull --rebase origin "$branch"; then
-          echo "⚠ Failed to pull remote changes. Please resolve conflicts and try again."
-          return 1
-        fi
-        echo "✓ Rebased on latest changes."
+    if [[ "$should_push" == true ]] || gb_confirm "Commit them first?" y; then
+      local before after
+      before=$(git rev-parse --verify --quiet HEAD || true)
+      if ! gb_run commit; then
+        print_error "Commit cancelled or failed. Not opening the pull request."
+        return 1
       fi
-    fi
-    
-    echo "Pushing '$branch' to origin..."
-    if git push origin "$branch"; then
-      echo "✓ Successfully pushed '$branch' to origin."
+      after=$(git rev-parse --verify --quiet HEAD || true)
+      if [[ "$after" != "$before" && "$should_push" == false ]]; then
+        gb_confirm "Push the new commit to '$remote'?" y && should_push=true
+      fi
     else
-      echo "⚠ Failed to push '$branch' to origin."
-      return 1
+      echo "Continuing without committing..."
     fi
   fi
 
-  # Construct compare URL
-  url="$remote_https/compare/$branch?expand=1"
+  # -----------------------------
+  # 2. Make sure the branch exists on the remote
+  # -----------------------------
+  if [[ "$should_push" == false ]]; then
+    local on_remote
+    on_remote=$(git ls-remote --heads "$remote" "refs/heads/$branch" 2>/dev/null || true)
+    if [[ -z "$on_remote" ]]; then
+      print_warning "Branch '$branch' is not on '$remote' yet."
+      gb_confirm "Push it now?" y && should_push=true
+    fi
+  fi
 
-  # Open in browser
-  open "$url"
+  if [[ "$should_push" == true ]]; then
+    gb_sync_and_push || return 1
+  fi
+
+  # -----------------------------
+  # 3. Open existing PR with gh, else the create page
+  # -----------------------------
+  if [[ "$print_only" == false && "$base" != *gitlab* && "$base" != *bitbucket.org/* ]] &&
+     command -v gh >/dev/null 2>&1; then
+    if GH_PROMPT_DISABLED=1 gh pr view "$branch" --web >/dev/null 2>&1; then
+      print_success "Opened the pull request for '$branch'."
+      return 0
+    fi
+  fi
+
+  local url
+  url=$(_pr_create_url "$base" "$branch")
+  if [[ "$print_only" == true ]]; then
+    echo "$url"
+  else
+    gb_open_url "$url"
+  fi
 }

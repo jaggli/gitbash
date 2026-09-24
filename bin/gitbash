@@ -1,709 +1,6 @@
 #!/usr/bin/env bash
 # gitbash - Interactive git utilities for bash with fzf-powered menus
 
-set -euo pipefail
-
-CONFIG_FILE="$HOME/.gitbashrc"
-LOCAL_CONFIG_FILE=".gitbashrc"
-USER_CONFIG_FILE=".gitbashrc-user"
-
-load_config() {
-    # Source global config first
-    if [[ -f "$CONFIG_FILE" ]]; then
-        # shellcheck disable=SC1090
-        source "$CONFIG_FILE"
-    fi
-    
-    # Source local config from repo root if present (overrides global)
-    local repo_root
-    if repo_root=$(git rev-parse --show-toplevel 2>/dev/null); then
-        local local_config="$repo_root/$LOCAL_CONFIG_FILE"
-        if [[ -f "$local_config" ]]; then
-            # shellcheck disable=SC1090
-            source "$local_config"
-        fi
-        
-        # Source user config from repo root if present (overrides both)
-        local user_config="$repo_root/$USER_CONFIG_FILE"
-        if [[ -f "$user_config" ]]; then
-            # shellcheck disable=SC1090
-            source "$user_config"
-        fi
-    fi
-}
-
-configure_gitbash() {
-    load_config
-
-    # Backward compatibility: migrate GITBASH_FEATURE_BRANCH_PREFIX to GITBASH_CREATE_BRANCH_PREFIX
-    local current_prefix="${GITBASH_CREATE_BRANCH_PREFIX:-}"
-    if [[ -z "$current_prefix" && -n "${GITBASH_FEATURE_BRANCH_PREFIX:-}" ]]; then
-        # Remove "feature/" prefix from old variable
-        current_prefix="${GITBASH_FEATURE_BRANCH_PREFIX#feature/}"
-    fi
-    # Remove trailing slash if present
-    current_prefix="${current_prefix%/}"
-    # Default to empty if still not set
-    current_prefix="${current_prefix:-}"
-    
-    local current_merge="${GITBASH_MERGE_COMMAND:-fork}"
-    local current_theme="${GITBASH_THEME:-auto}"
-    local current_stale_months="${GITBASH_STALE_MONTHS:-3}"
-    local current_cleanup_days="${GITBASH_CLEANUP_DAYS:-7}"
-    local current_no_issue_parsing="${GITBASH_CREATE_NO_ISSUE_PARSING:-no}"
-    local current_issue_fallback="${GITBASH_CREATE_ISSUE_PARSING_FALLBACK:-NOISSUE}"
-
-    echo "Configure gitbash (writes to $CONFIG_FILE)"
-    echo
-
-    local input prefix merge_cmd theme stale_months cleanup_days no_issue_parsing issue_fallback
-
-    # Branch prefix
-    echo "Branch prefix"
-    echo "Team names are typically used to organize branches by team or subproject."
-    echo "Inserted between type and branch name, examples:"
-    echo "  ''             → feature/PROJ-123-fix-bug"
-    echo "  'team'         → feature/team/PROJ-123-fix-bug"
-    echo "  'awesome-team' → hotfix/awesome-team/PROJ-999-critical-fix"
-    if [[ -n "$current_prefix" ]]; then
-        echo "Tip: Enter a single dash '-' to explicitly clear the prefix"
-    fi
-    read -re -p "Branch prefix [${current_prefix}]: " prefix
-    # If user just pressed Enter, keep current value
-    # If user entered a single dash, clear it
-    if [[ -z "$prefix" ]]; then
-        prefix="$current_prefix"
-    elif [[ "$prefix" == "-" ]]; then
-        prefix=""
-    fi
-    # Remove trailing slash if present (will be added automatically)
-    prefix="${prefix%/}"
-
-    # Merge tool
-    echo
-    read -re -p "Merge tool command (used by update on conflicts) [${current_merge}]: " input
-    merge_cmd=${input:-$current_merge}
-
-    # Issue parsing
-    echo
-    # Invert current value for display (no_issue_parsing="no" means enabled=yes)
-    local current_enabled="yes"
-    if [[ "$current_no_issue_parsing" == "yes" ]]; then
-        current_enabled="no"
-    fi
-    
-    read -re -p "Enable Jira issue parsing in branch names? (yes/no) [${current_enabled}]: " input
-    local enable_parsing=${input:-$current_enabled}
-    
-    # Convert answer to no_issue_parsing variable (inverted logic)
-    case "$enable_parsing" in
-        yes)
-            no_issue_parsing="no"
-            ;;
-        no)
-            no_issue_parsing="yes"
-            ;;
-        *)
-            echo "Invalid value. Using 'yes' (parsing enabled)."
-            no_issue_parsing="no"
-            ;;
-    esac
-
-    # Issue parsing fallback (only ask if parsing is enabled)
-    if [[ "$enable_parsing" == "yes" ]]; then
-        read -re -p "Fallback prefix when no issue number is provided [${current_issue_fallback}]: " input
-        issue_fallback=${input:-$current_issue_fallback}
-    else
-        issue_fallback="${current_issue_fallback}"
-    fi
-
-    # Theme preference
-    echo
-    echo "Theme preference for delta/bat (affects diff highlighting):"
-    echo "  auto  - Use terminal's theme detection"
-    echo "  dark  - Force dark theme"
-    echo "  light - Force light theme (GitHub style)"
-    read -re -p "Theme [${current_theme}]: " input
-    theme=${input:-$current_theme}
-    case "$theme" in
-        auto|dark|light) ;;
-        *) 
-            echo "Invalid theme. Using 'auto'."
-            theme="auto"
-            ;;
-    esac
-
-    # Stale branch threshold
-    echo
-    read -re -p "Stale branch threshold in months (used by stale) [${current_stale_months}]: " input
-    stale_months=${input:-$current_stale_months}
-    if ! [[ "$stale_months" =~ ^[0-9]+$ ]] || [[ "$stale_months" -lt 1 ]]; then
-        echo "Invalid value. Using default of 3 months."
-        stale_months=3
-    fi
-
-    # Cleanup threshold
-    read -re -p "Cleanup threshold in days (used by cleanup) [${current_cleanup_days}]: " input
-    cleanup_days=${input:-$current_cleanup_days}
-    if ! [[ "$cleanup_days" =~ ^[0-9]+$ ]] || [[ "$cleanup_days" -lt 1 ]]; then
-        echo "Invalid value. Using default of 7 days."
-        cleanup_days=7
-    fi
-
-    cat > "$CONFIG_FILE" <<EOF
-# Automatically generated gitbash configuration
-
-# CAUTION: Do not edit this file manually to avoid setting being overwritten.
-# run 'gitbash --config' to update settings
-
-# Branch prefix inserted between type and issue (e.g., 'team-name' or '')
-# No trailing slash needed - it's added automatically
-# Format: <type>/<prefix>/<issue>-<title> or <type>/<prefix>/<title>
-GITBASH_CREATE_BRANCH_PREFIX="$prefix"
-
-# Merge tool command invoked by 'update' when conflicts occur
-GITBASH_MERGE_COMMAND="$merge_cmd"
-
-# Disable Jira issue number parsing in branch names (yes/no)
-GITBASH_CREATE_NO_ISSUE_PARSING="$no_issue_parsing"
-
-# Fallback prefix when no issue number is provided (only used if parsing is enabled)
-GITBASH_CREATE_ISSUE_PARSING_FALLBACK="$issue_fallback"
-
-# Theme for delta/bat: auto, dark, or light
-GITBASH_THEME="$theme"
-
-# Stale branch threshold in months (branches older than this in 'stale')
-GITBASH_STALE_MONTHS="$stale_months"
-
-# Cleanup threshold in days (branches merged more than this many days ago)
-GITBASH_CLEANUP_DAYS="$cleanup_days"
-
-EOF
-
-    echo
-    echo "Saved configuration to $CONFIG_FILE"
-
-    # Check for dependencies
-    check_dependencies
-
-    # Check for shell integration
-    check_shell_integration
-}
-
-configure_local_gitbash() {
-    # Check if we're in a git repository
-    local repo_root
-    if ! repo_root=$(git rev-parse --show-toplevel 2>/dev/null); then
-        echo "Error: Not inside a git repository." >&2
-        exit 1
-    fi
-    
-    local local_config="$repo_root/$LOCAL_CONFIG_FILE"
-    
-    # Load global config first to get current defaults
-    load_config
-    
-    # Backward compatibility: migrate GITBASH_FEATURE_BRANCH_PREFIX to GITBASH_CREATE_BRANCH_PREFIX
-    local current_prefix="${GITBASH_CREATE_BRANCH_PREFIX:-}"
-    if [[ -z "$current_prefix" && -n "${GITBASH_FEATURE_BRANCH_PREFIX:-}" ]]; then
-        # Remove "feature/" prefix from old variable
-        current_prefix="${GITBASH_FEATURE_BRANCH_PREFIX#feature/}"
-    fi
-    # Remove trailing slash if present
-    current_prefix="${current_prefix%/}"
-    
-    echo "Configure local gitbash overrides for this repository"
-    echo "Config will be saved to: $local_config"
-    echo
-    echo "Press Enter to keep global setting, or enter a new value to override."
-    echo "Enter '-' to explicitly unset a local override."
-    echo
-
-    local overrides=()
-    local input
-    
-    # Branch prefix (current_prefix already set above with backward compatibility)
-    echo "1. Branch prefix"
-    echo "   Current (global): ${current_prefix:-'(empty)'}"
-    read -re -p "   Local override: " input
-    if [[ -n "$input" ]]; then
-        if [[ "$input" == "-" ]]; then
-            overrides+=("GITBASH_CREATE_BRANCH_PREFIX=\"\"")
-            echo "   → Will use empty prefix locally"
-        else
-            input="${input%/}"  # Remove trailing slash
-            overrides+=("GITBASH_CREATE_BRANCH_PREFIX=\"$input\"")
-            echo "   → Will use '$input' locally"
-        fi
-    else
-        echo "   → Keeping global setting"
-    fi
-    echo
-
-    # Merge command
-    local current_merge="${GITBASH_MERGE_COMMAND:-fork}"
-    echo "2. Merge tool command (used by update on conflicts)"
-    echo "   Current (global): $current_merge"
-    read -re -p "   Local override: " input
-    if [[ -n "$input" && "$input" != "-" ]]; then
-        overrides+=("GITBASH_MERGE_COMMAND=\"$input\"")
-        echo "   → Will use '$input' locally"
-    else
-        echo "   → Keeping global setting"
-    fi
-    echo
-
-    # Issue parsing
-    local current_no_issue_parsing="${GITBASH_CREATE_NO_ISSUE_PARSING:-no}"
-    local current_enabled="yes"
-    [[ "$current_no_issue_parsing" == "yes" ]] && current_enabled="no"
-    echo "3. Enable Jira issue parsing in branch names? (yes/no)"
-    echo "   Current (global): $current_enabled"
-    read -re -p "   Local override: " input
-    if [[ -n "$input" && "$input" != "-" ]]; then
-        case "$input" in
-            yes)
-                overrides+=("GITBASH_CREATE_NO_ISSUE_PARSING=\"no\"")
-                echo "   → Will enable parsing locally"
-                ;;
-            no)
-                overrides+=("GITBASH_CREATE_NO_ISSUE_PARSING=\"yes\"")
-                echo "   → Will disable parsing locally"
-                ;;
-            *)
-                echo "   → Invalid value, keeping global setting"
-                ;;
-        esac
-    else
-        echo "   → Keeping global setting"
-    fi
-    echo
-
-    # Issue fallback
-    local current_issue_fallback="${GITBASH_CREATE_ISSUE_PARSING_FALLBACK:-NOISSUE}"
-    echo "4. Fallback prefix when no issue number is provided"
-    echo "   Current (global): $current_issue_fallback"
-    read -re -p "   Local override: " input
-    if [[ -n "$input" && "$input" != "-" ]]; then
-        overrides+=("GITBASH_CREATE_ISSUE_PARSING_FALLBACK=\"$input\"")
-        echo "   → Will use '$input' locally"
-    else
-        echo "   → Keeping global setting"
-    fi
-    echo
-
-    # Theme
-    local current_theme="${GITBASH_THEME:-auto}"
-    echo "5. Theme for delta/bat (auto/dark/light)"
-    echo "   Current (global): $current_theme"
-    read -re -p "   Local override: " input
-    if [[ -n "$input" && "$input" != "-" ]]; then
-        case "$input" in
-            auto|dark|light)
-                overrides+=("GITBASH_THEME=\"$input\"")
-                echo "   → Will use '$input' locally"
-                ;;
-            *)
-                echo "   → Invalid value, keeping global setting"
-                ;;
-        esac
-    else
-        echo "   → Keeping global setting"
-    fi
-    echo
-
-    # Stale months
-    local current_stale_months="${GITBASH_STALE_MONTHS:-3}"
-    echo "6. Stale branch threshold in months"
-    echo "   Current (global): $current_stale_months"
-    read -re -p "   Local override: " input
-    if [[ -n "$input" && "$input" != "-" ]]; then
-        if [[ "$input" =~ ^[0-9]+$ ]] && [[ "$input" -ge 1 ]]; then
-            overrides+=("GITBASH_STALE_MONTHS=\"$input\"")
-            echo "   → Will use '$input' locally"
-        else
-            echo "   → Invalid value, keeping global setting"
-        fi
-    else
-        echo "   → Keeping global setting"
-    fi
-    echo
-
-    # Cleanup days
-    local current_cleanup_days="${GITBASH_CLEANUP_DAYS:-7}"
-    echo "7. Cleanup threshold in days"
-    echo "   Current (global): $current_cleanup_days"
-    read -re -p "   Local override: " input
-    if [[ -n "$input" && "$input" != "-" ]]; then
-        if [[ "$input" =~ ^[0-9]+$ ]] && [[ "$input" -ge 1 ]]; then
-            overrides+=("GITBASH_CLEANUP_DAYS=\"$input\"")
-            echo "   → Will use '$input' locally"
-        else
-            echo "   → Invalid value, keeping global setting"
-        fi
-    else
-        echo "   → Keeping global setting"
-    fi
-    echo
-
-    # Check if any overrides were set
-    if [[ ${#overrides[@]} -eq 0 ]]; then
-        echo "No local overrides configured."
-        return 0
-    fi
-
-    # Write local config file
-    {
-        echo "# Local gitbash configuration overrides for this repository"
-        echo "# Generated by 'gitbash --config-local'"
-        echo "# These settings override the global ~/.gitbashrc"
-        echo
-        for override in "${overrides[@]}"; do
-            echo "$override"
-        done
-    } > "$local_config"
-
-    echo "Saved local configuration to $local_config"
-}
-
-configure_user_gitbash() {
-    # Check if we're in a git repository
-    local repo_root
-    if ! repo_root=$(git rev-parse --show-toplevel 2>/dev/null); then
-        echo "Error: Not inside a git repository." >&2
-        exit 1
-    fi
-    
-    local user_config="$repo_root/$USER_CONFIG_FILE"
-    local gitignore="$repo_root/.gitignore"
-    
-    # Load all configs to get current effective values
-    load_config
-    
-    # Backward compatibility: migrate GITBASH_FEATURE_BRANCH_PREFIX to GITBASH_CREATE_BRANCH_PREFIX
-    local current_prefix="${GITBASH_CREATE_BRANCH_PREFIX:-}"
-    if [[ -z "$current_prefix" && -n "${GITBASH_FEATURE_BRANCH_PREFIX:-}" ]]; then
-        # Remove "feature/" prefix from old variable
-        current_prefix="${GITBASH_FEATURE_BRANCH_PREFIX#feature/}"
-    fi
-    # Remove trailing slash if present
-    current_prefix="${current_prefix%/}"
-    
-    echo "Configure user-specific gitbash overrides for this repository"
-    echo "Config will be saved to: $user_config"
-    echo "This file is intended for personal settings and excluded from version control."
-    echo
-    echo "Press Enter to keep current setting, or enter a new value to override."
-    echo "Enter '-' to explicitly unset an override."
-    echo
-
-    local overrides=()
-    local input
-    
-    # Branch prefix
-    echo "1. Branch prefix"
-    echo "   Current (effective): ${current_prefix:-'(empty)'}"
-    read -re -p "   User override: " input
-    if [[ -n "$input" ]]; then
-        if [[ "$input" == "-" ]]; then
-            overrides+=("GITBASH_CREATE_BRANCH_PREFIX=\"\"")
-            echo "   → Will use empty prefix"
-        else
-            input="${input%/}"  # Remove trailing slash
-            overrides+=("GITBASH_CREATE_BRANCH_PREFIX=\"$input\"")
-            echo "   → Will use '$input'"
-        fi
-    else
-        echo "   → Keeping current setting"
-    fi
-    echo
-
-    # Merge command
-    local current_merge="${GITBASH_MERGE_COMMAND:-fork}"
-    echo "2. Merge tool command (used by update on conflicts)"
-    echo "   Current (effective): $current_merge"
-    read -re -p "   User override: " input
-    if [[ -n "$input" && "$input" != "-" ]]; then
-        overrides+=("GITBASH_MERGE_COMMAND=\"$input\"")
-        echo "   → Will use '$input'"
-    else
-        echo "   → Keeping current setting"
-    fi
-    echo
-
-    # Issue parsing
-    local current_no_issue_parsing="${GITBASH_CREATE_NO_ISSUE_PARSING:-no}"
-    local current_enabled="yes"
-    [[ "$current_no_issue_parsing" == "yes" ]] && current_enabled="no"
-    echo "3. Enable Jira issue parsing in branch names? (yes/no)"
-    echo "   Current (effective): $current_enabled"
-    read -re -p "   User override: " input
-    if [[ -n "$input" && "$input" != "-" ]]; then
-        case "$input" in
-            yes)
-                overrides+=("GITBASH_CREATE_NO_ISSUE_PARSING=\"no\"")
-                echo "   → Will enable parsing"
-                ;;
-            no)
-                overrides+=("GITBASH_CREATE_NO_ISSUE_PARSING=\"yes\"")
-                echo "   → Will disable parsing"
-                ;;
-            *)
-                echo "   → Invalid value, keeping current setting"
-                ;;
-        esac
-    else
-        echo "   → Keeping current setting"
-    fi
-    echo
-
-    # Issue fallback
-    local current_issue_fallback="${GITBASH_CREATE_ISSUE_PARSING_FALLBACK:-NOISSUE}"
-    echo "4. Fallback prefix when no issue number is provided"
-    echo "   Current (effective): $current_issue_fallback"
-    read -re -p "   User override: " input
-    if [[ -n "$input" && "$input" != "-" ]]; then
-        overrides+=("GITBASH_CREATE_ISSUE_PARSING_FALLBACK=\"$input\"")
-        echo "   → Will use '$input'"
-    else
-        echo "   → Keeping current setting"
-    fi
-    echo
-
-    # Theme
-    local current_theme="${GITBASH_THEME:-auto}"
-    echo "5. Theme for delta/bat (auto/dark/light)"
-    echo "   Current (effective): $current_theme"
-    read -re -p "   User override: " input
-    if [[ -n "$input" && "$input" != "-" ]]; then
-        case "$input" in
-            auto|dark|light)
-                overrides+=("GITBASH_THEME=\"$input\"")
-                echo "   → Will use '$input'"
-                ;;
-            *)
-                echo "   → Invalid value, keeping current setting"
-                ;;
-        esac
-    else
-        echo "   → Keeping current setting"
-    fi
-    echo
-
-    # Stale months
-    local current_stale_months="${GITBASH_STALE_MONTHS:-3}"
-    echo "6. Stale branch threshold in months"
-    echo "   Current (effective): $current_stale_months"
-    read -re -p "   User override: " input
-    if [[ -n "$input" && "$input" != "-" ]]; then
-        if [[ "$input" =~ ^[0-9]+$ ]] && [[ "$input" -ge 1 ]]; then
-            overrides+=("GITBASH_STALE_MONTHS=\"$input\"")
-            echo "   → Will use '$input'"
-        else
-            echo "   → Invalid value, keeping current setting"
-        fi
-    else
-        echo "   → Keeping current setting"
-    fi
-    echo
-
-    # Cleanup days
-    local current_cleanup_days="${GITBASH_CLEANUP_DAYS:-7}"
-    echo "7. Cleanup threshold in days"
-    echo "   Current (effective): $current_cleanup_days"
-    read -re -p "   User override: " input
-    if [[ -n "$input" && "$input" != "-" ]]; then
-        if [[ "$input" =~ ^[0-9]+$ ]] && [[ "$input" -ge 1 ]]; then
-            overrides+=("GITBASH_CLEANUP_DAYS=\"$input\"")
-            echo "   → Will use '$input'"
-        else
-            echo "   → Invalid value, keeping current setting"
-        fi
-    else
-        echo "   → Keeping current setting"
-    fi
-    echo
-
-    # Check if any overrides were set
-    if [[ ${#overrides[@]} -eq 0 ]]; then
-        echo "No user overrides configured."
-        return 0
-    fi
-
-    # Write user config file
-    {
-        echo "# User-specific gitbash configuration overrides for this repository"
-        echo "# Generated by 'gitbash --config-user'"
-        echo "# These settings override both global (~/.gitbashrc) and local (.gitbashrc) settings"
-        echo "# This file should NOT be committed to version control"
-        echo
-        for override in "${overrides[@]}"; do
-            echo "$override"
-        done
-    } > "$user_config"
-
-    echo "Saved user configuration to $user_config"
-    
-    # Add to .gitignore if not already present
-    if [[ -f "$gitignore" ]]; then
-        if ! grep -qxF "$USER_CONFIG_FILE" "$gitignore"; then
-            echo "$USER_CONFIG_FILE" >> "$gitignore"
-            echo "Added '$USER_CONFIG_FILE' to .gitignore"
-        else
-            echo "'$USER_CONFIG_FILE' already in .gitignore"
-        fi
-    else
-        echo "$USER_CONFIG_FILE" > "$gitignore"
-        echo "Created .gitignore with '$USER_CONFIG_FILE'"
-    fi
-}
-
-# Check and offer to install dependencies
-check_dependencies() {
-    local missing_required=()
-    local missing_optional=()
-
-    # Optional dependencies (fzf is optional; commands will try to run without it)
-    if ! command -v fzf >/dev/null 2>&1; then
-        missing_optional+=("fzf")
-    fi
-
-    # Optional dependencies
-    if ! command -v delta >/dev/null 2>&1; then
-        missing_optional+=("git-delta")
-    fi
-    if ! command -v bat >/dev/null 2>&1; then
-        missing_optional+=("bat")
-    fi
-
-    # If nothing missing, we're done
-    if [[ ${#missing_required[@]} -eq 0 && ${#missing_optional[@]} -eq 0 ]]; then
-        echo
-        echo "All dependencies installed ✓"
-        return 0
-    fi
-
-    echo
-    echo "Dependencies:"
-
-    # Show status of each dependency
-    if command -v fzf >/dev/null 2>&1; then
-        echo "  ✓ fzf (optional)"
-    else
-        echo "  ✗ fzf (optional) - fuzzy finder for interactive selection"
-    fi
-
-    if command -v delta >/dev/null 2>&1; then
-        echo "  ✓ git-delta (optional)"
-    else
-        echo "  ✗ git-delta (optional) - better diff highlighting"
-    fi
-
-    if command -v bat >/dev/null 2>&1; then
-        echo "  ✓ bat (optional)"
-    else
-        echo "  ✗ bat (optional) - syntax highlighting for file previews"
-    fi
-
-    # Build list of all missing dependencies
-    local all_missing=()
-    [[ ${#missing_required[@]} -gt 0 ]] && all_missing+=("${missing_required[@]}")
-    [[ ${#missing_optional[@]} -gt 0 ]] && all_missing+=("${missing_optional[@]}")
-
-    # If nothing to install, we're done
-    if [[ ${#all_missing[@]} -eq 0 ]]; then
-        return 0
-    fi
-
-    # Check if Homebrew is available
-    if ! command -v brew >/dev/null 2>&1; then
-        echo
-        echo "Homebrew not found. Install dependencies manually:"
-        for dep in "${all_missing[@]}"; do
-            echo "  brew install $dep"
-        done
-        return 0
-    fi
-
-    # Offer to install missing dependencies
-    echo
-    local install_deps
-    read -re -p "Install missing dependencies with Homebrew? (Y/n): " install_deps
-    case "$install_deps" in
-        [nN][oO]|[nN])
-            echo "Skipped dependency installation."
-            ;;
-        *)
-            echo "Installing dependencies..."
-            for dep in "${all_missing[@]}"; do
-                echo "  Installing $dep..."
-                if brew install "$dep" 2>/dev/null; then
-                    echo "  ✓ $dep installed"
-                else
-                    echo "  ✗ Failed to install $dep"
-                fi
-            done
-            ;;
-    esac
-}
-
-# Check if gitbash shell integration is set up
-check_shell_integration() {
-    local shell_rc=""
-    local shell_files=("$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile")
-    
-    # Find the first existing shell rc file
-    for file in "${shell_files[@]}"; do
-        if [[ -f "$file" ]]; then
-            shell_rc="$file"
-            break
-        fi
-    done
-
-    if [[ -z "$shell_rc" ]]; then
-        echo
-        echo "No shell config file found (.zshrc, .bashrc, .bash_profile)"
-        return 0
-    fi
-
-    # Check if gitbash integration already exists
-    local has_init=false
-    local has_alias=false
-
-    if grep -q 'eval.*gitbash --init' "$shell_rc" 2>/dev/null; then
-        has_init=true
-    fi
-
-    if grep -q 'alias.*gitbash' "$shell_rc" 2>/dev/null; then
-        has_alias=true
-    fi
-
-    # If neither init nor alias found, offer to add
-    if [[ "$has_init" == false && "$has_alias" == false ]]; then
-        echo
-        echo "Shell integration not found in $shell_rc"
-        local add_init
-        read -re -p "Add 'eval \"\$(gitbash --init)\"' to $shell_rc? (Y/n): " add_init
-        case "$add_init" in
-            [nN][oO]|[nN])
-                echo "Skipped shell integration."
-                ;;
-            *)
-                echo >> "$shell_rc"
-                echo '# gitbash shell integration' >> "$shell_rc"
-                echo 'eval "$(gitbash --init)"' >> "$shell_rc"
-                echo
-                echo "Added to $shell_rc"
-                echo "Run 'source $shell_rc' or restart your shell to activate."
-                ;;
-        esac
-    else
-        echo
-        echo "Shell integration already configured in $shell_rc"
-    fi
-}
-
 # Resolve symlinks to get the actual script location
 SOURCE="${BASH_SOURCE[0]}"
 while [[ -L "$SOURCE" ]]; do
@@ -712,12 +9,13 @@ while [[ -L "$SOURCE" ]]; do
     [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
 done
 SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
-
-# Export so sourced command files can use it
-export SCRIPT_DIR
-
+GITBASH_BIN="$SCRIPT_DIR/bin/gitbash"
 COMMANDS_DIR="$SCRIPT_DIR/commands"
 VERSION="$(grep -o '"version": *"[^"]*"' "$SCRIPT_DIR/package.json" | head -1 | cut -d'"' -f4)"
+export SCRIPT_DIR GITBASH_BIN VERSION
+
+# shellcheck source=../commands/_utils.sh
+source "$COMMANDS_DIR/_utils.sh"
 
 # Available commands
 COMMANDS=(
@@ -737,17 +35,336 @@ COMMANDS=(
     "update"
 )
 
+is_command() {
+    local cmd
+    for cmd in "${COMMANDS[@]}"; do
+        [[ "$cmd" == "$1" ]] && return 0
+    done
+    return 1
+}
+
+# =============================================================================
+# Configuration wizard
+# =============================================================================
+
+# key|type|question
+SETTINGS=(
+    "GITBASH_CREATE_BRANCH_PREFIX|prefix|Branch prefix inserted between type and branch name (e.g. 'team' → feature/team/PROJ-123-fix-bug)"
+    "GITBASH_CREATE_NO_ISSUE_PARSING|parsing|Parse Jira issue numbers into branch names? (yes/no)"
+    "GITBASH_CREATE_ISSUE_PARSING_FALLBACK|text|Fallback issue prefix when no issue number is given"
+    "GITBASH_CREATE_AUTO_PUSH|yesno|Push new branches to the remote right after 'create'? (yes/no)"
+    "GITBASH_MERGE_COMMAND|command|Merge tool opened by 'update' on conflicts (not allowed in the committed .gitbashrc)"
+    "GITBASH_THEME|theme|Theme for delta/bat previews (auto/dark/light)"
+    "GITBASH_STALE_MONTHS|number|Stale remote branch threshold in months (used by 'stale')"
+    "GITBASH_CLEANUP_DAYS|number|Stale local branch threshold in days (used by 'cleanup')"
+    "GITBASH_PROTECTED_BRANCHES|text|Branches never offered for deletion (space-separated globs)"
+    "GITBASH_BASE_BRANCH|text|Base branch (empty = detect from the remote's HEAD, then main/master)"
+    "GITBASH_REMOTE|text|Remote name"
+)
+
+# Default value of a setting
+setting_default() {
+    case "$1" in
+        GITBASH_CREATE_NO_ISSUE_PARSING) echo "no" ;;
+        GITBASH_CREATE_ISSUE_PARSING_FALLBACK) echo "NOISSUE" ;;
+        GITBASH_CREATE_AUTO_PUSH) echo "yes" ;;
+        GITBASH_MERGE_COMMAND) echo "fork" ;;
+        GITBASH_THEME) echo "auto" ;;
+        GITBASH_STALE_MONTHS) echo "3" ;;
+        GITBASH_CLEANUP_DAYS) echo "7" ;;
+        GITBASH_PROTECTED_BRANCHES) echo "main master develop release/*" ;;
+        GITBASH_REMOTE) echo "origin" ;;
+        *) echo "" ;;
+    esac
+}
+
+# Value of a setting stored in a specific file. Returns 1 if not set there.
+file_value() {
+    local file="$1" key="$2" k v
+    while IFS='=' read -r k v; do
+        if [[ "$k" == "$key" ]]; then
+            printf '%s' "$v"
+            return 0
+        fi
+    done < <(_gb_config_entries "$file")
+    return 1
+}
+
+# Convert between the stored value and what the wizard shows.
+# GITBASH_CREATE_NO_ISSUE_PARSING is stored inverted.
+to_display() {
+    local type="$1" value="$2"
+    if [[ "$type" == "parsing" ]]; then
+        [[ "$value" == "yes" ]] && echo "no" || echo "yes"
+    else
+        printf '%s' "$value"
+    fi
+}
+
+# Validate an answer and print the value to store. Returns 1 if invalid.
+to_stored() {
+    local type="$1" answer="$2"
+    if [[ "$answer" == *'"'* || "$answer" == *'$'* || "$answer" == *'`'* || "$answer" == *\\* ]]; then
+        echo "Values cannot contain \", \$, \` or \\." >&2
+        return 1
+    fi
+    case "$type" in
+        parsing)
+            case "$answer" in
+                yes) echo "no" ;;
+                no) echo "yes" ;;
+                *) echo "Please answer yes or no." >&2; return 1 ;;
+            esac
+            ;;
+        yesno)
+            case "$answer" in
+                yes|no) echo "$answer" ;;
+                *) echo "Please answer yes or no." >&2; return 1 ;;
+            esac
+            ;;
+        theme)
+            case "$answer" in
+                auto|dark|light) echo "$answer" ;;
+                *) echo "Please answer auto, dark or light." >&2; return 1 ;;
+            esac
+            ;;
+        number)
+            if [[ "$answer" =~ ^[1-9][0-9]*$ ]]; then
+                echo "$answer"
+            else
+                echo "Please enter a whole number of at least 1." >&2
+                return 1
+            fi
+            ;;
+        prefix)
+            echo "${answer%/}"
+            ;;
+        *)
+            echo "$answer"
+            ;;
+    esac
+}
+
+# Interactive configuration for one scope: global (~/.gitbashrc),
+# local (<repo>/.gitbashrc, committed) or user (<repo>/.gitbashrc-user, not committed)
+configure_wizard() {
+    local scope="$1" file repo_root=""
+    case "$scope" in
+        global)
+            file=$(gb_global_config_file)
+            ;;
+        local|user)
+            if ! repo_root=$(git rev-parse --show-toplevel 2>/dev/null); then
+                print_error "Not inside a git repository."
+                return 1
+            fi
+            if [[ "$scope" == "local" ]]; then
+                file="$repo_root/.gitbashrc"
+            else
+                file="$repo_root/.gitbashrc-user"
+            fi
+            ;;
+    esac
+
+    # Effective values from all config files, used as defaults
+    gb_load_config 2>/dev/null
+
+    echo "Configure gitbash ($scope) - writes to $file"
+    if [[ "$scope" == "global" ]]; then
+        echo "Press Enter to keep the current value, or '-' to reset it to the default."
+    else
+        echo "Press Enter to keep this file's current setting, '-' to remove the override,"
+        echo "or '\"\"' to override with an empty value."
+    fi
+    echo
+
+    local -a lines
+    local entry key type question current default answer stored has_override shown n=0
+    for entry in "${SETTINGS[@]}"; do
+        n=$((n + 1))
+        IFS='|' read -r key type question <<< "$entry"
+        [[ "$scope" == "local" && "$key" == "GITBASH_MERGE_COMMAND" ]] && continue
+
+        default=$(setting_default "$key")
+        has_override=false
+        if current=$(file_value "$file" "$key"); then
+            has_override=true
+        elif [[ "$scope" == "global" ]]; then
+            current="$default"
+        fi
+
+        echo "$n. $question"
+        if [[ "$scope" == "global" ]]; then
+            shown=$(to_display "$type" "$current")
+        else
+            shown=$(to_display "$type" "${!key}")
+            if [[ "$has_override" == true ]]; then
+                echo "   Current override: '$(to_display "$type" "$current")'"
+            else
+                echo "   Current (inherited): '$shown'"
+            fi
+        fi
+
+        while true; do
+            if ! prompt_read "   Value [$shown]: " answer; then
+                echo "Aborted - nothing was saved."
+                return 1
+            fi
+            if [[ -z "$answer" ]]; then
+                # Keep what this file has
+                if [[ "$scope" == "global" || "$has_override" == true ]]; then
+                    lines+=("$key=\"$current\"")
+                fi
+                break
+            fi
+            if [[ "$answer" == "-" ]]; then
+                if [[ "$scope" == "global" ]]; then
+                    lines+=("$key=\"$default\"")
+                fi
+                break
+            fi
+            [[ "$answer" == '""' ]] && answer=""
+            if [[ -z "$answer" && "$type" != "prefix" && "$type" != "text" ]]; then
+                echo "   This setting cannot be empty." >&2
+                continue
+            fi
+            if stored=$(to_stored "$type" "$answer"); then
+                lines+=("$key=\"$stored\"")
+                break
+            fi
+        done
+        echo
+    done
+
+    if [[ "$scope" != "global" && ${#lines[@]} -eq 0 ]]; then
+        if [[ -f "$file" ]]; then
+            rm -f "$file"
+            print_info "No overrides left - removed $file"
+        else
+            print_info "No overrides configured."
+        fi
+        return 0
+    fi
+
+    local flag="--config"
+    [[ "$scope" != "global" ]] && flag="--config-$scope"
+    {
+        echo "# gitbash configuration ($scope). Generated by 'gitbash $flag'."
+        echo "# Only plain GITBASH_*=\"value\" lines are read; nothing in this file is executed."
+        [[ "$scope" == "user" ]] && echo "# Personal settings - not committed (listed in .git/info/exclude)."
+        echo
+        local line
+        for line in ${lines[@]+"${lines[@]}"}; do
+            echo "$line"
+        done
+    } > "$file"
+    print_success "Saved $file"
+
+    if [[ "$scope" == "user" ]]; then
+        exclude_user_config
+    elif [[ "$scope" == "global" ]]; then
+        check_dependencies
+        check_shell_integration
+    fi
+}
+
+# Keep .gitbashrc-user out of git without touching the tracked .gitignore
+exclude_user_config() {
+    local exclude
+    exclude=$(git rev-parse --git-path info/exclude 2>/dev/null) || return 0
+    mkdir -p "$(dirname "$exclude")"
+    if [[ -f "$exclude" ]] && grep -qxF ".gitbashrc-user" "$exclude"; then
+        return 0
+    fi
+    # Make sure we start on a new line
+    if [[ -s "$exclude" && -n "$(tail -c 1 "$exclude")" ]]; then
+        echo >> "$exclude"
+    fi
+    echo ".gitbashrc-user" >> "$exclude"
+    print_info "Added .gitbashrc-user to $exclude"
+}
+
+# Report missing optional dependencies and offer to install them with Homebrew
+check_dependencies() {
+    local missing=() dep
+    command -v fzf >/dev/null 2>&1 || missing+=("fzf")
+    command -v delta >/dev/null 2>&1 || missing+=("git-delta")
+    command -v bat >/dev/null 2>&1 || command -v batcat >/dev/null 2>&1 || missing+=("bat")
+
+    echo
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        if require_fzf; then
+            print_success "All dependencies installed."
+        fi
+        return 0
+    fi
+
+    echo "Missing optional dependencies: ${missing[*]}"
+    echo "  fzf (>= $GB_FZF_MIN_VERSION) - interactive menus, git-delta - diff highlighting, bat - file previews"
+    if ! command -v brew >/dev/null 2>&1; then
+        echo "Install them with your package manager, e.g.: sudo apt install ${missing[*]}"
+        return 0
+    fi
+    if gb_confirm "Install them with Homebrew?" y; then
+        for dep in "${missing[@]}"; do
+            if brew install "$dep"; then
+                print_success "$dep installed"
+            else
+                print_error "Failed to install $dep"
+            fi
+        done
+    fi
+}
+
+# Offer to add the shell integration to the rc file of the user's shell
+check_shell_integration() {
+    local shell_name shell_rc
+    shell_name=$(basename "${SHELL:-}")
+    case "$shell_name" in
+        zsh) shell_rc="$HOME/.zshrc" ;;
+        bash)
+            if [[ -f "$HOME/.bashrc" ]]; then
+                shell_rc="$HOME/.bashrc"
+            else
+                shell_rc="$HOME/.bash_profile"
+            fi
+            ;;
+        *)
+            echo
+            print_info "Shell '$shell_name' is not supported for integration. Use 'gitbash <command>' or aliases."
+            return 0
+            ;;
+    esac
+
+    echo
+    if [[ -f "$shell_rc" ]] && grep -q 'gitbash --init' "$shell_rc"; then
+        print_info "Shell integration already configured in $shell_rc"
+        return 0
+    fi
+    if gb_confirm "Add 'eval \"\$(gitbash --init)\"' to $shell_rc?" y; then
+        {
+            echo
+            echo '# gitbash shell integration'
+            # shellcheck disable=SC2016  # written literally to the rc file
+            echo 'eval "$(gitbash --init)"'
+        } >> "$shell_rc"
+        print_success "Added to $shell_rc. Restart your shell or run 'source $shell_rc'."
+    fi
+}
+
+# =============================================================================
+# Help and shell integration
+# =============================================================================
+
 show_help() {
-    cat << 'EOF'
-gitbash - Interactive git utilities for bash
+    cat << EOF
+gitbash $VERSION - Interactive git utilities for bash
 
 Usage:
     gitbash <command> [args...]
-    gitbash --help
-    gitbash --init
-    gitbash --config
-    gitbash --config-local
-    gitbash --config-user
+    gitbash --help | --version
+    gitbash --init [--prefix=PREFIX]
+    gitbash --config | --config-local | --config-user
 
 Commands:
   branch      Interactive menu for branch operations
@@ -768,10 +385,11 @@ Commands:
 Options:
   -h, --help       Show this help message
   -v, --version    Show version number
-  --init           Print shell initialization code (for sourcing)
+  --init           Print shell functions for calling commands directly
+                   (--prefix=gb- creates gb-commit, gb-switch, ...)
   --config         Configure gitbash and save to ~/.gitbashrc
-  --config-local   Configure local overrides for current repository
-  --config-user    Configure user-specific overrides (excluded from git)
+  --config-local   Configure overrides for this repository (.gitbashrc, committed)
+  --config-user    Configure personal overrides for this repository (.gitbashrc-user)
 
 Examples:
   gitbash commit fix bug -p     # Commit and push
@@ -779,83 +397,87 @@ Examples:
   gitbash create PROJ-123 fix   # Create feature/PROJ-123-fix
 
 Shell Integration:
-  Add to your .bashrc or .bash_profile:
-    eval "$(gitbash --init)"
+  Add to your .zshrc or .bashrc:
+    eval "\$(gitbash --init)"
 
   This enables calling commands directly:
     commit fix bug -p
     switch feature
 
-Dependencies:
-  brew install fzf           # Required
-  brew install git-delta     # Optional: better diffs
-  brew install bat           # Optional: syntax highlighting
+Dependencies (optional):
+  fzf >= $GB_FZF_MIN_VERSION   Interactive menus (brew install fzf)
+  git-delta       Better diffs (brew install git-delta)
+  bat             Syntax highlighting (brew install bat)
 EOF
 }
 
+# Print wrapper functions for the interactive shell. Commands still run in
+# their own bash process, so nothing leaks into the user's shell.
 show_init() {
-    cat << EOF
-# gitbash shell integration
-# Add this to your .bashrc or .bash_profile:
-#   eval "\$(gitbash --init)"
-
-GITBASH_COMMANDS_DIR="$COMMANDS_DIR"
-
-EOF
-    # Output source commands for each script
+    local prefix="" arg cmd bin_quoted
+    for arg in "$@"; do
+        case "$arg" in
+            --prefix=*) prefix="${arg#--prefix=}" ;;
+            *) print_error "Unknown option for --init: $arg"; return 1 ;;
+        esac
+    done
+    if ! [[ "$prefix" =~ ^[A-Za-z0-9_-]*$ ]]; then
+        print_error "Invalid prefix '$prefix' (use letters, digits, '-' or '_')."
+        return 1
+    fi
+    printf -v bin_quoted '%q' "$GITBASH_BIN"
+    echo "# gitbash shell integration - add to your .zshrc or .bashrc:"
+    echo "#   eval \"\$(gitbash --init${prefix:+ --prefix=$prefix})\""
     for cmd in "${COMMANDS[@]}"; do
-        if [[ -f "$COMMANDS_DIR/$cmd.sh" ]]; then
-            echo "source \"\$GITBASH_COMMANDS_DIR/$cmd.sh\""
-        fi
+        echo "${prefix}${cmd}() { $bin_quoted $cmd \"\$@\"; }"
     done
 }
 
+# =============================================================================
 # Main entry point
+# =============================================================================
+
 main() {
-    load_config
     case "${1:-}" in
         -h|--help|"")
             show_help
-            exit 0
             ;;
         -v|--version)
             echo "gitbash $VERSION"
-            exit 0
             ;;
         --init)
-            show_init
-            exit 0
+            shift
+            show_init "$@"
             ;;
         --config)
-            configure_gitbash
-            exit 0
+            configure_wizard global
             ;;
         --config-local)
-            configure_local_gitbash
-            exit 0
+            configure_wizard local
             ;;
         --config-user)
-            configure_user_gitbash
-            exit 0
+            configure_wizard user
+            ;;
+        -*)
+            print_error "Unknown option '$1'"
+            echo "Run 'gitbash --help' for available options." >&2
+            return 1
             ;;
         *)
             local cmd="$1"
             shift
-            
-            # Check if command exists
-            if [[ -f "$COMMANDS_DIR/$cmd.sh" ]]; then
-                # Source the command file and execute the function
-                source "$COMMANDS_DIR/$cmd.sh"
-                "$cmd" "$@"
-            else
-                echo "Error: Unknown command '$cmd'" >&2
+            if ! is_command "$cmd"; then
+                print_error "Unknown command '$cmd'"
                 echo "Run 'gitbash --help' for available commands." >&2
-                exit 1
+                return 1
             fi
+            gb_load_config
+            # shellcheck source=/dev/null
+            source "$COMMANDS_DIR/$cmd.sh"
+            "$cmd" "$@"
             ;;
     esac
 }
 
 main "$@"
-
-
+exit $?

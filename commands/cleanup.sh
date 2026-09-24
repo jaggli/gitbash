@@ -1,28 +1,43 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2155
 
 # Source common utilities
-SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_utils.sh
 source "$SOURCE_DIR/_utils.sh"
 
+# Returns 0 if all changes of the branch are in the base (merged, fast-forwarded or squash-merged)
+_cleanup_is_merged() {
+  local branch="$1" base_ref="$2" merge_base squashed
+  git merge-base --is-ancestor "$branch" "$base_ref" 2>/dev/null && return 0
+  # Squash merge: a commit with the branch's combined changes already exists in the base
+  merge_base=$(git merge-base "$base_ref" "$branch" 2>/dev/null) || return 1
+  squashed=$(git commit-tree "$branch^{tree}" -p "$merge_base" -m "gitbash squash check" 2>/dev/null) || return 1
+  [[ "$(git cherry "$base_ref" "$squashed" 2>/dev/null)" == "-"* ]]
+}
+
+# Unix timestamp of N days ago
+_cleanup_days_ago() {
+  local days="$1" ts
+  ts=$(date -v-"${days}d" +%s 2>/dev/null) ||
+    ts=$(date -d "${days} days ago" +%s 2>/dev/null) ||
+    ts=$(( $(date +%s) - days * 86400 ))
+  echo "$ts"
+}
+
 # Cleanup local branches that are no longer needed
 cleanup() {
-    # -----------------------------
-    # 0. Check for help/version flag and parse options
-    # -----------------------------
-    local json_mode=false
-    local dry_run=false
-    local days_threshold="${GITBASH_CLEANUP_DAYS:-7}"
-    
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            -v|--version)
-                echo "gitbash ${FUNCNAME[0]} v$VERSION"
-                return 0
-                ;;
-            -h|--help)
-                cat << 'EOF'
+  local json_mode=false
+  local dry_run=false
+  local days_threshold="${GITBASH_CLEANUP_DAYS:-7}"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -v|--version)
+        echo "gitbash ${FUNCNAME[0]} v$VERSION"
+        return 0
+        ;;
+      -h|--help)
+        cat << 'EOF'
 Usage: cleanup [OPTIONS]
 
 Find and delete local branches that are no longer needed.
@@ -30,484 +45,333 @@ Find and delete local branches that are no longer needed.
 Options:
   -h, --help       Show this help message
   --json           Output branch data as JSON (non-interactive)
-  --dry-run        Show what would be deleted without actually deleting
+  --dry-run        List the branches that would be pre-selected, without deleting
   --days=N         Override stale threshold (default: 7 days, configurable via GITBASH_CLEANUP_DAYS)
+  -y, --yes        Delete the pre-selected branches without the picker (safe delete only)
 
-Categories (pre-selected for deletion):
-  - Merged branches: Local branches whose remote was merged and deleted
-  - Stale branches: Local branches with no commits in N+ days (default 7)
+Labels:
+  [MERGED]  All changes are in the base branch (merged, fast-forwarded or squash-merged).
+            Pre-selected when the remote branch is gone or it is older than N days.
+  [STALE]   No commits in N+ days. Pre-selected only if everything is pushed.
+  [GONE]    Remote branch was deleted, but the changes are NOT in the base branch.
+  [RECENT]  Commits in the last N days.
+  "N unpushed" means N commits exist only on your machine.
 
-Not pre-selected (but listed):
-  - Recent branches: Local branches with commits in the last N days
+Protected branches (base branch and GITBASH_PROTECTED_BRANCHES) are never listed.
 
 Navigation:
-  ↑/↓ or j/k    Navigate through branches
+  ↑/↓           Navigate through branches
   TAB           Select/deselect branch
   Enter         Delete selected branch(es)
   ESC/Ctrl-C    Exit without action
 
-Configuration:
-  GITBASH_CLEANUP_DAYS - Set default days threshold (run 'gitbash --config')
-
-Notes:
-  - Only deletes LOCAL branches (never touches remote)
-  - If current branch is selected, switches to main/master first
-  - Force deletes branches (even if not fully merged)
+Deleting:
+  - Only deletes LOCAL branches (never touches the remote)
+  - If the current branch is selected, switches to the base branch first
+  - Uses 'git branch -d'. Branches with unmerged commits are listed and only
+    force-deleted after a separate confirmation (default: no).
 
 Examples:
   $ cleanup
-  Local branches to clean up >
-  > [MERGED]  feature/old-feature        2 weeks ago
-    [STALE]   feature/abandoned          8 days ago
-    [RECENT]  feature/work-in-progress   2 days ago
-    ✖ Abort
-
   $ cleanup --dry-run
-  # Shows what would be deleted without deleting
-
   $ cleanup --days=14
-  # Use 14-day threshold for stale branches
-
   $ cleanup --json
-  [{"last_change_timestamp":1733123456,"author_email":"dev@example.com",...}]
 
 Requirements:
   - Must be in a git repository
-  - fzf (fuzzy finder) - not required for --json mode
+  - fzf (not required for --json, --dry-run or --yes)
 
 EOF
-                return 0
-                ;;
-            --json)
-                json_mode=true
-                shift
-                ;;
-            --dry-run)
-                dry_run=true
-                shift
-                ;;
-            --days=*)
-                days_threshold="${1#--days=}"
-                if ! [[ "$days_threshold" =~ ^[0-9]+$ ]] || [[ "$days_threshold" -lt 1 ]]; then
-                    print_error "Invalid days value: $days_threshold"
-                    return 1
-                fi
-                shift
-                ;;
-            *)
-                echo "Unknown option: $1"
-                return 1
-                ;;
-        esac
-    done
-    # -----------------------------
-    # 1. Check prerequisites
-    # -----------------------------
-    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        if [[ "$json_mode" == true ]]; then
-            echo "[]"
-        else
-            print_error "Not inside a git repository."
-        fi
-        return 1
-    fi
-
-    if [[ "$json_mode" == false ]]; then
-        require_fzf || return 1
-    fi
-    # -----------------------------
-    # 2. Fetch and prune to sync with remote
-    # -----------------------------
-    if ! git fetch --prune origin 2>/dev/null; then
-        if [[ "$json_mode" == false ]]; then
-            print_warning "Fetch failed; continuing with local data." >&2
-        fi
-    fi
-
-    # -----------------------------
-    # 3. Detect base branch
-    # -----------------------------
-    local base_branch
-    if git show-ref --verify --quiet refs/heads/main; then
-        base_branch="main"
-    elif git show-ref --verify --quiet refs/heads/master; then
-        base_branch="master"
-    else
-        if [[ "$json_mode" == false ]]; then
-            echo "Could not detect 'main' or 'master' locally."
-        else
-            echo "[]"
-        fi
-        return 1
-    fi
-
-    local current_branch
-    current_branch=$(git rev-parse --abbrev-ref HEAD)
-
-    # -----------------------------
-    # 4. Build branch lists
-    # -----------------------------
-    local abort_label="✖ Abort"
-    local threshold_ago
-    threshold_ago=$(date -v-"${days_threshold}d" +%s 2>/dev/null || date -d "${days_threshold} days ago" +%s 2>/dev/null)
-
-    # Get list of remote branches (without origin/ prefix)
-    local remote_branches
-    remote_branches=$(git for-each-ref --format='%(refname:short)' refs/remotes/origin | sed 's|^origin/||' | grep -v '^HEAD$' || true)
-
-    # Arrays to hold branches by category (format: timestamp|branch|relative_date|author_email|author_name)
-    local -a merged_branches
-    local -a stale_branches
-    local -a recent_branches
-    merged_branches=()
-    stale_branches=()
-    recent_branches=()
-
-    # Variables for loop (declared once to avoid zsh output on redeclaration)
-    local has_remote configured_upstream entry
-
-    # Process each local branch
-    while IFS='|' read -r branch last_commit_ts relative_date author_email author_name; do
-        # Skip base branch
-        [[ "$branch" == "$base_branch" ]] && continue
-        [[ -z "$branch" ]] && continue
-
-        # Check if remote branch exists
-        has_remote=false
-        if echo "$remote_branches" | grep -qx "$branch"; then
-            has_remote=true
-        fi
-
-        # Check if it HAD an upstream (was pushed before)
-        configured_upstream=$(git config "branch.$branch.remote" 2>/dev/null)
-
-        # Entry format: timestamp|branch|relative_date|author_email|author_name
-        entry="$last_commit_ts|$branch|$relative_date|$author_email|$author_name"
-
-        if [[ "$has_remote" == false && -n "$configured_upstream" ]]; then
-            # Had upstream but remote is gone = merged and deleted remotely
-            merged_branches+=("$entry")
-        elif [[ -n "$last_commit_ts" && "$last_commit_ts" -lt "$threshold_ago" ]]; then
-            # Stale: no commits in N+ days (pre-select for deletion)
-            stale_branches+=("$entry")
-        else
-            # Recent: has recent activity (don't pre-select)
-            recent_branches+=("$entry")
-        fi
-    done < <(git for-each-ref --format='%(refname:short)|%(committerdate:unix)|%(committerdate:relative)|%(committeremail)|%(committername)' refs/heads)
-
-    # Sort each category by timestamp (most recent first), compatible with bash 3.x (no mapfile)
-    _sort_desc() {
-        local _var="$1"
+        return 0
+        ;;
+      --json)
+        json_mode=true
         shift
-        local _out=() _line
-        while IFS= read -r _line; do
-            _out+=("$_line")
-        done < <(printf '%s\n' "$@" | sort -t'|' -k1 -rn)
-        # shellcheck disable=SC2034  # assigned via eval to caller var
-        eval "$_var=(\"\${_out[@]}\")"
-    }
-
-    if [[ ${merged_branches+set} && ${#merged_branches[@]} -gt 0 ]]; then
-        _sort_desc merged_branches "${merged_branches[@]}"
-    fi
-    if [[ ${stale_branches+set} && ${#stale_branches[@]} -gt 0 ]]; then
-        _sort_desc stale_branches "${stale_branches[@]}"
-    fi
-    if [[ ${recent_branches+set} && ${#recent_branches[@]} -gt 0 ]]; then
-        _sort_desc recent_branches "${recent_branches[@]}"
-    fi
-
-    # -----------------------------
-    # 5. JSON mode output
-    # -----------------------------
-    if [[ "$json_mode" == true ]]; then
-        local json_output="["
-        local first=true
-        
-        # Helper function to escape JSON strings
-        _json_escape() {
-            local str="$1"
-            str="${str//\\/\\\\}"
-            str="${str//\"/\\\"}"
-            str="${str//$'\n'/\\n}"
-            str="${str//$'\r'/\\r}"
-            str="${str//$'\t'/\\t}"
-            echo "$str"
-        }
-        
-        # Process all branches for JSON output
-        local all_entries=()
-        if [[ ${merged_branches+set} ]]; then
-            all_entries+=("${merged_branches[@]}")
+        ;;
+      --dry-run)
+        dry_run=true
+        shift
+        ;;
+      --days=*)
+        days_threshold="${1#--days=}"
+        if ! [[ "$days_threshold" =~ ^[1-9][0-9]*$ ]]; then
+          print_error "Invalid days value: $days_threshold"
+          return 1
         fi
-        if [[ ${stale_branches+set} ]]; then
-            all_entries+=("${stale_branches[@]}")
-        fi
-        if [[ ${recent_branches+set} ]]; then
-            all_entries+=("${recent_branches[@]}")
-        fi
+        shift
+        ;;
+      -y|--yes)
+        GITBASH_ASSUME_YES=1
+        shift
+        ;;
+      *)
+        print_error "Unknown option: $1"
+        return 1
+        ;;
+    esac
+  done
 
-        for entry in "${all_entries[@]}"; do
-            [[ -z "$entry" ]] && continue
-            
-            local ts name rel_date email author
-            ts=$(echo "$entry" | cut -d'|' -f1)
-            name=$(echo "$entry" | cut -d'|' -f2)
-            rel_date=$(echo "$entry" | cut -d'|' -f3)
-            email=$(echo "$entry" | cut -d'|' -f4)
-            author=$(echo "$entry" | cut -d'|' -f5)
-            
-            # Escape values for JSON
-            name=$(_json_escape "$name")
-            rel_date=$(_json_escape "$rel_date")
-            email=$(_json_escape "$email")
-            author=$(_json_escape "$author")
-            
-            if [[ "$first" == true ]]; then
-                first=false
-            else
-                json_output+=","
-            fi
-            
-            json_output+="{\"last_change_timestamp\":$ts,\"author_email\":\"$email\",\"author_name\":\"$author\",\"name\":\"$name\",\"last_change_relative\":\"$rel_date\"}"
-        done
-        
-        json_output+="]"
-        echo "$json_output"
-        return 0
+  local interactive=true
+  if [[ "$json_mode" == true || "$dry_run" == true || "${GITBASH_ASSUME_YES:-}" == "1" ]]; then
+    interactive=false
+  fi
+
+  # -----------------------------
+  # 1. Prerequisites
+  # -----------------------------
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    if [[ "$json_mode" == true ]]; then echo "[]"; else print_error "Not inside a git repository."; fi
+    return 1
+  fi
+  if [[ "$interactive" == true ]]; then
+    require_fzf || return 1
+  fi
+
+  local remote
+  remote=$(gb_remote)
+  if ! git fetch --prune --quiet "$remote" 2>/dev/null; then
+    [[ "$json_mode" == false ]] && print_warning "Fetch failed; continuing with local data."
+  fi
+
+  local base_branch base_ref
+  if ! base_branch=$(gb_base_branch); then
+    if [[ "$json_mode" == true ]]; then echo "[]"; else print_error "Could not detect the base branch. Set GITBASH_BASE_BRANCH."; fi
+    return 1
+  fi
+  GB_BASE="$base_branch"
+  base_ref=$(gb_base_ref "$base_branch")
+
+  local current_branch
+  current_branch=$(gb_current_branch) || current_branch=""
+
+  # -----------------------------
+  # 2. Classify local branches
+  # -----------------------------
+  local threshold_ago
+  threshold_ago=$(_cleanup_days_ago "$days_threshold")
+
+  # Entry: preselect|label|timestamp|branch|relative_date|email|unpushed|name (name last: it may contain "|")
+  local entries=()
+  local sep=$'\x1f'
+  local branch ts rel email name _upstream track unpushed merged label preselect
+  while IFS="$sep" read -r branch ts rel email _upstream track name; do
+    [[ -z "$branch" ]] && continue
+    gb_is_protected "$branch" && continue
+
+    unpushed=$(git rev-list --count "refs/heads/$branch" --not --remotes 2>/dev/null || echo 0)
+    merged=false
+    _cleanup_is_merged "refs/heads/$branch" "$base_ref" && merged=true
+
+    preselect=0
+    if [[ "$merged" == true ]]; then
+      label="MERGED"
+      if [[ "$track" == "[gone]" || "$ts" -lt "$threshold_ago" ]]; then
+        preselect=1
+      fi
+    elif [[ "$track" == "[gone]" ]]; then
+      label="GONE"
+    elif [[ "$ts" -lt "$threshold_ago" ]]; then
+      label="STALE"
+      [[ "$unpushed" == "0" ]] && preselect=1
+    else
+      label="RECENT"
     fi
+    entries+=("$preselect|$label|$ts|$branch|$rel|$email|$unpushed|$name")
+  done < <(git for-each-ref \
+      --format="%(refname:short)%1f%(committerdate:unix)%1f%(committerdate:relative)%1f%(committeremail)%1f%(upstream:short)%1f%(upstream:track)%1f%(committername)" \
+      refs/heads 2>/dev/null)
 
-    # -----------------------------
-    # 6. Build fzf input with pre-selection markers
-    # -----------------------------
-    local branch_list=""
-    local preselect_list=""
-    local idx=0
-    local max_branch_len=60
+  # Pre-selected first, then newest first
+  local sorted=()
+  if [[ ${#entries[@]} -gt 0 ]]; then
+    while IFS= read -r line; do
+      sorted+=("$line")
+    done < <(printf '%s\n' "${entries[@]}" | sort -t'|' -k1,1rn -k3,3rn)
+  fi
 
-    # Add merged branches (pre-selected)
-    if [[ ${merged_branches+set} ]]; then
-        for entry in "${merged_branches[@]}"; do
-        local branch date display_branch line
-        branch=$(echo "$entry" | cut -d'|' -f2)
-        date=$(echo "$entry" | cut -d'|' -f3)
-        display_branch="$branch"
-        if [[ ${#display_branch} -gt $max_branch_len ]]; then
-            display_branch="${display_branch:0:$((max_branch_len - 3))}..."
-        fi
-        line=$(printf "[MERGED]  %-${max_branch_len}s  %s\t%s" "$display_branch" "$date" "$branch")
-        branch_list+="$line"$'\n'
-        preselect_list+="$line"$'\n'
-        ((idx++))
-        done
+  # -----------------------------
+  # 3. JSON output
+  # -----------------------------
+  if [[ "$json_mode" == true ]]; then
+    local json="[" first=true entry
+    for entry in ${sorted[@]+"${sorted[@]}"}; do
+      IFS='|' read -r preselect label ts branch rel email unpushed name <<< "$entry"
+      email="${email#<}"
+      email="${email%>}"
+      [[ "$first" == true ]] && first=false || json+=","
+      json+="{\"last_change_timestamp\":$ts,\"author_email\":\"$(gb_json_escape "$email")\",\"author_name\":\"$(gb_json_escape "$name")\",\"name\":\"$(gb_json_escape "$branch")\",\"last_change_relative\":\"$(gb_json_escape "$rel")\",\"category\":\"$(echo "$label" | tr '[:upper:]' '[:lower:]')\",\"preselected\":$([[ "$preselect" == 1 ]] && echo true || echo false),\"unpushed_commits\":$unpushed}"
+    done
+    echo "$json]"
+    return 0
+  fi
+
+  if [[ ${#sorted[@]} -eq 0 ]]; then
+    echo "No local branches to clean up."
+    return 0
+  fi
+
+  # -----------------------------
+  # 4. Select branches
+  # -----------------------------
+  local selected=()
+  local preselect_count=0 entry
+  for entry in "${sorted[@]}"; do
+    [[ "${entry%%|*}" == "1" ]] && preselect_count=$((preselect_count + 1))
+  done
+
+  if [[ "$interactive" == false ]]; then
+    for entry in "${sorted[@]}"; do
+      IFS='|' read -r preselect label ts branch rel email unpushed name <<< "$entry"
+      [[ "$preselect" == "1" ]] && selected+=("$branch")
+    done
+    if [[ ${#selected[@]} -eq 0 ]]; then
+      echo "No branches to clean up (none pre-selected)."
+      return 0
     fi
-
-    # Add stale branches (pre-selected)
-    if [[ ${stale_branches+set} ]]; then
-        for entry in "${stale_branches[@]}"; do
-            local branch date display_branch line
-            branch=$(echo "$entry" | cut -d'|' -f2)
-            date=$(echo "$entry" | cut -d'|' -f3)
-            display_branch="$branch"
-            if [[ ${#display_branch} -gt $max_branch_len ]]; then
-                display_branch="${display_branch:0:$((max_branch_len - 3))}..."
-            fi
-            line=$(printf "[STALE]   %-${max_branch_len}s  %s\t%s" "$display_branch" "$date" "$branch")
-            branch_list+="$line"$'\n'
-            preselect_list+="$line"$'\n'
-            ((idx++))
-        done
+    if [[ "$dry_run" == true ]]; then
+      echo "Would delete ${#selected[@]} branch(es):"
+      printf '  - %s\n' "${selected[@]}"
+      return 0
     fi
+  else
+    local abort_label="✖ Abort" list="" display note
+    local max_len=60
+    for entry in "${sorted[@]}"; do
+      IFS='|' read -r preselect label ts branch rel email unpushed name <<< "$entry"
+      display="$branch"
+      if [[ ${#display} -gt $max_len ]]; then
+        display="${display:0:$((max_len - 3))}..."
+      fi
+      note=""
+      [[ "$unpushed" != "0" ]] && note="  ($unpushed unpushed)"
+      [[ "$branch" == "$current_branch" ]] && note+="  (current)"
+      list+=$(printf "%-9s %-${max_len}s  %s%s" "[$label]" "$display" "$rel" "$note")
+      list+=$'\t'"$branch"$'\n'
+    done
+    list+="$abort_label"$'\t'
 
-    # Add recent branches (not pre-selected)
-    if [[ ${recent_branches+set} ]]; then
-        for entry in "${recent_branches[@]}"; do
-            local branch date display_branch line
-            branch=$(echo "$entry" | cut -d'|' -f2)
-            date=$(echo "$entry" | cut -d'|' -f3)
-            display_branch="$branch"
-            if [[ ${#display_branch} -gt $max_branch_len ]]; then
-                display_branch="${display_branch:0:$((max_branch_len - 3))}..."
-            fi
-            line=$(printf "[RECENT]  %-${max_branch_len}s  %s\t%s" "$display_branch" "$date" "$branch")
-            branch_list+="$line"$'\n'
-            ((idx++))
-        done
-    fi
-
-    if [[ -z "$branch_list" ]]; then
-        echo "No local branches to clean up."
-        return 0
-    fi
-
-    # Add abort option
-    branch_list+="$abort_label"$'\t\t'
-
-    # Create temp files
-    local branch_file preselect_file
-    branch_file=$(mktemp)
-    preselect_file=$(mktemp)
-    echo -e "$branch_list" > "$branch_file"
-    echo -e "$preselect_list" > "$preselect_file"
-
-    # -----------------------------
-    # 7. Run fzf picker
-    # -----------------------------
-    local merged_count=0
-    local stale_count=0
-    local recent_count=0
-
-    [[ ${merged_branches+set} ]] && merged_count=${#merged_branches[@]}
-    [[ ${stale_branches+set} ]] && stale_count=${#stale_branches[@]}
-    [[ ${recent_branches+set} ]] && recent_count=${#recent_branches[@]}
-
-    local total_count=$((merged_count + stale_count + recent_count))
-    local preselect_count=$((merged_count + stale_count))
-
-    # Build toggle sequence for pre-selection (toggle first N items)
-    local toggle_sequence="first"
-    for ((i=0; i<preselect_count; i++)); do
-        toggle_sequence+="+toggle+down"
+    # Toggle the first N (pre-selected) items once the list is loaded
+    local toggle_sequence="first" i
+    for ((i = 0; i < preselect_count; i++)); do
+      toggle_sequence+="+toggle+down"
     done
     toggle_sequence+="+first"
 
     local selection
-    selection=$(fzf \
+    selection=$(run_fzf \
         --prompt="Local branches to clean up > " \
         -i \
         --reverse \
         --border \
         --header="[TAB] toggle | [Enter] delete selected | [ESC] exit
-Found $total_count branches ($preselect_count pre-selected for deletion)" \
+${#sorted[@]} branches, $preselect_count pre-selected" \
         --multi \
         --delimiter=$'\t' \
         --with-nth=1 \
-        --bind=enter:accept \
         --preview='
-            line={}
-            if [[ "$line" == "✖ Abort"* ]]; then
-                echo "Exit without action";
-            else
-                branch=$(echo "$line" | cut -f2)
-                echo "Branch: $branch";
-                echo "";
-                echo "Recent commits:";
-                git log --oneline --color=always -n 15 "$branch" 2>/dev/null || echo "No commits found";
+            branch=$(printf "%s" {} | cut -f2)
+            if [[ -z "$branch" ]]; then echo "Exit without action"; exit 0; fi
+            echo "Branch: $branch"
+            echo
+            unpushed=$(git log --oneline --color=always "refs/heads/$branch" --not --remotes 2>/dev/null)
+            if [[ -n "$unpushed" ]]; then
+                echo "Unpushed commits (only on this machine):"
+                echo "$unpushed"
+                echo
             fi
+            echo "Recent commits:"
+            git log --oneline --color=always -n 15 "refs/heads/$branch" 2>/dev/null
         ' \
-        --preview-window=right:35% \
+        --preview-window=right:40% \
         --bind "load:$toggle_sequence" \
-        < "$branch_file"
-    ) </dev/tty || true
+        <<< "$list"
+    ) || true
 
-    # Cleanup temp files
-    rm -f "$branch_file" "$preselect_file"
-
-    # ESC or Ctrl-C
     if [[ -z "$selection" ]]; then
-        echo "Exited."
-        return 0
+      echo "Exited."
+      return 0
     fi
 
-    # Abort option
-    if echo "$selection" | grep -q "^$abort_label"; then
-        echo "Aborted."
-        return 0
-    fi
-
-    # -----------------------------
-    # 8. Extract branch names and confirm deletion
-    # -----------------------------
-    local branches_to_delete=()
-    local need_switch=false
-    local only_merged=true
-    local branch_name line
-
+    local line
     while IFS= read -r line; do
-        [[ "$line" == "✖ Abort"* ]] && continue
-        branch_name=$(echo "$line" | cut -f2)
-        if [[ -n "$branch_name" ]]; then
-            branches_to_delete+=("$branch_name")
-            if [[ "$branch_name" == "$current_branch" ]]; then
-                need_switch=true
-            fi
-            # Check if this is not a MERGED branch
-            if [[ ! "$line" == "[MERGED]"* ]]; then
-                only_merged=false
-            fi
-        fi
+      branch=$(printf '%s' "$line" | cut -f2)
+      [[ -n "$branch" ]] && selected+=("$branch")
     done <<< "$selection"
 
-    if [[ ${#branches_to_delete[@]} -eq 0 ]]; then
-        echo "No branches selected."
-        return 0
+    if [[ ${#selected[@]} -eq 0 ]]; then
+      echo "Aborted."
+      return 0
     fi
+  fi
 
-    echo ""
-    echo "Selected local branches to delete:"
-    for branch in "${branches_to_delete[@]}"; do
-        if [[ "$branch" == "$current_branch" ]]; then
-            echo "  - $branch (current branch)"
-        else
-            echo "  - $branch"
-        fi
-    done
-    
-    if [[ "$need_switch" == true ]]; then
-        echo ""
-        echo "Note: Will switch to '$base_branch' first (current branch selected for deletion)"
+  # -----------------------------
+  # 5. Confirm and delete
+  # -----------------------------
+  local need_switch=false only_merged=true merged_list=" " label_of
+  for entry in "${sorted[@]}"; do
+    IFS='|' read -r preselect label ts branch rel email unpushed name <<< "$entry"
+    [[ "$label" == "MERGED" ]] && merged_list+="$branch "
+  done
+  echo "Selected local branches to delete:"
+  for branch in "${selected[@]}"; do
+    label_of=""
+    [[ "$branch" == "$current_branch" ]] && { need_switch=true; label_of=" (current branch)"; }
+    [[ "$merged_list" == *" $branch "* ]] || only_merged=false
+    echo "  - $branch$label_of"
+  done
+  if [[ "$need_switch" == true ]]; then
+    echo "Will switch to '$base_branch' first."
+  fi
+
+  local default="n"
+  [[ "$only_merged" == true ]] && default="y"
+  if ! gb_confirm "Delete these ${#selected[@]} local branch(es)?" "$default"; then
+    echo "Deletion cancelled."
+    return 0
+  fi
+
+  if [[ "$need_switch" == true ]]; then
+    print_info "Switching to '$base_branch'..."
+    if ! git switch --quiet "$base_branch"; then
+      print_error "Failed to switch to '$base_branch'. Nothing was deleted."
+      return 1
     fi
-    echo ""
+  fi
 
-    # Handle dry-run mode
-    if [[ "$dry_run" == true ]]; then
-        print_info "Dry run mode - no branches will be deleted"
-        echo "Would delete ${#branches_to_delete[@]} branch(es):"
-        for branch in "${branches_to_delete[@]}"; do
-            echo "  - $branch"
-        done
-        return 0
-    fi
-
-    # Default to Y if only merged branches, otherwise N
-    local confirm
-    if [[ "$only_merged" == true ]]; then
-        prompt_read "Delete these ${#branches_to_delete[@]} local branch(es)? (Y/n): " confirm
-        case "$confirm" in
-            [nN][oO]|[nN])
-                echo "Deletion cancelled."
-                return 0
-                ;;
-        esac
+  local refused=() out
+  for branch in "${selected[@]}"; do
+    if [[ "$merged_list" == *" $branch "* ]]; then
+      # Verified merged (including squash merges): git's own check may not see it
+      if git branch -D --quiet "$branch" >/dev/null 2>&1; then
+        print_success "Deleted $branch"
+      else
+        print_error "Failed to delete $branch"
+      fi
+    elif out=$(git branch -d "$branch" 2>&1); then
+      print_success "Deleted $branch"
     else
-        prompt_read "Delete these ${#branches_to_delete[@]} local branch(es)? (y/N): " confirm
-        case "$confirm" in
-            [yY][eE][sS]|[yY])
-                ;;
-            *)
-                echo "Deletion cancelled."
-                return 0
-                ;;
-        esac
+      refused+=("$branch")
     fi
+  done
 
-    # Switch to base branch if needed
-    if [[ "$need_switch" == true ]]; then
-        print_info "Switching to '$base_branch'..."
-        git checkout "$base_branch" || {
-            print_warning "Failed to switch to '$base_branch'. Aborting deletion."
-            return 1
-        }
-    fi
-
-    print_info "Deleting branches..."
-    for branch in "${branches_to_delete[@]}"; do
-        echo "Deleting $branch ..."
-        if git branch -D "$branch" 2>/dev/null; then
-            print_success "Deleted $branch"
-        else
-            print_error "Failed to delete $branch"
-        fi
+  if [[ ${#refused[@]} -gt 0 ]]; then
+    echo
+    print_warning "These branches have commits that are not merged. Deleting them loses those commits:"
+    for branch in "${refused[@]}"; do
+      echo "  $branch:"
+      git log --oneline -n 5 "refs/heads/$branch" --not "$base_ref" --remotes 2>/dev/null | sed 's/^/      /'
     done
+    if gb_confirm --strict "Force-delete these ${#refused[@]} branch(es)?" n; then
+      for branch in "${refused[@]}"; do
+        if git branch -D --quiet "$branch" >/dev/null 2>&1; then
+          print_success "Force-deleted $branch"
+        else
+          print_error "Failed to delete $branch"
+        fi
+      done
+    else
+      echo "Kept: ${refused[*]}"
+    fi
+  fi
+  return 0
 }

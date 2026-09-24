@@ -1,16 +1,45 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2155
 
 # Source common utilities
-SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_utils.sh
 source "$SOURCE_DIR/_utils.sh"
 
+# Print one line per changed file: "<display>\t<XY>\t<path>\t<original path>"
+# The path fields are exact (spaces, quotes and renames are handled).
+_status_list() {
+  local entry xy path orig label display
+  while IFS= read -r -d '' entry; do
+    xy="${entry:0:2}"
+    path="${entry:3}"
+    orig=""
+    if [[ "${xy:0:1}" == [RC] || "${xy:1:1}" == [RC] ]]; then
+      IFS= read -r -d '' orig
+    fi
+    case "$xy" in
+      "??") label="UNTRACKED" ;;
+      DD|AU|UD|UA|DU|AA|UU) label="CONFLICT" ;;
+      " "?) label="UNSTAGED" ;;
+      ?" ") label="STAGED" ;;
+      *) label="PARTIAL" ;;
+    esac
+    display="$path"
+    [[ -n "$orig" ]] && display="$orig -> $path"
+    printf '%-12s %s  %s\t%s\t%s\t%s\n' "[$label]" "$xy" "$display" "$xy" "$path" "$orig"
+  done < <(git status --porcelain=v1 -z 2>/dev/null)
+}
+
+# Unstage a file (works before the first commit, too)
+_status_unstage() {
+  if git rev-parse --verify --quiet HEAD >/dev/null; then
+    git restore --staged -- "$@"
+  else
+    git rm --cached --quiet -r -- "$@"
+  fi
+}
+
 # Show git status with fzf file selector and diff preview
 status() {
-  # -----------------------------
-  # 0. Check for help/version flag
-  # -----------------------------
   if [[ "${1:-}" == "-v" || "${1:-}" == "--version" ]]; then
     echo "gitbash ${FUNCNAME[0]} v$VERSION"
     return 0
@@ -19,296 +48,214 @@ status() {
     cat << 'EOF'
 Usage: status [OPTIONS]
 
-Interactive git status viewer with fzf.
-Browse uncommitted changes and view diffs in preview pane.
+Interactive git status: stage, unstage, discard and commit with diff previews.
 
 Options:
   -h, --help    Show this help message
 
-Features:
-  - Lists all modified, staged, and untracked files
-  - Preview shows git diff for each file
-  - Color-coded file status indicators
-  - Supports both staged and unstaged changes
-  - Revert changes to discard modifications
+Labels:
+  [STAGED]     All changes of the file are staged
+  [PARTIAL]    Some changes staged, some not
+  [UNSTAGED]   Changes not staged yet
+  [UNTRACKED]  New file or directory
+  [CONFLICT]   Merge conflict - resolve it in your editor
 
-File Status Indicators:
-  M   Modified (unstaged)
-  A   Added (staged)
-  D   Deleted
-  R   Renamed
-  ??  Untracked
-
-Navigation:
-  ↑/↓ or j/k    Navigate through files
+Keys:
   TAB           Select/deselect file (multi-select)
-  Enter         Toggle staging for selected file(s)
-  Ctrl-R        Revert changes (discard modifications)
+  Enter         Stage the selected files (unstage them if fully staged)
+  Ctrl-R        Discard changes of the selected files (asks first)
+  Ctrl-O        Commit the staged changes (then asks whether to push)
   ESC/Ctrl-C    Exit
-
-Examples:
-  $ status
-  Git Status >
-  > M  src/app.js
-    A  src/new-feature.js
-    ?? temp.txt
-    M  README.md
-
-  # Preview shows diff of selected file
-  # Navigate with arrow keys or j/k
 
 Requirements:
   - Must be in a git repository
-  - fzf (fuzzy finder) - will prompt to install if not found
-
-Notes:
-  - Staged changes show diff with --cached
-  - Unstaged changes show working tree diff
-  - Untracked files show file contents
-  - Empty status means working tree is clean
+  - fzf
 
 EOF
     return 0
   fi
 
-  # -----------------------------
-  # 1. Check prerequisites
-  # -----------------------------
   require_git_repo || return 1
   require_fzf || return 1
 
-  # -----------------------------
-  # 2. Get git status and format with staging info
-  # -----------------------------
-  local status_output
-  status_output=$(git status --short | awk '{
-    index_status = substr($0, 1, 1);
-    work_status = substr($0, 2, 1);
-    file = substr($0, 4);
-    
-    # Determine staging status
-    if (index_status ~ /[MADRC]/) {
-      staged = "[STAGED]";
-    } else if (work_status == "?" || index_status == "?") {
-      staged = "[UNTRACKED]";
-    } else {
-      staged = "[UNSTAGED]";
-    }
-    
-    printf "%-12s %s %s\n", staged, substr($0, 1, 2), file;
-  }')
+  # Commands on file paths must run from the repository root
+  local repo_root
+  repo_root=$(git rev-parse --show-toplevel) || return 1
+  cd "$repo_root" || return 1
 
-  if [[ -z "$status_output" ]]; then
-    echo "Working tree clean - no changes to display."
-    return 0
-  fi
+  local pager bat_cmd preview
+  pager=$(gb_diff_pager)
+  bat_cmd=$(gb_bat_cmd)
+  preview='
+    xy=$(printf "%s" {} | cut -f2); file=$(printf "%s" {} | cut -f3)
+    if [[ "$xy" == "??" ]]; then
+      echo "=== UNTRACKED ==="; echo
+      if [[ -d "$file" ]]; then ls -la "$file"; else __BAT__ "$file" 2>/dev/null || echo "Cannot preview file"; fi
+    else
+      staged=$(git diff --cached --color=always -- "$file" 2>/dev/null)
+      unstaged=$(git diff --color=always -- "$file" 2>/dev/null)
+      if [[ -n "$staged" ]]; then echo "=== STAGED CHANGES ==="; echo; printf "%s\n" "$staged" | __PAGER__; fi
+      if [[ -n "$unstaged" ]]; then
+        [[ -n "$staged" ]] && echo
+        echo "=== UNSTAGED CHANGES ==="; echo; printf "%s\n" "$unstaged" | __PAGER__
+      fi
+    fi'
+  preview="${preview//__PAGER__/$pager}"
+  preview="${preview//__BAT__/$bat_cmd}"
 
-  # -----------------------------
-  # 3. Run fzf with diff preview in a loop
-  # -----------------------------
+  local status_list
   while true; do
-    local selected_output
-    selected_output=$(
-      fzf \
+    status_list=$(_status_list)
+    if [[ -z "$status_list" ]]; then
+      print_success "Working tree clean."
+      return 0
+    fi
+
+    local output
+    output=$(run_fzf \
         --height=100% \
         -i \
         --reverse \
         --border \
         --prompt="Git Status > " \
-        --header="[Enter] toggle stage | [Ctrl-r] revert | [TAB] multi-select | [ESC] exit" \
+        --header="[Enter] stage/unstage | [Ctrl-R] discard | [Ctrl-O] commit staged | [TAB] multi-select | [ESC] exit" \
         --multi \
-        --ansi \
-        --expect=ctrl-r \
-        --preview='
-          file=$(echo {} | awk "{print \$NF}");
-          file_status=$(echo {} | awk "{print \$2}");
-          
-          # Show diff based on file status
-          if [[ "$file_status" == "??" ]]; then
-            # Untracked file - show contents
-            echo "=== UNTRACKED FILE ===";
-            echo;
-            bat --color=always --style=numbers --theme=\"GitHub\" "$file" 2>/dev/null || cat "$file" 2>/dev/null || echo "Cannot preview file";
-          elif [[ "$file_status" =~ ^[MAC] ]]; then
-            # Staged file - show cached diff
-            staged_diff=$(git diff --cached --color=always "$file" 2>/dev/null);
-            unstaged_diff=$(git diff --color=always "$file" 2>/dev/null);
-            
-            # Only show staged section if there are staged changes
-            if [[ -n "$staged_diff" ]]; then
-              echo "=== STAGED CHANGES ===";
-              echo;
-              echo "$staged_diff" | delta --light 2>/dev/null || echo "$staged_diff";
-            fi
-            
-            # Only show unstaged section if there are unstaged changes
-            if [[ -n "$unstaged_diff" ]]; then
-              [[ -n "$staged_diff" ]] && echo;
-              echo "=== UNSTAGED CHANGES ===";
-              echo;
-              echo "$unstaged_diff" | delta --light 2>/dev/null || echo "$unstaged_diff";
-            fi
-          else
-            # Unstaged changes
-            unstaged_diff=$(git diff --color=always "$file" 2>/dev/null);
-            if [[ -n "$unstaged_diff" ]]; then
-              echo "=== UNSTAGED CHANGES ===";
-              echo;
-              echo "$unstaged_diff" | delta --light 2>/dev/null || echo "$unstaged_diff";
-            fi
-          fi
-        ' \
+        --delimiter=$'\t' \
+        --with-nth=1 \
+        --expect=ctrl-r,ctrl-o \
+        --preview="$preview" \
         --preview-window=right:60% \
-        <<< "$status_output"
-    ) </dev/tty || true
+        <<< "$status_list"
+    ) || true
 
-    # Parse the key pressed and the selected files
     local key_pressed
-    key_pressed=$(echo "$selected_output" | head -1)
-    
-    # Get all selected files (skip first line which is the key)
-    local selected_files=()
+    key_pressed=$(printf '%s\n' "$output" | head -n 1)
+    local selected=() line
     while IFS= read -r line; do
-      [[ -n "$line" ]] && selected_files+=("$line")
-    done <<< "$(echo "$selected_output" | tail -n +2)"
+      [[ -n "$line" ]] && selected+=("$line")
+    done < <(printf '%s\n' "$output" | tail -n +2)
 
-    # Exit if no selection (ESC or Ctrl-C)
-    if [[ ${#selected_files[@]} -eq 0 ]]; then
-      echo "Exited status viewer."
-      break
+    if [[ -z "$output" ]]; then
+      return 0
     fi
 
-    # -----------------------------
-    # 4. Handle action based on key pressed
-    # -----------------------------
-    if [[ "$key_pressed" == "ctrl-r" ]]; then
-      # Revert changes for all selected files
-      local files_to_revert=()
-      local untracked_to_delete=()
-      
-      for selected_file in "${selected_files[@]}"; do
-        local staging_status=$(echo "$selected_file" | awk '{print $1}')
-        local filename=$(echo "$selected_file" | awk '{print $NF}')
-        
-        if [[ "$staging_status" == "[UNTRACKED]" ]]; then
-          untracked_to_delete+=("$filename")
-        else
-          files_to_revert+=("$filename")
+    case "$key_pressed" in
+      ctrl-o)
+        if git diff --cached --quiet 2>/dev/null; then
+          print_warning "Nothing staged yet. Stage files with Enter first."
+          continue
         fi
-      done
-      
-      # Handle untracked files
-      if [[ ${#untracked_to_delete[@]} -gt 0 ]]; then
-        echo "Untracked files to delete:"
-        for f in "${untracked_to_delete[@]}"; do
-          echo "  - $f"
-        done
-        prompt_read "Delete these ${#untracked_to_delete[@]} untracked file(s)? (y/N): " confirm
-        case "$confirm" in
-          [yY][eE][sS]|[yY])
-            for f in "${untracked_to_delete[@]}"; do
-              rm "$f"
-              echo "✓ Deleted: $f"
-            done
-            ;;
-          *)
-            echo "Skipped deletion."
-            ;;
-        esac
-      fi
-      
-      # Handle tracked files
-      if [[ ${#files_to_revert[@]} -gt 0 ]]; then
-        echo "Files to revert:"
-        for f in "${files_to_revert[@]}"; do
-          echo "  - $f"
-        done
-        prompt_read "Revert changes in these ${#files_to_revert[@]} file(s)? This cannot be undone. (y/N): " confirm
-        case "$confirm" in
-          [yY][eE][sS]|[yY])
-            for f in "${files_to_revert[@]}"; do
-              git reset HEAD "$f" 2>/dev/null
-              git checkout -- "$f"
-              echo "✓ Reverted: $f"
-            done
-            ;;
-          *)
-            echo "Skipped revert."
-            ;;
-        esac
-      fi
-    else
-      # Toggle staging for all selected files
-      local did_stage=false
-      for selected_file in "${selected_files[@]}"; do
-        local staging_status=$(echo "$selected_file" | awk '{print $1}')
-        local filename=$(echo "$selected_file" | awk '{print $NF}')
-
-        if [[ "$staging_status" == "[STAGED]" ]]; then
-          echo "Unstaging: $filename"
-          git reset HEAD "$filename"
-        elif [[ "$staging_status" == "[UNSTAGED]" ]]; then
-          echo "Staging: $filename"
-          git add "$filename"
-          did_stage=true
-        elif [[ "$staging_status" == "[UNTRACKED]" ]]; then
-          echo "Adding: $filename"
-          git add "$filename"
-          did_stage=true
+        if gb_run commit --staged; then
+          if gb_confirm "Push to the remote?" n; then
+            gb_sync_and_push
+          fi
         fi
-      done
-    fi
+        continue
+        ;;
+      ctrl-r)
+        [[ ${#selected[@]} -eq 0 ]] && continue
+        _status_discard "${selected[@]}"
+        continue
+        ;;
+    esac
 
-    # Refresh status output
-    status_output=$(git status --short | awk '{
-      index_status = substr($0, 1, 1);
-      work_status = substr($0, 2, 1);
-      file = substr($0, 4);
-      
-      # Determine staging status
-      if (index_status ~ /[MADRC]/) {
-        staged = "[STAGED]";
-      } else if (work_status == "?" || index_status == "?") {
-        staged = "[UNTRACKED]";
-      } else {
-        staged = "[UNSTAGED]";
-      }
-      
-      printf "%-12s %s %s\n", staged, substr($0, 1, 2), file;
-    }')
+    [[ ${#selected[@]} -eq 0 ]] && return 0
 
-    # Check if working tree is now clean
-    if [[ -z "$status_output" ]]; then
-      echo "✓ Working tree is now clean - all changes staged or reverted."
-      break
-    fi
-
-    # Only ask for commit if we just staged something (not unstaged)
-    if [[ "$did_stage" == true ]] && echo "$status_output" | grep -q '\[STAGED\]'; then
-      echo
-      echo "Staged files:"
-      
-      # Get list of staged files and display in tree-like structure
-      git diff --cached --name-only | while IFS= read -r file; do
-        # Get the directory and filename
-        dir=$(dirname "$file")
-        base=$(basename "$file")
-        
-        # Simple tree-like output with indentation
-        if [[ "$dir" == "." ]]; then
-          echo "  └─ $base"
-        else
-          echo "  └─ $file"
-        fi
-      done
-      
-      echo
-      echo "Ready to commit and push staged changes."
-      echo "Press Ctrl+C to abort."
-      echo
-      # Directly prompt for commit message (user can Ctrl+C to abort)
-      gitbash commit -s -p
-      break
-    fi
+    # Enter: stage, or unstage fully staged files
+    local xy path orig
+    for line in "${selected[@]}"; do
+      xy=$(printf '%s' "$line" | cut -f2)
+      path=$(printf '%s' "$line" | cut -f3)
+      orig=$(printf '%s' "$line" | cut -f4)
+      case "$xy" in
+        DD|AU|UD|UA|DU|AA|UU)
+          print_warning "$path has a merge conflict - resolve it in your editor, then stage it."
+          ;;
+        ?" ")
+          echo "Unstaging: $path"
+          if [[ -n "$orig" ]]; then
+            _status_unstage "$path" "$orig" || print_error "Failed to unstage $path"
+          else
+            _status_unstage "$path" || print_error "Failed to unstage $path"
+          fi
+          ;;
+        *)
+          echo "Staging: $path"
+          git add -A -- "$path" || print_error "Failed to stage $path"
+          ;;
+      esac
+    done
   done
+}
+
+# Discard changes of the selected status lines (asks first)
+_status_discard() {
+  local line xy path orig
+  local untracked=() added=() tracked=() tracked_orig=()
+  for line in "$@"; do
+    xy=$(printf '%s' "$line" | cut -f2)
+    path=$(printf '%s' "$line" | cut -f3)
+    orig=$(printf '%s' "$line" | cut -f4)
+    case "$xy" in
+      "??") untracked+=("$path") ;;
+      A?) added+=("$path") ;;
+      *) tracked+=("$path"); [[ -n "$orig" ]] && tracked_orig+=("$orig") ;;
+    esac
+  done
+
+  if [[ ${#untracked[@]} -gt 0 ]]; then
+    echo "Untracked files/directories to delete:"
+    printf '  - %s\n' "${untracked[@]}"
+    if gb_confirm --strict "Delete these ${#untracked[@]} item(s)? This cannot be undone." n; then
+      for path in "${untracked[@]}"; do
+        if rm -rf -- "$path"; then
+          print_success "Deleted: $path"
+        else
+          print_error "Failed to delete: $path"
+        fi
+      done
+    fi
+  fi
+
+  if [[ ${#added[@]} -gt 0 ]]; then
+    echo "Newly added files to unstage:"
+    printf '  - %s\n' "${added[@]}"
+    if gb_confirm --strict "Unstage these ${#added[@]} file(s)?" n; then
+      local delete_too=false
+      gb_confirm --strict "Also delete them from disk?" n && delete_too=true
+      for path in "${added[@]}"; do
+        if ! git rm --cached --quiet -r -- "$path"; then
+          print_error "Failed to unstage: $path"
+          continue
+        fi
+        if [[ "$delete_too" == true ]]; then
+          rm -rf -- "$path" && print_success "Deleted: $path"
+        else
+          print_success "Unstaged (file kept): $path"
+        fi
+      done
+    fi
+  fi
+
+  if [[ ${#tracked[@]} -gt 0 ]]; then
+    if ! git rev-parse --verify --quiet HEAD >/dev/null; then
+      print_warning "No commits yet - nothing to restore tracked files from."
+      return 0
+    fi
+    echo "Files to restore to the last commit:"
+    printf '  - %s\n' "${tracked[@]}"
+    if gb_confirm --strict "Discard all changes in these ${#tracked[@]} file(s)? This cannot be undone." n; then
+      for path in "${tracked[@]}"; do
+        if git restore --source=HEAD --staged --worktree -- "$path" 2>/dev/null ||
+           git restore --staged -- "$path" 2>/dev/null; then
+          print_success "Restored: $path"
+        else
+          print_error "Failed to restore: $path"
+        fi
+      done
+      if [[ ${#tracked_orig[@]} -gt 0 ]]; then
+        git restore --source=HEAD --staged --worktree -- "${tracked_orig[@]}" 2>/dev/null
+      fi
+    fi
+  fi
 }

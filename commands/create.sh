@@ -1,43 +1,60 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2155
 
 # Source common utilities
-SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_utils.sh
 source "$SOURCE_DIR/_utils.sh"
 
-create() {
-    # Load configuration
-    local no_issue_parsing="${GITBASH_CREATE_NO_ISSUE_PARSING:-no}"
-    local issue_fallback="${GITBASH_CREATE_ISSUE_PARSING_FALLBACK:-NOISSUE}"
-    
-    # Load branch prefix with backward compatibility
-    local branch_prefix_config="${GITBASH_CREATE_BRANCH_PREFIX:-}"
-    if [[ -z "$branch_prefix_config" && -n "${GITBASH_FEATURE_BRANCH_PREFIX:-}" ]]; then
-        # Migrate old variable: remove "feature/" prefix
-        branch_prefix_config="${GITBASH_FEATURE_BRANCH_PREFIX#feature/}"
-    fi
-    # Remove trailing slash if present (will be added automatically when used)
-    branch_prefix_config="${branch_prefix_config%/}"
+# Turn free text into a branch-name slug: "Über Café fix!" -> "ueber-cafe-fix"
+# (iconv's transliteration differs between platforms, so common letters are mapped here)
+_create_slugify() {
+  local map="ä:ae Ä:ae ö:oe Ö:oe ü:ue Ü:ue ß:ss à:a á:a â:a ã:a å:a À:a Á:a Â:a Ã:a Å:a
+    è:e é:e ê:e ë:e È:e É:e Ê:e Ë:e ì:i í:i î:i ï:i Ì:i Í:i Î:i Ï:i
+    ò:o ó:o ô:o õ:o ø:o Ò:o Ó:o Ô:o Õ:o Ø:o ù:u ú:u û:u Ù:u Ú:u Û:u ç:c Ç:c ñ:n Ñ:n"
+  local script="" pair
+  for pair in $map; do
+    script+="s/${pair%%:*}/${pair#*:}/g;"
+  done
+  printf '%s' "$1" | LC_ALL=C sed "$script" |
+    LC_ALL=C tr '[:upper:]' '[:lower:]' |
+    LC_ALL=C sed 's/[^a-z0-9]/-/g; s/--*/-/g; s/^-//; s/-$//'
+}
 
-    # -----------------------------
-    # 0. Check for help/version flag and parse options
-    # -----------------------------
-    local show_type_menu=false
-    local branch_type=""
-    local positional_args=()
-    
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            -v|--version)
-                echo "gitbash ${FUNCNAME[0]} v$VERSION"
-                return 0
-                ;;
-            -h|--help)
-                cat << 'EOF'
+# Extract a Jira issue key (e.g. PROJ-123, AB2-45) from a key or URL
+_create_parse_issue() {
+  local input="$1" key=""
+  local re_key='^([A-Za-z][A-Za-z0-9]+-[0-9]+)$'
+  local re_url='(browse/|selectedIssue=)([A-Za-z][A-Za-z0-9]+-[0-9]+)'
+  if [[ "$input" =~ $re_key ]]; then
+    key="${BASH_REMATCH[1]}"
+  elif [[ "$input" =~ $re_url ]]; then
+    key="${BASH_REMATCH[2]}"
+  fi
+  [[ -z "$key" ]] && return 1
+  printf '%s' "$key" | tr '[:lower:]' '[:upper:]'
+}
+
+create() {
+  local no_issue_parsing="${GITBASH_CREATE_NO_ISSUE_PARSING:-no}"
+  local issue_fallback="${GITBASH_CREATE_ISSUE_PARSING_FALLBACK:-NOISSUE}"
+  local branch_prefix_config="${GITBASH_CREATE_BRANCH_PREFIX:-}"
+  local auto_push="${GITBASH_CREATE_AUTO_PUSH:-yes}"
+
+  local show_type_menu=false
+  local branch_type=""
+  local positional_args=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -v|--version)
+        echo "gitbash ${FUNCNAME[0]} v$VERSION"
+        return 0
+        ;;
+      -h|--help)
+        cat << 'EOF'
 Usage: create [OPTIONS] [JIRA_LINK] [TITLE...]
 
-Create a new git branch with optional Jira issue parsing.
+Create a new git branch from the latest base branch, with optional Jira issue parsing.
 
 Options:
   -h, --help       Show this help message
@@ -46,314 +63,214 @@ Options:
   --bugfix         Use 'bugfix/' type
   --hotfix         Use 'hotfix/' type
   --release        Use 'release/' type
+  --push           Push the new branch to the remote (default: GITBASH_CREATE_AUTO_PUSH)
+  --no-push        Don't push the new branch
 
 Configuration (run 'gitbash --config'):
   - GITBASH_CREATE_BRANCH_PREFIX: Custom prefix between type and issue (default: "")
   - GITBASH_CREATE_NO_ISSUE_PARSING: Disable Jira parsing (yes/no, default: "no")
   - GITBASH_CREATE_ISSUE_PARSING_FALLBACK: Fallback when no issue (default: "NOISSUE")
-
-Branch Types:
-  feature/  - New features and enhancements
-  bugfix/   - Bug fixes
-  hotfix/   - Urgent production fixes
-  release/  - Release preparation branches
+  - GITBASH_CREATE_AUTO_PUSH: Push new branches right away (yes/no, default: "yes")
 
 Branch Name Format:
-  <type><custom-prefix><issue>-<title>  (with issue parsing)
-  <type><custom-prefix><title>          (without issue parsing)
+  <type><custom-prefix>/<ISSUE>-<title>  (with issue parsing)
+  <type><custom-prefix>/<title>          (without issue parsing)
 
-Examples with custom prefix "awesome-team" (no trailing slash needed):
+  Issue keys: PROJ-123, AB2-45 or a Jira URL (/browse/KEY or selectedIssue=KEY).
+  Titles are lower-cased; umlauts and accents are transliterated (ü → ue, é → e) and other
+  characters become dashes.
 
-  With issue parsing enabled (default):
-    $ create PROJ-123 fix login bug
-    # → feature/awesome-team/PROJ-123-fix-login-bug
-    
-    $ create fix bug
-    # → feature/awesome-team/NOISSUE-fix-bug (uses fallback)
-    
-    $ create --hotfix PROJ-999 critical fix
-    # → hotfix/awesome-team/PROJ-999-critical-fix
+Behavior:
+  - Fetches the base branch and creates the new branch from '<remote>/<base>'
+    (falls back to the current HEAD if that fails)
+  - If the branch already exists locally, offers to switch to it
+  - If it already exists on the remote, stops (use 'switch' to check it out)
 
-  With issue parsing disabled (GITBASH_CREATE_NO_ISSUE_PARSING="yes"):
-    $ create fix login bug
-    # → feature/awesome-team/fix-login-bug
-    
-    $ create --hotfix enhance security
-    # → hotfix/awesome-team/enhance-security
-
-Examples with empty prefix (GITBASH_CREATE_BRANCH_PREFIX=""):
-
-  With parsing enabled:
-    $ create PROJ-123 fix bug
-    # → feature/PROJ-123-fix-bug
-
-  With parsing disabled:
-    $ create enhance login screen
-    # → feature/enhance-login-screen
-
-Interactive Mode:
-  $ create
-  # Prompts for Jira link (if parsing enabled) and title
-
-More Examples:
+Examples:
+  create PROJ-123 fix login bug             # feature/PROJ-123-fix-login-bug
   create https://jira.company.com/browse/PROJ-123 make some fixes
-  create PROJ-456 implement new feature
-  create -t PROJ-789 some work                    # Show type menu
-  create --hotfix PROJ-999 critical fix           # Use hotfix type
+  create fix bug                            # feature/NOISSUE-fix-bug
+  create --hotfix PROJ-999 critical fix     # hotfix/PROJ-999-critical-fix
+  create -t PROJ-789 some work              # Show type menu
 
 EOF
-                return 0
-                ;;
-            -t|--type)
-                show_type_menu=true
-                shift
-                ;;
-            --feature)
-                branch_type="feature/"
-                shift
-                ;;
-            --bugfix)
-                branch_type="bugfix/"
-                shift
-                ;;
-            --hotfix)
-                branch_type="hotfix/"
-                shift
-                ;;
-            --release)
-                branch_type="release/"
-                shift
-                ;;
-            *)
-                positional_args+=("$1")
-                shift
-                ;;
-        esac
-    done
-
-    # -----------------------------
-    # 1. Determine branch prefix
-    # -----------------------------
-    local branch_prefix
-    if [[ -n "$branch_type" ]]; then
-        branch_prefix="$branch_type"
-    elif [[ "$show_type_menu" == true ]]; then
-        if ! command -v fzf >/dev/null 2>&1; then
-            print_error "fzf is required for type selector. Install it or use --feature/--bugfix/--hotfix/--release flags."
-            return 1
-        fi
-
-        local type_options
-        type_options=$(cat << 'TYPES'
-feature/ - New features and enhancements
-bugfix/  - Bug fixes  
-hotfix/  - Urgent production fixes
-release/ - Release preparation branches
-TYPES
-)
-
-        local selected_type
-        selected_type=$(echo "$type_options" | fzf --prompt="Branch type > " \
-                  -i \
-                  --reverse \
-                  --border \
-                  --header="Select branch type" \
-                  --no-multi \
-                  --bind=enter:accept \
-        ) </dev/tty || true
-
-        if [[ -z "$selected_type" ]]; then
-            echo "Aborted."
-            return 1
-        fi
-
-        # Extract just the type prefix (first word)
-        branch_prefix=$(echo "$selected_type" | awk '{print $1}')
-    else
-        # Use default feature/ type
-        branch_prefix="feature/"
-    fi
-
-    # -----------------------------
-    # 2. Get Jira link from user (or from arguments) - skip if parsing disabled
-    # -----------------------------
-    local jira_link
-    local branch_title
-    
-    if [[ "$no_issue_parsing" == "yes" ]]; then
-        # Issue parsing disabled - treat all args as branch title
-        if [[ ${#positional_args[@]} -gt 0 ]]; then
-            branch_title="${positional_args[*]}"
-        fi
-        jira_link=""
-    elif [[ ${#positional_args[@]} -gt 0 ]]; then
-        # Arguments provided - use one-liner mode
-        # Use array index 1 for zsh compatibility (zsh arrays are 1-indexed, bash uses 0)
-        if [[ -n "${ZSH_VERSION:-}" ]]; then
-            jira_link="${positional_args[1]}"
-            if [[ ${#positional_args[@]} -gt 1 ]]; then
-                branch_title="${positional_args[*]:1}"
-            else
-                branch_title=""
-            fi
-        else
-            jira_link="${positional_args[0]}"
-            if [[ ${#positional_args[@]} -gt 1 ]]; then
-                branch_title="${positional_args[*]:1}"
-            else
-                branch_title=""
-            fi
-        fi
-    else
-        # Interactive mode
-        echo "Enter Jira link (e.g., https://jira.company.com/browse/PROJ-123) or press Enter to skip:"
-        prompt_read " > " jira_link
-    fi
-
-    # -----------------------------
-    # 2. Parse issue number from Jira link
-    # -----------------------------
-    local issue_number
-    
-    if [[ "$no_issue_parsing" == "yes" ]]; then
-        # Issue parsing disabled - no issue number in branch name
-        issue_number=""
-    elif [[ -z "$jira_link" ]]; then
-        # No Jira link provided, use configured fallback
-        issue_number="$issue_fallback"
-        print_info "No Jira link provided. Using $issue_fallback."
-    else
-        # First try to match just the issue number pattern (e.g., PROJ-123)
-        issue_number=$(echo "$jira_link" | grep -o -E '^[A-Z]+-[0-9]+$' | head -1 || true)
-        
-        # If not a direct match, try to extract from URL
-        if [[ -z "$issue_number" ]]; then
-            # Match patterns like PROJ-123, ABC-456, etc.
-            # Supports both /browse/PROJ-123 and selectedIssue=PROJ-123 formats
-            issue_number=$(echo "$jira_link" | grep -o -E '(browse/|selectedIssue=)[A-Z]+-[0-9]+' | grep -o '[A-Z]\+-[0-9]\+' | head -1 || true)
-        fi
-
-        if [[ -z "$issue_number" ]]; then
-            print_warning "Could not parse issue number from Jira link. Using $issue_fallback."
-            issue_number="$issue_fallback"
-            # If parsing failed and we had arguments, include the first arg in the title
-            if [[ -n "$branch_title" ]]; then
-                branch_title="$jira_link $branch_title"
-            else
-                branch_title="$jira_link"
-            fi
-        else
-            echo "Parsed issue number: $issue_number"
-        fi
-    fi
-
-    # -----------------------------
-    # 3. Get branch title from user (if not already provided)
-    # -----------------------------
-    if [[ -z "$branch_title" ]]; then
-        echo "Enter branch title (will be converted to lowercase with dashes):"
-        prompt_read " > " branch_title
-    fi
-
-    if [[ -z "$branch_title" ]]; then
-        echo "Error: No branch title provided."
+        return 0
+        ;;
+      -t|--type) show_type_menu=true; shift ;;
+      --feature) branch_type="feature/"; shift ;;
+      --bugfix) branch_type="bugfix/"; shift ;;
+      --hotfix) branch_type="hotfix/"; shift ;;
+      --release) branch_type="release/"; shift ;;
+      --push) auto_push="yes"; shift ;;
+      --no-push) auto_push="no"; shift ;;
+      --)
+        shift
+        positional_args+=("$@")
+        break
+        ;;
+      -*)
+        print_error "Unknown option: $1"
         return 1
-    fi
+        ;;
+      *)
+        positional_args+=("$1")
+        shift
+        ;;
+    esac
+  done
 
-    # Convert title to lowercase and replace spaces/special chars with dashes
-    branch_title=$(echo "$branch_title" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
+  require_git_repo || return 1
 
-    # -----------------------------
-    # 4. Construct branch name
-    # -----------------------------
-    # branch_prefix contains the type (feature/, hotfix/, etc.)
-    # branch_prefix_config is the custom prefix inserted between type and issue
-    # Format: <type>/<custom-prefix>/<issue>-<title> or <type>/<custom-prefix>/<title>
-    local branch_name
-    local custom_prefix_part=""
-    if [[ -n "$branch_prefix_config" ]]; then
-        custom_prefix_part="${branch_prefix_config}/"
+  # -----------------------------
+  # 1. Branch type
+  # -----------------------------
+  local branch_prefix="feature/"
+  if [[ -n "$branch_type" ]]; then
+    branch_prefix="$branch_type"
+  elif [[ "$show_type_menu" == true ]]; then
+    require_fzf || return 1
+    local selected_type
+    selected_type=$(run_fzf --prompt="Branch type > " \
+              -i \
+              --reverse \
+              --border \
+              --header="Select branch type" \
+              --no-multi \
+              <<< "feature/ - New features and enhancements
+bugfix/  - Bug fixes
+hotfix/  - Urgent production fixes
+release/ - Release preparation branches"
+    ) || true
+    if [[ -z "$selected_type" ]]; then
+      echo "Aborted."
+      return 0
     fi
-    
-    if [[ -n "$issue_number" ]]; then
-        branch_name="${branch_prefix}${custom_prefix_part}${issue_number}-${branch_title}"
+    branch_prefix="${selected_type%% *}"
+  fi
+
+  # -----------------------------
+  # 2. Issue number and title
+  # -----------------------------
+  local jira_link="" branch_title="" issue_number=""
+
+  if [[ "$no_issue_parsing" == "yes" ]]; then
+    if [[ ${#positional_args[@]} -gt 0 ]]; then
+      branch_title="${positional_args[*]}"
+    fi
+  else
+    if [[ ${#positional_args[@]} -gt 0 ]]; then
+      jira_link="${positional_args[0]}"
+      if [[ ${#positional_args[@]} -gt 1 ]]; then
+        branch_title="${positional_args[*]:1}"
+      fi
     else
-        branch_name="${branch_prefix}${custom_prefix_part}${branch_title}"
-    fi
-    
-    echo "Branch name: $branch_name"
-
-    # -----------------------------
-    # 5. Check if branch already exists
-    # -----------------------------
-    if git show-ref --verify --quiet "refs/heads/$branch_name"; then
-        print_warning "Branch '$branch_name' already exists locally."
-        prompt_read "Switch to this branch instead? (Y/n): " ans
-        case "$ans" in
-            [nN][oO]|[nN])
-                echo "Aborted."
-                return 1
-                ;;
-            *)
-                git checkout "$branch_name"
-                print_success "Switched to existing branch: $branch_name"
-                return 0
-                ;;
-        esac
+      echo "Enter Jira link or issue key (e.g. PROJ-123), or press Enter to skip:"
+      prompt_read " > " jira_link || true
     fi
 
-    # -----------------------------
-    # 6. Update main/master branch before creating new branch
-    # -----------------------------
-    # Detect base branch: main or master
-    local base_branch
-    if git show-ref --verify --quiet refs/heads/main; then
-        base_branch="main"
-    elif git show-ref --verify --quiet refs/heads/master; then
-        base_branch="master"
+    if [[ -z "$jira_link" ]]; then
+      issue_number="$issue_fallback"
+      print_info "No issue given. Using $issue_fallback."
+    elif issue_number=$(_create_parse_issue "$jira_link"); then
+      echo "Parsed issue number: $issue_number"
     else
-        print_warning "Could not detect 'main' or 'master' branch. Creating branch from current HEAD."
-        base_branch=""
+      issue_number="$issue_fallback"
+      print_warning "No issue key found in '$jira_link'. Using $issue_fallback."
+      # The first word was part of the title
+      if [[ -n "$branch_title" ]]; then
+        branch_title="$jira_link $branch_title"
+      else
+        branch_title="$jira_link"
+      fi
     fi
+  fi
 
-    if [[ -n "$base_branch" ]]; then
-        print_info "Updating '$base_branch' from origin..."
-        if git fetch origin "$base_branch:$base_branch" 2>/dev/null; then
-            print_success "'$base_branch' is up to date."
-        else
-            print_warning "Could not update '$base_branch' from origin. Creating branch from local '$base_branch'."
-        fi
+  if [[ -z "$branch_title" ]]; then
+    echo "Enter branch title (will be converted to lowercase with dashes):"
+    prompt_read " > " branch_title || true
+  fi
+  branch_title=$(_create_slugify "$branch_title")
+  if [[ -z "$branch_title" ]]; then
+    print_error "No branch title provided."
+    return 1
+  fi
+
+  # -----------------------------
+  # 3. Branch name
+  # -----------------------------
+  local custom_prefix_part="" branch_name
+  if [[ -n "$branch_prefix_config" ]]; then
+    custom_prefix_part="${branch_prefix_config}/"
+  fi
+  if [[ -n "$issue_number" ]]; then
+    branch_name="${branch_prefix}${custom_prefix_part}${issue_number}-${branch_title}"
+  else
+    branch_name="${branch_prefix}${custom_prefix_part}${branch_title}"
+  fi
+
+  if ! git check-ref-format --branch "$branch_name" >/dev/null 2>&1; then
+    print_error "'$branch_name' is not a valid branch name. Check GITBASH_CREATE_BRANCH_PREFIX and GITBASH_CREATE_ISSUE_PARSING_FALLBACK."
+    return 1
+  fi
+  echo "Branch name: $branch_name"
+
+  # -----------------------------
+  # 4. Already exists?
+  # -----------------------------
+  if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+    print_warning "Branch '$branch_name' already exists locally."
+    if gb_confirm "Switch to it instead?" y; then
+      git switch "$branch_name" && print_success "Switched to existing branch: $branch_name"
+      return $?
     fi
+    echo "Aborted."
+    return 1
+  fi
 
-    # -----------------------------
-    # 7. Create branch
-    # -----------------------------
-    print_info "Creating branch..."
-    if [[ -n "$base_branch" ]]; then
-        # Create branch from updated base branch
-        if git checkout -b "$branch_name" "$base_branch"; then
-            print_success "Successfully created and switched to branch: $branch_name (from $base_branch)"
-        else
-            print_error "Failed to create branch."
-            return 1
-        fi
+  local remote
+  remote=$(gb_remote)
+  if git remote get-url "$remote" >/dev/null 2>&1 &&
+     [[ -n "$(git ls-remote --heads "$remote" "refs/heads/$branch_name" 2>/dev/null)" ]]; then
+    print_error "Branch '$branch_name' already exists on '$remote'. Use 'switch $branch_title' to check it out."
+    return 1
+  fi
+
+  # -----------------------------
+  # 5. Create from the latest base branch
+  # -----------------------------
+  local base_branch start_point=""
+  if base_branch=$(gb_base_branch); then
+    print_info "Fetching latest '$base_branch' from '$remote'..."
+    if git fetch --quiet "$remote" "+refs/heads/$base_branch:refs/remotes/$remote/$base_branch" 2>/dev/null; then
+      start_point="$remote/$base_branch"
+    elif git show-ref --verify --quiet "refs/heads/$base_branch"; then
+      print_warning "Could not fetch '$base_branch'. Creating the branch from local '$base_branch'."
+      start_point="$base_branch"
+    fi
+  fi
+  if [[ -z "$start_point" ]]; then
+    print_warning "Could not find the base branch. Creating the branch from the current HEAD."
+  fi
+
+  print_info "Creating branch..."
+  if [[ -n "$start_point" ]]; then
+    git switch --quiet --no-track -c "$branch_name" "$start_point" || { print_error "Failed to create branch."; return 1; }
+    print_success "Created and switched to '$branch_name' (from $start_point)"
+  else
+    git switch --quiet -c "$branch_name" || { print_error "Failed to create branch."; return 1; }
+    print_success "Created and switched to '$branch_name'"
+  fi
+
+  # -----------------------------
+  # 6. Push and set up tracking
+  # -----------------------------
+  if [[ "$auto_push" == "yes" ]]; then
+    print_info "Pushing '$branch_name' to '$remote'..."
+    if git push --quiet -u "$remote" "$branch_name"; then
+      print_success "Pushed '$branch_name' to '$remote' with tracking."
     else
-        # Fallback: create from current HEAD
-        if git checkout -b "$branch_name"; then
-            print_success "Successfully created and switched to branch: $branch_name"
-        else
-            print_error "Failed to create branch."
-            return 1
-        fi
+      print_warning "Failed to push. You can push it later with: git push -u $remote $branch_name"
     fi
-
-    # -----------------------------
-    # 8. Push branch to origin and set up tracking
-    # -----------------------------
-    print_info "Pushing branch to origin and setting up tracking..."
-    if git push -u origin "$branch_name"; then
-        print_success "Successfully pushed '$branch_name' to origin with tracking."
-    else
-        print_warning "Failed to push branch to origin. You can push it later with: git push -u origin $branch_name"
-    fi
+  fi
+  return 0
 }

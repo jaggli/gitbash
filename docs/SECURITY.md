@@ -6,10 +6,21 @@ The following versions of this project are currently receiving security updates:
 
 | Version | Supported |
 |--------|-----------|
-| 1.x.x  | ✅        |
-| < 1.0  | ❌        |
+| 2.x.x  | ✅        |
+| < 2.0  | ❌        |
 
-Security fixes are only applied to the latest minor/patch release of the **1.x.x** series. Older versions must be upgraded to receive patches.
+Security fixes are only applied to the latest minor/patch release of the **2.x.x** series. Older versions must be upgraded to receive patches.
+
+Versions before 2.0 executed repository `.gitbashrc` files as shell code, so opening a cloned repository with a malicious `.gitbashrc` could run arbitrary commands. Upgrade to 2.0 or later.
+
+---
+
+## Trust Model
+
+- Configuration files (`~/.gitbashrc`, a repository's `.gitbashrc` and `.gitbashrc-user`) are **parsed, never executed**. Only plain `GITBASH_*="value"` lines from a fixed list of settings are read; values containing `$`, backticks, backslashes or quotes are rejected.
+- A repository's committed `.gitbashrc` is treated as untrusted: it cannot set `GITBASH_MERGE_COMMAND` (the only setting that names a program to run). That setting is only read from `~/.gitbashrc` and `.gitbashrc-user`.
+- `gitbash --init` prints wrapper functions that call the installed `gitbash` binary; command code is not sourced into your shell.
+- `pr` never passes credentials from the remote URL to the browser.
 
 ---
 
