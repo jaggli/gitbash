@@ -30,6 +30,7 @@ create_url() {
 
 @test "pull request URLs match the hosting service and encode the branch" {
     [ "$(create_url https://github.com/acme/repo 'feature/a#b')" = "https://github.com/acme/repo/compare/feature/a%23b?expand=1" ]
+    [ "$(create_url https://github.com/acme/repo 'feature/über')" = "https://github.com/acme/repo/compare/feature/%C3%BCber?expand=1" ]
     [ "$(create_url https://gitlab.com/g/r feature/x)" = "https://gitlab.com/g/r/-/merge_requests/new?merge_request%5Bsource_branch%5D=feature/x" ]
     [ "$(create_url https://bitbucket.org/t/r feature/x)" = "https://bitbucket.org/t/r/pull-requests/new?source=feature/x" ]
 }

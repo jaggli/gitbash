@@ -120,7 +120,8 @@ EOF
   local has_staged has_unstaged untracked
   has_staged=$(git diff --cached --name-only 2>/dev/null)
   has_unstaged=$(git diff --name-only 2>/dev/null)
-  untracked=$(git ls-files --others --exclude-standard 2>/dev/null)
+  # ls-files only looks below the current directory; 'git add -A' stages the whole repository
+  untracked=$(git -C "$(git rev-parse --show-toplevel)" ls-files --others --exclude-standard 2>/dev/null)
 
   # mode: staged | all | none (amend without new changes)
   local mode

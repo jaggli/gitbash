@@ -502,12 +502,17 @@ gb_json_escape() {
 
 gb_urlencode() {
     local LC_ALL=C
-    local str="$1" out="" char hex i
+    local str="$1" out="" char code hex i
     for ((i = 0; i < ${#str}; i++)); do
         char="${str:i:1}"
         case "$char" in
             [a-zA-Z0-9._~/-]) out+="$char" ;;
-            *) printf -v hex '%%%02X' "'$char"; out+="$hex" ;;
+            *)
+                # bash 3.2 reads bytes >= 0x80 as negative numbers: keep the low 8 bits
+                printf -v code '%d' "'$char"
+                printf -v hex '%%%02X' "$((code & 255))"
+                out+="$hex"
+                ;;
         esac
     done
     printf '%s' "$out"

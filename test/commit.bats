@@ -48,6 +48,27 @@ setup() {
     [ "$(git rev-list --count HEAD)" -eq 1 ]
 }
 
+@test "new files outside the current directory are listed too" {
+    mkdir src
+    commit_file src/a.txt "a" "add a"
+    echo "change" >> src/a.txt
+    echo "SECRET" > .env
+    cd src
+    run gb_input 'n\n' commit msg
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"+ .env"* ]]
+    [ "$(git log -1 --format=%s)" = "add a" ]
+}
+
+@test "a new file outside the current directory is not 'nothing to commit'" {
+    mkdir src
+    echo "new" > root.txt
+    cd src
+    run gb commit add root file
+    [ "$status" -eq 0 ]
+    [ "$(git show --name-only --format= HEAD)" = "root.txt" ]
+}
+
 @test "--yes adds new files without asking" {
     echo "new" > new.txt
     run gb commit --yes add new file
