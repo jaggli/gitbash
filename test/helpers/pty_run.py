@@ -3,12 +3,15 @@
 
 Usage: pty_run.py "<command>"
 Environment:
-  KEYS     keys to type after the UI has started (Python escapes, e.g. "\\r", "\\x1b[3~");
-           "<pause>" splits them into chunks typed one second apart
+  KEYS     keys to type once the UI is drawn (Python escapes, e.g. "\\r", "\\x1b[3~");
+           "<pause>" splits them into chunks. Each chunk is typed only after the
+           screen has been quiet for a moment, so slow machines don't lose keys.
   TIMEOUT  seconds before the command is killed (default 10)
+  PTY_LOG  optional file that receives everything written to the terminal
 
-Answers fzf's cursor position query so it can render. Exits with the command's
-exit code, or 99 on timeout.
+Answers fzf's cursor position queries so it can render. The first chunk of keys
+is typed once fzf is interactive (it has enabled mouse reporting) and the screen
+is quiet. Exits with the command's exit code, or 99 on timeout.
 """
 import fcntl
 import os
@@ -33,7 +36,10 @@ if pid == 0:
 
 fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 160, 0, 0))
 start = time.time()
-next_send = start + 1.0
+last_output = None   # time of the last screen output
+interactive = False  # fzf has started reading keys
+last_send = start
+QUIET = 0.7          # seconds without output before typing the next chunk
 while time.time() - start < timeout:
     readable, _, _ = select.select([fd], [], [], 0.1)
     if readable:
@@ -43,11 +49,24 @@ while time.time() - start < timeout:
             data = b""
         if not data:
             break
-        if b"\x1b[6n" in data:
+        # Answer every cursor position query (fzf may send several at once)
+        for _ in range(data.count(b"\x1b[6n")):
             os.write(fd, b"\x1b[1;1R")
-    if chunks and time.time() >= next_send:
-        os.write(fd, chunks.pop(0))
-        next_send = time.time() + 1.0
+        if b"\x1b[?1000h" in data:
+            interactive = True
+        last_output = time.time()
+        if os.environ.get("PTY_LOG"):
+            with open(os.environ["PTY_LOG"], "ab") as log:
+                log.write(data)
+    now = time.time()
+    if (chunks and interactive and last_output is not None
+            and now - last_output >= QUIET and now - last_send >= QUIET):
+        chunk = chunks.pop(0)
+        os.write(fd, chunk)
+        last_send = now
+        if os.environ.get("PTY_LOG"):
+            with open(os.environ["PTY_LOG"], "ab") as log:
+                log.write(b"\n<<<SENT %r>>>\n" % chunk)
     done, status = os.waitpid(pid, os.WNOHANG)
     if done:
         sys.exit(os.waitstatus_to_exitcode(status))

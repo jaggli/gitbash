@@ -22,7 +22,16 @@ setup() {
 
 # Run a command in a pty, typing KEYS
 in_pty() {
-    python3 "$HELPERS_DIR/pty_run.py" "$1"
+    TIMEOUT="${TIMEOUT:-30}" python3 "$HELPERS_DIR/pty_run.py" "$1"
+}
+
+# Show the captured output when an assertion fails
+check() {
+    "$@" || { echo "status: $status"; echo "output: $output"; return 1; }
+}
+
+check_not() {
+    ! "$@" || { echo "status: $status"; echo "output: $output"; return 1; }
 }
 
 @test "installed fzf meets the minimum version" {
@@ -46,22 +55,22 @@ in_pty() {
 @test "switch: Enter switches to the selected branch" {
     git branch feature/pick
     KEYS='pick\r' run in_pty "\"${GB_BASH:-bash}\" \"$GB\" switch"
-    [ "$status" -eq 0 ]
-    [ "$(git branch --show-current)" = "feature/pick" ]
+    check [ "$status" -eq 0 ]
+    check [ "$(git branch --show-current)" = "feature/pick" ]
 }
 
 @test "status: Enter stages the selected file" {
     echo "x" > "my file.txt"
     # Enter stages, then Esc exits
     KEYS='\r<pause>\x1b' run in_pty "\"${GB_BASH:-bash}\" \"$GB\" status"
-    [ "$status" -eq 0 ]
-    [ "$(git diff --cached --name-only)" = "my file.txt" ]
+    check [ "$status" -eq 0 ]
+    check [ "$(git diff --cached --name-only)" = "my file.txt" ]
 }
 
 @test "switch: Del asks, deletes the branch and reloads the list" {
     git branch feature/delete-me
     KEYS='delete-me<pause>\x1b[3~<pause>y\r<pause>\x1b' run in_pty "\"${GB_BASH:-bash}\" \"$GB\" switch"
-    [ "$status" -eq 0 ]
-    ! git show-ref --verify --quiet refs/heads/feature/delete-me
-    [ "$(git branch --show-current)" = "main" ]
+    check [ "$status" -eq 0 ]
+    check_not git show-ref --verify --quiet refs/heads/feature/delete-me
+    check [ "$(git branch --show-current)" = "main" ]
 }
