@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2155
 
 # Source common utilities
-SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_utils.sh
 source "$SOURCE_DIR/_utils.sh"
+# shellcheck source=unstash.sh
+source "$SOURCE_DIR/unstash.sh"
 
 cleanstash() {
-    # -----------------------------
-    # 0. Check for help/version flag
-    # -----------------------------
     if [[ "${1:-}" == "-v" || "${1:-}" == "--version" ]]; then
         echo "gitbash ${FUNCNAME[0]} v$VERSION"
         return 0
@@ -24,155 +22,82 @@ Interactive fuzzy finder (fzf) with preview and multi-select support.
 Options:
   -h, --help    Show this help message
 
-Features:
-  - Multi-select support (use TAB to select multiple stashes)
-  - Preview stash contents before deletion
-  - Confirmation prompt before deletion
-  - Safe deletion (deletes in reverse order to maintain indices)
-
 Navigation:
-  ↑/↓ or j/k    Navigate through stashes
+  ↑/↓           Navigate through stashes
   TAB           Select/deselect stash (multi-select)
   Enter         Confirm selection
   ESC/Ctrl-C    Abort
 
-Examples:
-  $ cleanstash
-  Available stashes >
-  > stash@{0}: WIP on main: 1a2b3c4 commit message
-    stash@{1}: WIP on feature: 5d6e7f8 another commit
-    stash@{2}: On dev: 9a8b7c6 old work
-    ✖ Abort
-
-  # Select stash@{0} and stash@{2} using TAB, then press Enter
-  
-  Selected stashes to delete:
-    - stash@{0}
-    - stash@{2}
-
-  Delete these 2 stash(es)? (y/N): y
-  Deleting stashes...
-  Dropping stash@{2} ...
-  ✓ Deleted stash@{2}
-  Dropping stash@{0} ...
-  ✓ Deleted stash@{0}
+Notes:
+  - Asks for confirmation before deleting
+  - Stashes are deleted from the highest index down, so indices stay valid
+  - No changes are applied to your working directory
 
 Requirements:
-  - fzf (fuzzy finder) - will prompt to install if not found
-  - git stash list with at least one stash
-
-Notes:
-  - Stashes are deleted in reverse order to prevent index shifts
-  - Preview shows the full diff of the selected stash
-  - No changes are applied to your working directory
+  - fzf (fuzzy finder)
 
 EOF
         return 0
     fi
 
-    # -----------------------------
-    # 1. Check for fzf
-    # -----------------------------
+    require_git_repo || return 1
+
+    local stash_list
+    stash_list=$(git stash list)
+    if [[ -z "$stash_list" ]]; then
+        echo "No stashes."
+        return 0
+    fi
+
     require_fzf || return 1
 
-    # -----------------------------
-    # 2. Build menu entries
-    # -----------------------------
-    local abort_label="✖ Abort"
-
-    local choices
-    choices=$(
-        {
-            git stash list
-            echo "$abort_label"
-        }
-    )
-
-    # -----------------------------
-    # 3. Run fzf full-screen picker with preview (multi-select)
-    # -----------------------------
     local selection
-    selection=$(fzf --prompt="Available stashes > " \
+    selection=$(run_fzf --prompt="Available stashes > " \
               -i \
               --reverse \
               --border \
               --header="Select stashes to delete (TAB for multi-select)" \
               --multi \
-              --bind=enter:accept \
-              --preview='
-                    sel=$(echo {} | grep -o "stash@{[0-9]\+}" || true);
-                    if [[ -n "$sel" ]]; then
-                        git stash show -p "$sel" | delta --light 2>/dev/null || git stash show -p "$sel";
-                    else
-                        echo "No preview";
-                    fi
-              ' \
-              <<< "$choices"
-    ) </dev/tty || true
+              --preview="$(_stash_preview)" \
+              <<< "$stash_list"
+    ) || true
 
-    # ESC or Ctrl-C
     if [[ -z "$selection" ]]; then
         echo "Aborted."
-        return 1
+        return 0
     fi
 
-    # Abort option
-    if echo "$selection" | grep -q "^$abort_label$"; then
-        echo "Aborted."
-        return 1
-    fi
-
-    # -----------------------------
-    # 4. Extract stash IDs safely
-    # -----------------------------
-    local stash_ids=()
-    local stash_id line
+    local stash_ids=() stash_id line
     while IFS= read -r line; do
-        stash_id=$(echo "$line" | grep -o 'stash@{[0-9]\+}' || true)
-        if [[ -n "$stash_id" ]]; then
-            stash_ids+=("$stash_id")
-        fi
+        stash_id=$(printf '%s' "$line" | grep -o '^stash@{[0-9]*}' || true)
+        [[ -n "$stash_id" ]] && stash_ids+=("$stash_id")
     done <<< "$selection"
 
     if [[ ${#stash_ids[@]} -eq 0 ]]; then
-        echo "Error: Could not determine any stash IDs."
+        print_error "Could not determine any stash IDs."
         return 1
     fi
 
-    # -----------------------------
-    # 5. Confirm before deletion
-    # -----------------------------
     echo "Selected stashes to delete:"
-    for stash_id in "${stash_ids[@]}"; do
-        echo "  - $stash_id"
-    done
+    printf '  - %s\n' "${stash_ids[@]}"
     echo
 
-    prompt_read "Delete these ${#stash_ids[@]} stash(es)? (y/N): " confirm_ans
-    case "$confirm_ans" in
-        [yY][eE][sS]|[yY])
-            # -----------------------------
-            # 6. Delete stashes (in reverse order to maintain indices)
-            # -----------------------------
-            echo "Deleting stashes..."
-            # Sort by stash number in descending order to delete safely
-            local sorted_ids=()
-            local id
-            while IFS= read -r id; do
-                sorted_ids+=("$id")
-            done < <(printf '%s\n' "${stash_ids[@]}" | sort -t'{' -k2 -rn)
-            
-            for stash_id in "${sorted_ids[@]}"; do
-                echo "Dropping $stash_id ..."
-                if git stash drop "$stash_id"; then
-                    echo "✓ Deleted $stash_id"
-                else
-                    echo "✗ Failed to delete $stash_id"
-                fi
-            done
-            ;;
-        *)
-            echo "Deletion cancelled. No stashes were removed."
-            ;;
-    esac
+    if ! gb_confirm "Delete these ${#stash_ids[@]} stash(es)?" n; then
+        echo "Deletion cancelled. No stashes were removed."
+        return 0
+    fi
+
+    # Highest index first, so the remaining indices don't shift
+    local sorted_ids=() id
+    while IFS= read -r id; do
+        sorted_ids+=("$id")
+    done < <(printf '%s\n' "${stash_ids[@]}" | sort -t'{' -k2 -rn)
+
+    for stash_id in "${sorted_ids[@]}"; do
+        if git stash drop --quiet "$stash_id"; then
+            print_success "Deleted $stash_id"
+        else
+            print_error "Failed to delete $stash_id"
+        fi
+    done
 }

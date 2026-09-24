@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2155
 
 # Source common utilities
-SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_utils.sh
 source "$SOURCE_DIR/_utils.sh"
 
 stash() {
-    # -----------------------------
-    # 0. Check for help/version flag
-    # -----------------------------
     if [[ "${1:-}" == "-v" || "${1:-}" == "--version" ]]; then
         echo "gitbash ${FUNCNAME[0]} v$VERSION"
         return 0
@@ -25,29 +21,20 @@ Options:
   -h, --help    Show this help message
 
 Features:
-  - Stashes all changed files (staged and unstaged)
+  - Stashes all changes: staged, unstaged and untracked files
   - Custom stash message for easy identification
-  - Interactive mode if no name provided
-  - Works with untracked files
 
 Examples:
-  # Interactive mode (prompts for name)
   $ stash
   Stash name: work in progress on login
   ✓ Created stash: work in progress on login
 
-  # Direct mode (name as arguments)
   $ stash fix for authentication bug
   ✓ Created stash: fix for authentication bug
 
-  # View your stashes
-  $ git stash list
-  stash@{0}: On main: fix for authentication bug
-  stash@{1}: On main: work in progress on login
-
 Requirements:
-  - Must be in a git repository
-  - Must have changes to stash (staged, unstaged, or untracked)
+  - Must be in a git repository with at least one commit
+  - Must have changes to stash
 
 See also:
   stashes -h     Show help for stashes menu
@@ -58,45 +45,30 @@ EOF
         return 0
     fi
 
-    # -----------------------------
-    # 1. Check if inside a git repository
-    # -----------------------------
-    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        echo "Error: Not inside a git repository."
+    require_git_repo || return 1
+
+    if ! git rev-parse --verify --quiet HEAD >/dev/null; then
+        print_error "Cannot stash before the first commit."
         return 1
     fi
 
-    # -----------------------------
-    # 2. Check for changes to stash
-    # -----------------------------
-    if git diff --quiet && git diff --cached --quiet && [[ -z "$(git ls-files --others --exclude-standard)" ]]; then
+    if [[ -z "$(git status --porcelain)" ]]; then
         echo "No changes to stash."
         return 1
     fi
 
-    # -----------------------------
-    # 3. Get stash name
-    # -----------------------------
     local stash_name
-
     if [[ $# -gt 0 ]]; then
-        # Name provided as arguments
         stash_name="$*"
     else
-        # Interactive mode - prompt for name
-        echo -n "Stash name: "
-        read -r stash_name
-
+        prompt_read "Stash name: " stash_name || true
         if [[ -z "$stash_name" ]]; then
             print_error "Stash name cannot be empty."
             return 1
         fi
     fi
 
-    # -----------------------------
-    # 4. Create the stash
-    # -----------------------------
-    if git stash push -u -m "$stash_name"; then
+    if git stash push --include-untracked -m "$stash_name"; then
         print_success "Created stash: $stash_name"
     else
         print_error "Failed to create stash."

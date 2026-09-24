@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# gh stub: behaves like gh without a matching pull request
+exit 1

@@ -1,87 +1,67 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2155
 
 # Source common utilities
-SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_utils.sh
 source "$SOURCE_DIR/_utils.sh"
 
-# Stage all changes and commit with a message.
+# Stage changes and commit with a message.
 # If no commit message argument is given, prompt the user for one.
 commit() {
   local should_push=false
   local staged_only=false
   local amend_mode=false
   local show_prefix_menu=false
+  local force_with_lease=false
   local msg_parts=()
 
   # Parse arguments
   while [[ $# -gt 0 ]]; do
-    case $1 in
+    case "$1" in
       -v|--version)
         echo "gitbash ${FUNCNAME[0]} v$VERSION"
         return 0
         ;;
       -h|--help)
         cat << 'EOF'
-Usage: commit [MESSAGE] [OPTIONS]
+Usage: commit [OPTIONS] [MESSAGE...] [-- MESSAGE...]
 
-Stage all changes (git add -A) and commit with a message.
+Commit your changes with a message.
 
 Options:
-  -p, --push      Push to origin after successful commit
-  -s, --staged    Commit only staged changes (skip prompt, ignore unstaged)
-  -a, --amend     Amend the last commit instead of creating a new one
-  -t, --type      Show conventional commit type selector (feat, fix, docs, etc.)
-  -h, --help      Show this help message
+  -p, --push              Push to the remote after a successful commit
+  -s, --staged            Commit only staged changes
+  -a, --amend             Amend the last commit (keeps its message if none is given)
+  -t, --type              Show conventional commit type selector (feat, fix, docs, etc.)
+  -y, --yes               Don't ask for confirmations (untracked files, staged/all)
+      --force-with-lease  Allow overwriting the remote branch when pushing (after amend/rebase)
+  --                      Everything after this is the message (even if it starts with '-')
+  -h, --help              Show this help message
+
+What gets committed:
+  - Only staged changes          → commits them
+  - Only unstaged/untracked      → stages everything (lists new files first) and commits
+  - Both staged and unstaged     → asks: [s]taged only (default) or [a]ll
+
+Pushing (-p):
+  - New branches are pushed with tracking (-u)
+  - If the remote has new commits you don't have, they are fast-forwarded
+  - If your branch and the remote diverged, you are asked whether to rebase,
+    merge or abort. Nothing is rewritten without asking.
+  - After --amend, you are asked before force-pushing (--force-with-lease)
 
 Conventional Commit Types (with --type):
-  feat:     A new feature
-  fix:      A bug fix
-  docs:     Documentation only changes
-  style:    Code style changes (formatting, whitespace)
-  refactor: Code change that neither fixes a bug nor adds a feature
-  perf:     Performance improvement
-  test:     Adding or fixing tests
-  build:    Build system or dependency changes
-  ci:       CI/CD configuration changes
-  chore:    Other changes that don't modify src or test files
-
-Interactive mode (no message):
-  $ commit
-  Commit message: fix login bug
-  [main 1a2b3c4] fix login bug
-   1 file changed, 5 insertions(+), 2 deletions(-)
-
-With message argument:
-  $ commit implement new feature
-  [main 5d6e7f8] implement new feature
-   3 files changed, 42 insertions(+), 8 deletions(-)
-
-With type selector:
-  $ commit -t fix broken tests
-  # Shows type menu, then commits as "fix: broken tests"
-
-Amend last commit:
-  $ commit --amend fix typo in docs
-  [main abc123] fix typo in docs
-   1 file changed, 1 insertion(+)
-
-With push option:
-  $ commit update documentation -p
-  [main 9a8b7c6] update documentation
-   1 file changed, 10 insertions(+), 3 deletions(-)
-  Pushing 'main' to origin...
-  ✓ Successfully pushed 'main' to origin.
+  feat, fix, docs, style, refactor, perf, test, build, ci, chore
 
 Examples:
   commit                                    # Interactive mode
   commit add user validation                # Quick commit
   commit refactor auth module --push        # Commit and push
-  commit -p update dependencies             # Commit and push (short flag)
   commit -s -p fix bug                      # Commit only staged and push
   commit -t add user endpoint               # Conventional commit with type menu
-  commit --amend fix typo                   # Amend last commit
+  commit --amend                            # Amend, keep the message
+  commit --amend fix typo                   # Amend with a new message
+  commit -- -1 is not a valid index         # Message starting with '-'
 
 EOF
         return 0
@@ -102,37 +82,99 @@ EOF
         show_prefix_menu=true
         shift
         ;;
+      -y|--yes)
+        GITBASH_ASSUME_YES=1
+        shift
+        ;;
+      --force-with-lease)
+        force_with_lease=true
+        shift
+        ;;
+      --)
+        shift
+        msg_parts+=("$@")
+        break
+        ;;
       -*)
-        echo "Unknown option: $1"
-        echo "Usage: commit [message] [-p|--push] [-s|--staged] [-a|--amend] [-t|--type]"
+        print_error "Unknown option: $1"
+        echo "Usage: commit [-p] [-s] [-a] [-t] [-y] [--force-with-lease] [message...]" >&2
         return 1
         ;;
       *)
-        # Collect all non-flag arguments as message parts
         msg_parts+=("$1")
         shift
         ;;
     esac
   done
 
-  # Join message parts with spaces (handle empty array for set -u)
+  require_git_repo || return 1
+
   local msg=""
   if [[ ${#msg_parts[@]} -gt 0 ]]; then
     msg="${msg_parts[*]}"
   fi
 
-  # If no commit message was provided...
-  if [ -z "$msg" ]; then
-    # Prompt the user for a commit message (no newline, no extra spaces)
-    prompt_read "Commit message: " msg
-  fi
+  # -----------------------------
+  # 1. Decide what to commit (before asking for a message)
+  # -----------------------------
+  local has_staged has_unstaged untracked
+  has_staged=$(git diff --cached --name-only 2>/dev/null)
+  has_unstaged=$(git diff --name-only 2>/dev/null)
+  untracked=$(git ls-files --others --exclude-standard 2>/dev/null)
 
-  # Show conventional commit type menu if requested
-  if [[ "$show_prefix_menu" == true ]]; then
-    if ! command -v fzf >/dev/null 2>&1; then
-      print_error "fzf is required for type selector. Install it or provide message directly."
+  # mode: staged | all | none (amend without new changes)
+  local mode
+  if [[ "$staged_only" == true ]]; then
+    if [[ -z "$has_staged" && "$amend_mode" == false ]]; then
+      print_error "No staged changes to commit."
       return 1
     fi
+    mode="staged"
+  elif [[ -n "$has_staged" && ( -n "$has_unstaged" || -n "$untracked" ) ]]; then
+    echo "You have both staged and unstaged changes."
+    local choice="s"
+    if [[ "${GITBASH_ASSUME_YES:-}" != "1" ]]; then
+      gb_choice choice "Commit [s]taged only or [a]ll changes? (S/a):" "sa" "s"
+    fi
+    if [[ "$choice" == "a" ]]; then mode="all"; else mode="staged"; fi
+  elif [[ -n "$has_staged" ]]; then
+    mode="staged"
+  elif [[ -n "$has_unstaged" || -n "$untracked" ]]; then
+    mode="all"
+  elif [[ "$amend_mode" == true ]]; then
+    mode="none"
+  else
+    echo "Nothing to commit - working tree clean."
+    return 1
+  fi
+
+  # List new files before staging everything, so secrets don't slip in unnoticed
+  if [[ "$mode" == "all" && -n "$untracked" ]]; then
+    echo "New (untracked) files that will be added:"
+    printf '%s\n' "$untracked" | sed 's/^/  + /'
+    if ! gb_confirm "Add these files to the commit?" y; then
+      echo "Commit cancelled. Stage what you want and use 'commit -s', or add files to .gitignore."
+      return 1
+    fi
+  fi
+
+  # -----------------------------
+  # 2. Commit message
+  # -----------------------------
+  if [[ -z "$msg" && ( "$amend_mode" == false || "$show_prefix_menu" == true ) ]]; then
+    prompt_read "Commit message: " msg
+  fi
+  if [[ -z "$msg" && "$amend_mode" == false ]]; then
+    print_error "Empty commit message - commit cancelled."
+    return 1
+  fi
+
+  if [[ "$show_prefix_menu" == true ]]; then
+    if [[ -z "$msg" ]]; then
+      print_error "Empty commit message - commit cancelled."
+      return 1
+    fi
+    require_fzf || return 1
 
     local type_options="feat     - A new feature
 fix      - A bug fix
@@ -146,136 +188,57 @@ ci       - CI/CD configuration changes
 chore    - Other changes that don't modify src/test files"
 
     local selected_type
-    selected_type=$(echo "$type_options" | fzf --prompt="Commit type > " \
+    selected_type=$(run_fzf --prompt="Commit type > " \
               -i \
               --reverse \
               --border \
               --header="Select conventional commit type" \
               --no-multi \
-              --bind=enter:accept \
-    ) </dev/tty || true
+              <<< "$type_options"
+    ) || true
 
     if [[ -z "$selected_type" ]]; then
-      echo "Aborted."
-      return 1
+      echo "Commit cancelled."
+      return 0
     fi
 
-    # Extract just the type keyword (first word)
-    local type_keyword
-    type_keyword=$(echo "$selected_type" | awk '{print $1}')
-    
-    # Prepend to message
-    msg="${type_keyword}: ${msg}"
+    msg="${selected_type%% *}: ${msg}"
     print_info "Commit message: $msg"
   fi
 
-  # Build commit flags
-  local commit_flags=()
+  # -----------------------------
+  # 3. Commit
+  # -----------------------------
+  local commit_args=()
   if [[ "$amend_mode" == true ]]; then
-    commit_flags+=("--amend")
+    commit_args+=("--amend")
   fi
-
-  # Check if there are staged changes
-  local has_staged
-  has_staged=$(git diff --cached --name-only)
-  
-  local has_unstaged
-  has_unstaged=$(git diff --name-only)
-
-  # For amend mode, we might not need new changes
-  if [[ "$amend_mode" == true ]]; then
-    if [[ -z "$has_staged" && -z "$has_unstaged" ]]; then
-      print_info "Amending commit message only..."
-      git commit --amend -m "$msg"
-    else
-      # Has changes to add
-      if [[ "$staged_only" == true ]]; then
-        if [[ -z "$has_staged" ]]; then
-          print_info "Amending commit message only (no staged changes)..."
-          git commit --amend -m "$msg"
-        else
-          print_info "Amending with staged changes..."
-          git commit --amend -m "$msg"
-        fi
-      else
-        print_info "Amending with all changes..."
-        git add -A && git commit --amend -m "$msg"
-      fi
-    fi
-  # If --staged flag is set, only commit staged changes
-  elif [[ "$staged_only" == true ]]; then
-    if [[ -z "$has_staged" ]]; then
-      echo "No staged changes to commit."
-      return 1
-    fi
-    echo "Committing staged changes only..."
-    git commit -m "$msg"
-  # If there are both staged and unstaged changes, ask what to commit
-  elif [[ -n "$has_staged" && -n "$has_unstaged" ]]; then
-    echo
-    echo "You have both staged and unstaged changes."
-    echo
-    prompt_read "Commit [s]taged only, or [a]ll changes? (s/a): " commit_choice
-    
-    case "$commit_choice" in
-      [sS])
-        # Commit only staged changes
-        echo "Committing staged changes only..."
-        git commit -m "$msg"
-        ;;
-      [aA]|*)
-        # Stage all and commit
-        echo "Staging all changes and committing..."
-        git add -A && git commit -m "$msg"
-        ;;
-    esac
-  elif [[ -n "$has_staged" ]]; then
-    # Only staged changes exist
-    echo "Committing staged changes..."
-    git commit -m "$msg"
+  if [[ -n "$msg" ]]; then
+    commit_args+=("-m" "$msg")
   else
-    # No staged changes, stage all and commit
-    git add -A && git commit -m "$msg"
+    commit_args+=("--no-edit")
   fi
 
-  # Push if requested and commit was successful
-  if [[ $? -eq 0 && "$should_push" == true ]]; then
-    current_branch=$(git rev-parse --abbrev-ref HEAD)
-    
-    # Check if remote has updates and pull first
-    git fetch origin "$current_branch" 2>/dev/null
-    local local_commit=$(git rev-parse HEAD)
-    local remote_commit=$(git rev-parse "origin/$current_branch" 2>/dev/null)
-    
-    if [[ -n "$remote_commit" && "$local_commit" != "$remote_commit" ]]; then
-      # Check if we're behind the remote
-      if git merge-base --is-ancestor "$local_commit" "$remote_commit" 2>/dev/null; then
-        print_info "Remote has updates. Pulling first..."
-        git pull --rebase origin "$current_branch"
-        if [[ $? -ne 0 ]]; then
-          print_warning "Failed to pull remote changes. Please resolve conflicts and try again."
-          return 1
-        fi
-        print_success "Pulled latest changes."
-      elif ! git merge-base --is-ancestor "$remote_commit" "$local_commit" 2>/dev/null; then
-        # Branches have diverged
-        print_info "Remote has diverged. Pulling with rebase..."
-        git pull --rebase origin "$current_branch"
-        if [[ $? -ne 0 ]]; then
-          print_warning "Failed to pull remote changes. Please resolve conflicts and try again."
-          return 1
-        fi
-        print_success "Rebased on latest changes."
-      fi
-    fi
-    
-    print_info "Pushing '$current_branch' to origin..."
-    git push origin "$current_branch"
-    if [[ $? -eq 0 ]]; then
-      print_success "Successfully pushed '$current_branch' to origin."
-    else
-      print_warning "Failed to push '$current_branch' to origin."
+  if [[ "$mode" == "all" ]]; then
+    if ! git add -A; then
+      print_error "Failed to stage changes."
       return 1
     fi
   fi
+
+  if ! git commit "${commit_args[@]}"; then
+    print_error "Commit failed."
+    return 1
+  fi
+
+  # -----------------------------
+  # 4. Push
+  # -----------------------------
+  if [[ "$should_push" == true ]]; then
+    local push_args=()
+    [[ "$amend_mode" == true ]] && push_args+=("--amend")
+    [[ "$force_with_lease" == true ]] && push_args+=("--force-with-lease")
+    gb_sync_and_push ${push_args[@]+"${push_args[@]}"} || return 1
+  fi
+  return 0
 }

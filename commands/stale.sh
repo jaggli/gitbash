@@ -1,21 +1,26 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2155
 
 # Source common utilities
-SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_utils.sh
 source "$SOURCE_DIR/_utils.sh"
 
+# Unix timestamp of N months ago
+_stale_months_ago() {
+    local months="$1" ts
+    ts=$(date -v-"${months}m" +%s 2>/dev/null) ||
+        ts=$(date -d "${months} months ago" +%s 2>/dev/null) ||
+        ts=$(( $(date +%s) - months * 30 * 86400 ))
+    echo "$ts"
+}
+
 stale() {
-    # -----------------------------
-    # 0. Check for help/version flag and parse options
-    # -----------------------------
     local json_mode=false
     local my_mode=false
     local all_mode=false
     local filter_args=()
     local stale_months="${GITBASH_STALE_MONTHS:-3}"
-    
+
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -v|--version)
@@ -26,8 +31,8 @@ stale() {
                 cat << 'EOF'
 Usage: stale [OPTIONS] [FILTER...]
 
-Show a list of remote branches ordered by last modification date (oldest first).
-Useful for identifying stale branches that may need cleanup.
+Show remote branches ordered by last commit date (oldest first) and delete
+the ones that are no longer needed.
 
 Arguments:
   FILTER...     Optional search filter words to pre-fill fzf (joined with spaces)
@@ -39,57 +44,30 @@ Options:
   --json          Output branch data as JSON (non-interactive)
   --age=N         Override stale threshold in months (default: 3, configurable via GITBASH_STALE_MONTHS)
 
-Features:
-  - Lists all remote branches sorted by last commit date (oldest first)
-  - By default, only shows branches older than N months (default 3)
-  - Shows branch name, relative date, and author
-  - Interactive selection with fzf
-  - Preview shows recent commits on the selected branch
-  - Delete selected branches directly from the list
-
-Configuration:
-  GITBASH_STALE_MONTHS - Set default threshold in months (run 'gitbash --config')
+Protected branches (the base branch and GITBASH_PROTECTED_BRANCHES, default
+"main master develop release/*") are never listed and cannot be deleted.
 
 Navigation:
-  ↑/↓ or j/k    Navigate through branches
+  ↑/↓           Navigate through branches
   TAB           Select/deselect branch (multi-select)
-  Ctrl-A        Toggle showing all branches (including recent ones)
-  Enter         Delete selected branch(es)
+  Ctrl-T        Toggle between stale and all branches
+  Enter         Delete selected branch(es) from the remote (asks first)
   ESC/Ctrl-C    Exit without action
 
 Examples:
   $ stale
-  Stale branches (oldest first) >
-  > feature/very-old                       6 months ago    Bob Wilson
-    feature/another-old-one                4 months ago    Jane Smith
-    feature/old-feature                    3 months ago    John Doe
-    ✖ Abort
-
-  $ stale --age=1
-  # Show branches older than 1 month
-
   $ stale --age=6
-  # Show branches older than 6 months
-
   $ stale --all
-  # Start with all branches visible (including recent ones)
-  # Press Ctrl-A to toggle between all/stale view
-
   $ stale --my
-  # Pre-fills fzf filter with your git username to show only your branches
-
   $ stale Product refactoring
-  # Pre-fills fzf filter with "Product refactoring"
-
   $ stale --json
-  # Output JSON for scripting
 
 Output format:
-  <branch-name>                            <relative-date>  <author>
+  <branch-name>   <relative-date>   <last committer>
 
 Requirements:
   - Must be in a git repository
-  - fzf (fuzzy finder) - will prompt to install if not found (not required for --json)
+  - fzf (not required for --json)
 
 EOF
                 return 0
@@ -108,11 +86,15 @@ EOF
                 ;;
             --age=*)
                 stale_months="${1#--age=}"
-                if ! [[ "$stale_months" =~ ^[0-9]+$ ]] || [[ "$stale_months" -lt 1 ]]; then
+                if ! [[ "$stale_months" =~ ^[1-9][0-9]*$ ]]; then
                     print_error "Invalid age value: $stale_months"
                     return 1
                 fi
                 shift
+                ;;
+            -*)
+                print_error "Unknown option: $1"
+                return 1
                 ;;
             *)
                 filter_args+=("$1")
@@ -122,221 +104,116 @@ EOF
     done
 
     # -----------------------------
-    # 1. Check prerequisites
+    # 1. Prerequisites
     # -----------------------------
     if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        if [[ "$json_mode" == true ]]; then
-            echo "[]"
-        else
-            echo "Not inside a git repository."
-        fi
+        if [[ "$json_mode" == true ]]; then echo "[]"; else print_error "Not inside a git repository."; fi
         return 1
     fi
-
     if [[ "$json_mode" == false ]]; then
         require_fzf || return 1
     fi
 
-    # -----------------------------
-    # 2. Handle filter (--my flag or arbitrary words)
-    # -----------------------------
     local filter=""
     if [[ "$my_mode" == true ]]; then
         filter=$(git config user.name)
         if [[ -z "$filter" && "$json_mode" == false ]]; then
-            echo "Warning: git config user.name is not set."
+            print_warning "git config user.name is not set."
         fi
     elif [[ ${#filter_args[@]} -gt 0 ]]; then
         filter="${filter_args[*]}"
     fi
 
-    # -----------------------------
-    # 3. Fetch latest from remote
-    # -----------------------------
-    if [[ "$json_mode" == false ]]; then
-        echo "Fetching latest from remote..."
+    local remote
+    remote=$(gb_remote)
+    [[ "$json_mode" == false ]] && echo "Fetching latest from '$remote'..."
+    if ! git fetch --prune --quiet "$remote" 2>/dev/null; then
+        [[ "$json_mode" == false ]] && print_warning "Fetch failed; continuing with local data."
     fi
-    if ! git fetch --prune origin 2>/dev/null; then
-        if [[ "$json_mode" == false ]]; then
-            echo "⚠ Fetch failed; continuing with local data." >&2
+    GB_BASE=$(gb_base_branch 2>/dev/null) || GB_BASE=""
+
+    # -----------------------------
+    # 2. Build branch lists (oldest first)
+    # -----------------------------
+    local threshold_ago
+    threshold_ago=$(_stale_months_ago "$stale_months")
+
+    local max_len=65
+    local all_list="" stale_list="" json="[" first=true
+    local sep=$'\x1f' ref ts rel email name branch display row
+    while IFS="$sep" read -r ref ts rel email name; do
+        [[ -z "$ref" || "$ref" == "$remote" || "$ref" == "$remote/HEAD" ]] && continue
+        branch="${ref#"$remote"/}"
+        gb_is_protected "$branch" && continue
+
+        if [[ "$json_mode" == true ]]; then
+            if [[ "$all_mode" == true || "$ts" -lt "$threshold_ago" ]]; then
+                email="${email#<}"
+                email="${email%>}"
+                [[ "$first" == true ]] && first=false || json+=","
+                json+="{\"last_change_timestamp\":$ts,\"author_email\":\"$(gb_json_escape "$email")\",\"author_name\":\"$(gb_json_escape "$name")\",\"name\":\"$(gb_json_escape "$branch")\",\"last_change_relative\":\"$(gb_json_escape "$rel")\"}"
+            fi
+            continue
         fi
+
+        display="$branch"
+        if [[ ${#display} -gt $max_len ]]; then
+            display="${display:0:$((max_len - 3))}..."
+        fi
+        row=$(printf "%-${max_len}s  %-20s %s" "$display" "$rel" "$name")
+        row+=$'\t'"$branch"$'\n'
+        all_list+="$row"
+        if [[ "$ts" -lt "$threshold_ago" ]]; then
+            stale_list+="$row"
+        fi
+    done < <(git for-each-ref --sort=committerdate \
+        --format="%(refname:short)%1f%(committerdate:unix)%1f%(committerdate:relative)%1f%(committeremail)%1f%(committername)" \
+        "refs/remotes/$remote" 2>/dev/null)
+
+    if [[ "$json_mode" == true ]]; then
+        echo "$json]"
+        return 0
+    fi
+
+    if [[ -z "$all_list" ]]; then
+        echo "No deletable remote branches found."
+        return 0
     fi
 
     # -----------------------------
-    # 4. Build branch list sorted by date (oldest first)
+    # 3. fzf with a stale/all toggle (Ctrl-T)
     # -----------------------------
     local abort_label="✖ Abort"
-    local max_branch_length=65
-    
-    # Calculate date N months ago (based on stale_months)
-    local threshold_ago
-    threshold_ago=$(date -v-"${stale_months}m" +%s 2>/dev/null || date -d "${stale_months} months ago" +%s 2>/dev/null)
-    
-    # Build full branch list (all branches)
-    # Format: display_branch | date | author | full_branch (tab-separated, last field is full branch for operations)
-    local all_branch_list
-    all_branch_list=$(git for-each-ref --sort=committerdate --format='%(refname:short)|%(committerdate:relative)|%(authorname)|%(committerdate:unix)' refs/remotes/origin | \
-        grep -v 'origin/HEAD' | \
-        grep -v '^origin|' | \
-        while IFS='|' read -r branch date author timestamp; do
-            # Remove origin/ prefix for display
-            local full_branch="${branch#origin/}"
-            local display_branch="$full_branch"
-            # Truncate branch name if too long
-            if [[ ${#display_branch} -gt $max_branch_length ]]; then
-                display_branch="${display_branch:0:$((max_branch_length - 3))}..."
-            fi
-            # Format: display branch (padded), date, author, TAB, full branch name
-            printf "%-${max_branch_length}s  %-20s %-25s\t%s\n" "$display_branch" "$date" "$author" "$full_branch"
-        done || true)
-    
-    # Build stale branch list (only branches older than 3 months)
-    local stale_branch_list
-    stale_branch_list=$(git for-each-ref --sort=committerdate --format='%(refname:short)|%(committerdate:relative)|%(authorname)|%(committerdate:unix)' refs/remotes/origin | \
-        grep -v 'origin/HEAD' | \
-        grep -v '^origin|' | \
-        while IFS='|' read -r branch date author timestamp; do
-            # Only include if older than 3 months
-            if [[ "$timestamp" -lt "$threshold_ago" ]]; then
-                # Remove origin/ prefix for display
-                local full_branch="${branch#origin/}"
-                local display_branch="$full_branch"
-                # Truncate branch name if too long
-                if [[ ${#display_branch} -gt $max_branch_length ]]; then
-                    display_branch="${display_branch:0:$((max_branch_length - 3))}..."
-                fi
-                # Format: display branch (padded), date, author, TAB, full branch name
-                printf "%-${max_branch_length}s  %-20s %-25s\t%s\n" "$display_branch" "$date" "$author" "$full_branch"
-            fi
-        done || true)
-
-    if [[ -z "$all_branch_list" ]]; then
-        if [[ "$json_mode" == true ]]; then
-            echo "[]"
-        else
-            echo "No remote branches found."
-        fi
-        return 0
-    fi
-
-    # -----------------------------
-    # 5. JSON mode output
-    # -----------------------------
-    if [[ "$json_mode" == true ]]; then
-        local json_output="["
-        local first=true
-        
-        # Helper function to escape JSON strings
-        _json_escape() {
-            local str="$1"
-            str="${str//\\/\\\\}"
-            str="${str//\"/\\\"}"
-            str="${str//$'\n'/\\n}"
-            str="${str//$'\r'/\\r}"
-            str="${str//$'\t'/\\t}"
-            echo "$str"
-        }
-        
-        # Build JSON from branches (all or stale based on --all flag)
-        {
-        while IFS='|' read -r branch rel_date author_name author_email timestamp; do
-            [[ -z "$branch" ]] && continue
-            # Include based on all_mode flag
-            if [[ "$all_mode" == true ]] || [[ "$timestamp" -lt "$threshold_ago" ]]; then
-                local name="${branch#origin/}"
-                # Remove angle brackets from email
-                author_email="${author_email#<}"
-                author_email="${author_email%>}"
-                
-                # Escape values for JSON
-                name=$(_json_escape "$name")
-                rel_date=$(_json_escape "$rel_date")
-                author_email=$(_json_escape "$author_email")
-                author_name=$(_json_escape "$author_name")
-                
-                if [[ "$first" == true ]]; then
-                    first=false
-                else
-                    json_output+=","
-                fi
-                
-                json_output+="{\"last_change_timestamp\":$timestamp,\"author_email\":\"$author_email\",\"author_name\":\"$author_name\",\"name\":\"$name\",\"last_change_relative\":\"$rel_date\"}"
-            fi
-        done < <(git for-each-ref --sort=committerdate --format='%(refname:short)|%(committerdate:relative)|%(authorname)|%(authoremail)|%(committerdate:unix)' refs/remotes/origin 2>/dev/null | grep -v 'origin/HEAD' | grep -v '^origin|' || true)
-        } &>/dev/null
-        json_output+="]"
-        echo "$json_output"
-        return 0
-    fi
-    
-    # Create temp files for fzf reload
-    local stale_file=$(mktemp)
-    local all_file=$(mktemp)
-    local state_file=$(mktemp)
-    local toggle_script=$(mktemp)
-    
-    # Ensure cleanup on exit
-    trap 'rm -f "$stale_file" "$all_file" "$state_file" "$toggle_script"' EXIT INT TERM
-    
-    # Write stale branches with header
+    local keys="[TAB] select | [Ctrl-T] toggle all/stale | [Enter] delete | [ESC] exit"
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
     {
-        echo "══ Stale branches (>${stale_months}mo, oldest first) ══ [TAB] select | [Ctrl-A] toggle all/stale | [Enter] delete | [ESC] exit"
-        if [[ -n "$stale_branch_list" ]]; then
-            echo "$stale_branch_list"
-        fi
+        echo "══ Stale branches (>${stale_months}mo, oldest first) ══ $keys"
+        printf '%s' "$stale_list"
         echo "$abort_label"
-    } > "$stale_file"
-    
-    # Write all branches with header
+    } > "$tmp_dir/stale"
     {
-        echo "══ All branches (oldest first) ══ [TAB] select | [Ctrl-A] toggle all/stale | [Enter] delete | [ESC] exit"
-        if [[ -n "$all_branch_list" ]]; then
-            echo "$all_branch_list"
-        fi
+        echo "══ All branches (oldest first) ══ $keys"
+        printf '%s' "$all_list"
         echo "$abort_label"
-    } > "$all_file"
-    
-    # Set initial state based on --all flag
-    if [[ "$all_mode" == true ]]; then
-        printf "all" > "$state_file"
-    else
-        printf "stale" > "$state_file"
-    fi
-
-    # -----------------------------
-    # 6. Run fzf picker with preview
-    # -----------------------------
-    local stale_count=$(echo "$stale_branch_list" | grep -c . || echo "0")
-    local all_count=$(echo "$all_branch_list" | grep -c . || echo "0")
-    
-    # Create toggle script
-    cat > "$toggle_script" << TOGGLE_EOF
-#!/bin/bash
-state=\$(cat "$state_file" | tr -d '\n')
-# Toggle: if currently stale, switch to all; if currently all, switch to stale
-if [[ "\$state" == "stale" ]]; then
-    # Switching FROM stale TO all
-    printf "all" > "$state_file"
-    cat "$all_file"
+    } > "$tmp_dir/all"
+    if [[ "$all_mode" == true ]]; then echo "all" > "$tmp_dir/state"; else echo "stale" > "$tmp_dir/state"; fi
+    cat > "$tmp_dir/toggle" << 'TOGGLE_EOF'
+dir="$1"
+if [[ "$(cat "$dir/state")" == "stale" ]]; then
+    echo "all" > "$dir/state"
 else
-    # Switching FROM all TO stale
-    printf "stale" > "$state_file"
-    cat "$stale_file"
+    echo "stale" > "$dir/state"
 fi
+cat "$dir/$(cat "$dir/state")"
 TOGGLE_EOF
-    chmod +x "$toggle_script"
-    
-    # Set initial input file based on mode
-    local initial_input_file
-    if [[ "$all_mode" == true ]]; then
-        initial_input_file="$all_file"
-    else
-        initial_input_file="$stale_file"
-    fi
-    
+
+    local tmp_q remote_q
+    printf -v tmp_q '%q' "$tmp_dir"
+    printf -v remote_q '%q' "$remote"
+
     local selection
-    selection=$(
-        cat "$initial_input_file" | fzf \
+    selection=$(run_fzf \
             --query="$filter" \
             -i \
             --reverse \
@@ -345,81 +222,64 @@ TOGGLE_EOF
             --multi \
             --delimiter=$'\t' \
             --with-nth=1 \
-            --bind=enter:accept \
-            --bind="ctrl-a:reload(bash $toggle_script)+clear-query" \
-            --preview='
-                line={}
-                if [[ "$line" == "✖ Abort" ]]; then
-                    echo "Exit without action";
-                else
-                    # Extract full branch name (after tab)
-                    branch=$(echo "$line" | cut -f2)
-                    echo "Branch: origin/$branch";
-                    echo "";
-                    echo "Recent commits:";
-                    git log --oneline --color=always -n 15 "origin/$branch" 2>/dev/null || echo "No commits found";
-                fi
-            ' \
+            --bind="ctrl-t:reload(bash $tmp_q/toggle $tmp_q)+clear-query" \
+            --preview="
+                branch=\$(printf '%s' {} | cut -f2)
+                if [[ -z \"\$branch\" ]]; then echo 'Exit without action'; exit 0; fi
+                echo \"Branch: $remote_q/\$branch\"
+                echo
+                echo 'Recent commits:'
+                git log --oneline --color=always -n 15 \"refs/remotes/$remote_q/\$branch\" 2>/dev/null || echo 'No commits found'
+            " \
             --preview-window=right:35% \
-            < "$initial_input_file"
-    ) </dev/tty || true
+            < "$tmp_dir/$(cat "$tmp_dir/state")"
+    ) || true
+    rm -rf "$tmp_dir"
 
-    # ESC or Ctrl-C
     if [[ -z "$selection" ]]; then
         echo "Exited."
         return 0
     fi
 
-    # Abort option
-    if echo "$selection" | grep -q "^$abort_label"; then
+    # -----------------------------
+    # 4. Confirm and delete
+    # -----------------------------
+    local branches_to_delete=() line
+    while IFS= read -r line; do
+        branch=$(printf '%s' "$line" | cut -f2)
+        [[ -z "$branch" ]] && continue
+        # Never delete protected branches, even if they got into the list somehow
+        if gb_is_protected "$branch"; then
+            print_warning "Skipping protected branch '$branch'."
+            continue
+        fi
+        branches_to_delete+=("$branch")
+    done <<< "$selection"
+
+    if [[ ${#branches_to_delete[@]} -eq 0 ]]; then
         echo "Aborted."
         return 0
     fi
 
-    # -----------------------------
-    # 7. Extract branch names and confirm deletion
-    # -----------------------------
-    local branches_to_delete=()
-    while IFS= read -r line; do
-        # Skip abort option
-        if [[ "$line" == "✖ Abort" ]]; then
-            continue
-        fi
-        # Extract full branch name (after tab)
-        local branch_name
-        branch_name=$(echo "$line" | cut -f2)
-        if [[ -n "$branch_name" ]]; then
-            branches_to_delete+=("$branch_name")
-        fi
-    done <<< "$selection"
+    echo
+    echo "Selected branches to delete from '$remote':"
+    printf '  - %s\n' "${branches_to_delete[@]}"
+    echo
 
-    if [[ ${#branches_to_delete[@]} -eq 0 ]]; then
-        echo "No branches selected."
+    if ! gb_confirm --strict "Delete these ${#branches_to_delete[@]} branch(es) from '$remote'? This cannot be undone from here." n; then
+        echo "Deletion cancelled."
         return 0
     fi
 
-    echo ""
-    echo "Selected branches to delete from remote:"
+    local failed=0 out
     for branch in "${branches_to_delete[@]}"; do
-        echo "  - origin/$branch"
+        if out=$(git push "$remote" --delete "$branch" 2>&1); then
+            print_success "Deleted $remote/$branch"
+        else
+            print_error "Failed to delete $remote/$branch:"
+            printf '%s\n' "$out" | sed 's/^/    /' >&2
+            failed=$((failed + 1))
+        fi
     done
-    echo ""
-
-    prompt_read "Delete these ${#branches_to_delete[@]} branch(es) from remote? (y/N): " confirm
-    case "$confirm" in
-        [yY][eE][sS]|[yY])
-            echo "Deleting branches..."
-            for branch in "${branches_to_delete[@]}"; do
-                echo "Deleting origin/$branch ..."
-                if git push origin --delete "$branch" 2>/dev/null; then
-                    echo "✓ Deleted origin/$branch"
-                else
-                    echo "✗ Failed to delete origin/$branch"
-                fi
-            done
-            ;;
-        *)
-            echo "Deletion cancelled."
-            ;;
-    esac
+    [[ $failed -eq 0 ]]
 }

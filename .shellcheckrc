@@ -1,0 +1,7 @@
+# fzf preview/reload commands are single-quoted on purpose (expanded by fzf's shell)
+disable=SC2016
+# VERSION, GITBASH_BIN and GITBASH_* settings are set by bin/gitbash
+disable=SC2153
+# Optional-argument helpers (gb_sync_and_push) are called without arguments on purpose
+disable=SC2119,SC2120
+source-path=SCRIPTDIR

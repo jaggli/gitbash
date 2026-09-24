@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: shellcheck -x bin/gitbash commands/*.sh test/helpers/bin/*
+
+  test:
+    name: test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu, bash 5
+            os: ubuntu-latest
+            bash: /bin/bash
+          - name: macos, bash 3.2
+            os: macos-latest
+            bash: /bin/bash
+          - name: macos, bash 5
+            os: macos-latest
+            bash: brew
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y fzf zsh
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install fzf bash
+      - name: Select bash
+        run: |
+          if [ "${{ matrix.bash }}" = "brew" ]; then
+            echo "GB_BASH=$(brew --prefix)/bin/bash" >> "$GITHUB_ENV"
+          else
+            echo "GB_BASH=${{ matrix.bash }}" >> "$GITHUB_ENV"
+          fi
+      - run: npm ci
+      - name: Versions
+        run: |
+          "$GB_BASH" --version | head -1
+          git --version
+          fzf --version
+      - run: npm test

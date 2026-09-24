@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# fzf stub for tests.
+#
+# Records every call in $FZF_STUB_LOG/<n>.{args,in,env} and answers from a plan:
+#   FZF_STUB_PLAN  file with one step per call (line 1 = first call), or
+#   FZF_STUB_STEP  the step for every call.
+# A step is "esc" (cancel, exit 130) or "[key::]pattern1;;pattern2":
+# each pattern selects the first input line containing it (fixed string).
+# With --expect, the key (possibly empty) is printed first, like real fzf.
+
+if [[ "${1:-}" == "--version" ]]; then
+    echo "0.74.4 (stub)"
+    exit 0
+fi
+
+log="${FZF_STUB_LOG:?FZF_STUB_LOG not set}"
+mkdir -p "$log"
+n=0
+while [[ -e "$log/$n.args" ]]; do
+    n=$((n + 1))
+done
+
+printf '%s\n' "$@" > "$log/$n.args"
+printf 'FZF_DEFAULT_OPTS=%s\nFZF_DEFAULT_OPTS_FILE=%s\nSHELL=%s\n' \
+    "${FZF_DEFAULT_OPTS-<unset>}" "${FZF_DEFAULT_OPTS_FILE-<unset>}" "${SHELL-}" > "$log/$n.env"
+input=$(cat)
+printf '%s\n' "$input" > "$log/$n.in"
+
+if [[ -n "${FZF_STUB_PLAN:-}" ]]; then
+    step=$(sed -n "$((n + 1))p" "$FZF_STUB_PLAN")
+else
+    step="${FZF_STUB_STEP:-esc}"
+fi
+if [[ -z "$step" || "$step" == "esc" ]]; then
+    exit 130
+fi
+
+key=""
+selection="$step"
+if [[ "$step" == *"::"* ]]; then
+    key="${step%%::*}"
+    selection="${step#*::}"
+fi
+
+for arg in "$@"; do
+    if [[ "$arg" == --expect=* ]]; then
+        printf '%s\n' "$key"
+        break
+    fi
+done
+
+while IFS= read -r pattern; do
+    [[ -z "$pattern" ]] && continue
+    printf '%s\n' "$input" | grep -F -m 1 -- "$pattern" || true
+done <<< "${selection//;;/$'\n'}"
+exit 0

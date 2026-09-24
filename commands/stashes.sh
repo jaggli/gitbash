@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2155
 
 # Source common utilities
-SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_utils.sh
 source "$SOURCE_DIR/_utils.sh"
 
@@ -62,7 +61,7 @@ Examples:
     ✖ Abort
 
   Applying stash@{0} ...
-  Drop stash@{0} now? (y/N): y
+  Drop stash@{0} now? (Y/n): y
 
   ---
 
@@ -91,8 +90,7 @@ Actions:
   🗑️  Clean up   - Delete stashes without applying (supports multi-select)
 
 Requirements:
-  - fzf (fuzzy finder) - will prompt to install if not found
-  - stash, unstash and cleanstash functions must be available
+  - fzf (fuzzy finder)
 
 See also:
   stash -h       Show help for stash command
@@ -130,20 +128,19 @@ EOF
     # 3. Run fzf menu
     # -----------------------------
     local selection
-    selection=$(fzf --prompt="Stash action > " \
+    selection=$(run_fzf --prompt="Stash action > " \
               -i \
               --reverse \
               --border \
               --header="What would you like to do?" \
               --no-multi \
-              --bind=enter:accept \
               <<< "$choices"
-    ) </dev/tty || true
+    ) || true
 
     # ESC or Ctrl-C
     if [[ -z "$selection" ]]; then
         echo "Aborted."
-        return 1
+        return 0
     fi
 
     # -----------------------------
@@ -151,17 +148,17 @@ EOF
     # -----------------------------
     case "$selection" in
         "$stash_option")
-            gitbash stash
+            gb_run stash
             ;;
         "$unstash_option")
-            gitbash unstash
+            gb_run unstash
             ;;
         "$cleanup_option")
-            gitbash cleanstash
+            gb_run cleanstash
             ;;
         "$abort_label")
             echo "Aborted."
-            return 1
+            return 0
             ;;
         *)
             echo "Unknown selection."

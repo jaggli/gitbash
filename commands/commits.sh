@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2155
 
 # Source common utilities
-SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_utils.sh
 source "$SOURCE_DIR/_utils.sh"
 
 # List recent commits and optionally revert selected ones
 commits() {
-    # -----------------------------
-    # 0. Check for help/version flag
-    # -----------------------------
     if [[ "${1:-}" == "-v" || "${1:-}" == "--version" ]]; then
         echo "gitbash ${FUNCNAME[0]} v$VERSION"
         return 0
@@ -25,24 +21,20 @@ Arguments:
   COUNT         Number of commits to show (default: 20)
 
 Navigation:
-  ↑/↓ or j/k    Navigate through commits
+  ↑/↓           Navigate through commits
   TAB           Select/deselect commit for revert
   Enter         Revert selected commit(s)
   ESC/Ctrl-C    Exit without action
 
 Notes:
-  - Shows commits from newest to oldest
-  - Preview shows full commit diff
-  - Multiple commits can be selected for revert
-  - Reverts are done in reverse order (oldest first) to avoid conflicts
+  - Preview shows the full commit diff
+  - Selected commits are reverted newest first, whatever order you picked them in
+  - Merge commits are reverted against their first parent (the branch they were merged into)
   - Each revert creates a new commit
 
 Examples:
   $ commits
-  # Shows last 20 commits
-
   $ commits 50
-  # Shows last 50 commits
 
 Requirements:
   - Must be in a git repository
@@ -52,50 +44,49 @@ EOF
         return 0
     fi
 
-    # -----------------------------
-    # 1. Check prerequisites
-    # -----------------------------
     require_git_repo || return 1
+
+    local count="${1:-20}"
+    if ! [[ "$count" =~ ^[1-9][0-9]*$ ]]; then
+        print_error "COUNT must be a positive number (got '$count')."
+        return 1
+    fi
     require_fzf || return 1
 
-    # -----------------------------
-    # 2. Get commit count
-    # -----------------------------
-    local count="${1:-20}"
-    local abort_label="✖ Abort"
     local current_branch
-    current_branch=$(git rev-parse --abbrev-ref HEAD)
+    current_branch=$(gb_current_branch) || current_branch="(detached HEAD)"
 
     # -----------------------------
-    # 3. Build commit list
+    # Build commit list (fields separated by \x1f, subject last)
     # -----------------------------
-    local commit_list
-    commit_list=$(git log -n "$count" --format="%h|%s|%cr|%an" | while IFS='|' read -r hash subject date author; do
-        # Truncate subject if too long
+    local commit_list="" hash date author subject
+    while IFS=$'\x1f' read -r hash date author subject; do
+        [[ -z "$hash" ]] && continue
         if [[ ${#subject} -gt 60 ]]; then
             subject="${subject:0:57}..."
         fi
-        printf "%-8s  %-60s  %-15s  %s\t%s\n" "$hash" "$subject" "$date" "$author" "$hash"
-    done)
+        commit_list+=$(printf "%-10s  %-60s  %-15s  %s" "$hash" "$subject" "$date" "$author")
+        commit_list+=$'\t'"$hash"$'\n'
+    done < <(git log -n "$count" --format='%h%x1f%cr%x1f%an%x1f%s' 2>/dev/null)
 
     if [[ -z "$commit_list" ]]; then
         echo "No commits found."
         return 0
     fi
 
-    # Add abort option
-    commit_list+=$'\n'"$abort_label"$'\t'
+    local pager preview
+    pager=$(gb_diff_pager)
+    preview='
+        hash=$(printf "%s" {} | cut -f2)
+        git show --stat --color=always "$hash" 2>/dev/null
+        echo
+        echo "─────────────────────────────────────────────────────"
+        echo
+        git show --color=always --format= "$hash" 2>/dev/null | head -300 | __PAGER__'
+    preview="${preview//__PAGER__/$pager}"
 
-    # Create temp file
-    local commit_file
-    commit_file=$(mktemp)
-    echo "$commit_list" > "$commit_file"
-
-    # -----------------------------
-    # 4. Run fzf picker
-    # -----------------------------
     local selection
-    selection=$(fzf \
+    selection=$(run_fzf \
         --prompt="Commits on '$current_branch' > " \
         -i \
         --reverse \
@@ -105,96 +96,72 @@ Showing last $count commits" \
         --multi \
         --delimiter=$'\t' \
         --with-nth=1 \
-        --bind=enter:accept \
-        --preview='
-            line={}
-            if [[ "$line" == "✖ Abort"* ]]; then
-                echo "Exit without action";
-            else
-                hash=$(echo "$line" | cut -f2)
-                echo "Commit: $hash";
-                echo "";
-                git show --stat --color=always "$hash" 2>/dev/null;
-                echo "";
-                echo "─────────────────────────────────────────────────────";
-                echo "";
-                git show --color=always "$hash" 2>/dev/null | head -100 | delta --light 2>/dev/null || git show --color=always "$hash" 2>/dev/null | head -100;
-            fi
-        ' \
+        --preview="$preview" \
         --preview-window=right:50% \
-        < "$commit_file"
-    ) </dev/tty || true
+        <<< "$commit_list"
+    ) || true
 
-    # Cleanup temp file
-    rm -f "$commit_file"
-
-    # ESC or Ctrl-C
     if [[ -z "$selection" ]]; then
         echo "Exited."
         return 0
     fi
 
-    # Abort option
-    if echo "$selection" | grep -q "^$abort_label"; then
-        echo "Aborted."
-        return 0
-    fi
-
     # -----------------------------
-    # 5. Extract commit hashes and confirm revert
+    # Order newest first (fzf returns them in the order they were picked)
     # -----------------------------
-    local commits_to_revert=()
-
+    local picked=() line
     while IFS= read -r line; do
-        [[ "$line" == "✖ Abort"* ]] && continue
-        local hash
-        hash=$(echo "$line" | cut -f2)
-        if [[ -n "$hash" ]]; then
-            commits_to_revert+=("$hash")
-        fi
+        hash=$(printf '%s' "$line" | cut -f2)
+        [[ -n "$hash" ]] && picked+=("$hash")
     done <<< "$selection"
 
-    if [[ ${#commits_to_revert[@]} -eq 0 ]]; then
+    # Walk the history newest first and keep the picked commits in that order
+    local to_revert=() full picked_full=" " short
+    for short in "${picked[@]}"; do
+        picked_full+="$(git rev-parse --verify --quiet "$short^{commit}") "
+    done
+    while IFS= read -r full; do
+        [[ "$picked_full" == *" $full "* ]] && to_revert+=("$full")
+        [[ ${#to_revert[@]} -eq ${#picked[@]} ]] && break
+    done < <(git rev-list --topo-order HEAD 2>/dev/null)
+
+    if [[ ${#to_revert[@]} -eq 0 ]]; then
         echo "No commits selected."
         return 0
     fi
 
-    echo ""
-    echo "Selected commits to revert:"
-    for hash in "${commits_to_revert[@]}"; do
-        local subject
-        subject=$(git log -1 --format="%s" "$hash")
-        echo "  - $hash: $subject"
+    echo
+    echo "Commits to revert (newest first):"
+    for hash in "${to_revert[@]}"; do
+        echo "  - $(git log -1 --format='%h %s' "$hash")"
     done
-    echo ""
+    echo
 
-    local confirm
-    prompt_read "Revert these ${#commits_to_revert[@]} commit(s)? (y/N): " confirm
-    case "$confirm" in
-        [yY][eE][sS]|[yY])
-            print_info "Reverting commits..."
-            
-            # Reverse the array to revert oldest first (avoids conflicts)
-            local reversed=()
-            for ((i=${#commits_to_revert[@]}-1; i>=0; i--)); do
-                reversed+=("${commits_to_revert[$i]}")
-            done
+    if ! gb_confirm "Revert these ${#to_revert[@]} commit(s)?" n; then
+        echo "Revert cancelled."
+        return 0
+    fi
 
-            for hash in "${reversed[@]}"; do
-                echo "Reverting $hash ..."
-                if git revert --no-edit "$hash"; then
-                    print_success "Reverted $hash"
-                else
-                    print_error "Failed to revert $hash (conflict?)"
-                    echo "  Resolve the conflict and run 'git revert --continue'"
-                    return 1
-                fi
-            done
-            echo ""
-            print_success "All selected commits reverted."
-            ;;
-        *)
-            echo "Revert cancelled."
-            ;;
-    esac
+    local parents revert_args
+    for hash in "${to_revert[@]}"; do
+        revert_args=(--no-edit)
+        parents=$(git rev-list --parents -n 1 "$hash" | wc -w | tr -d ' ')
+        if [[ "$parents" -gt 2 ]]; then
+            print_info "$(git rev-parse --short "$hash") is a merge commit - reverting it against its first parent."
+            revert_args+=(-m 1)
+        fi
+        if git revert "${revert_args[@]}" "$hash"; then
+            print_success "Reverted $(git rev-parse --short "$hash")"
+        else
+            if git rev-parse --verify --quiet REVERT_HEAD >/dev/null; then
+                print_error "Reverting $(git rev-parse --short "$hash") stopped with conflicts."
+                echo "  Resolve them and run 'git revert --continue', or 'git revert --abort' to cancel this revert." >&2
+            else
+                print_error "Failed to revert $(git rev-parse --short "$hash")."
+            fi
+            return 1
+        fi
+    done
+    echo
+    print_success "All selected commits reverted."
 }

@@ -109,16 +109,27 @@ When your PR is merged:
 
 ### Testing your changes:
 ```bash
-# Test the gitbash command directly
-./bin/gitbash <command>
+# Run the test suite (bats, installed with npm install)
+npm test
 
-# Example: test the stale command
+# Run it with a specific bash, e.g. macOS's bash 3.2
+GB_BASH=/bin/bash npm test
+
+# Lint
+shellcheck -x bin/gitbash commands/*.sh
+
+# Try a command directly
 ./bin/gitbash stale --all
 ```
 
+Tests live in `test/*.bats`. Each test gets its own temporary repository with a local bare remote (`test/helpers/setup.bash`). fzf is replaced by a stub that records its arguments and answers from a plan (`test/helpers/bin/fzf`); `test/fzf_real.bats` drives the real fzf in a pseudo-terminal. Add a test for every bug fix.
+
+CI runs shellcheck and the tests on Ubuntu (bash 5) and macOS (bash 3.2 and 5).
+
 ### Code style:
-- Follow existing bash script conventions
-- Use shellcheck for linting when possible
+- Follow existing bash script conventions; scripts must work with bash 3.2
+- Commands run in a bash subprocess started by `bin/gitbash`; use the helpers in `commands/_utils.sh` (`run_fzf`, `gb_confirm`, `gb_sync_and_push`, `gb_base_branch`, ...)
+- shellcheck must pass
 - Keep functions focused and well-documented
 - Include help text for new commands/options
 - Keep the readme updated and as terse as possible

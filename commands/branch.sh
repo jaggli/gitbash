@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2155
 
 # Source common utilities
-SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_utils.sh
 source "$SOURCE_DIR/_utils.sh"
 
@@ -92,8 +91,7 @@ Actions:
   ⬆️  Update - Update current branch with latest main/master
 
 Requirements:
-  - fzf (fuzzy finder) - will prompt to install if not found
-  - create, switch, and update functions must be available
+  - fzf (fuzzy finder)
 
 See also:
   create -h    Show help for create command
@@ -131,20 +129,19 @@ EOF
     # 3. Run fzf menu
     # -----------------------------
     local selection
-    selection=$(fzf --prompt="Branch action > " \
+    selection=$(run_fzf --prompt="Branch action > " \
               -i \
               --reverse \
               --border \
               --header="What would you like to do?" \
               --no-multi \
-              --bind=enter:accept \
               <<< "$choices"
-    ) </dev/tty || true
+    ) || true
 
     # ESC or Ctrl-C
     if [[ -z "$selection" ]]; then
         echo "Aborted."
-        return 1
+        return 0
     fi
 
     # -----------------------------
@@ -152,17 +149,17 @@ EOF
     # -----------------------------
     case "$selection" in
         "$create_option")
-            gitbash create
+            gb_run create
             ;;
         "$switch_option")
-            gitbash switch
+            gb_run switch
             ;;
         "$update_option")
-            gitbash update
+            gb_run update
             ;;
         "$abort_label")
             echo "Aborted."
-            return 1
+            return 0
             ;;
         *)
             echo "Unknown selection."
