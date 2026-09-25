@@ -361,14 +361,60 @@ check_dependencies() {
 }
 
 # Offer to add the shell integration to the rc file of the user's shell
-check_shell_integration() {
-    local shell_name shell_rc
-    # Can't tell PowerShell from Git Bash here: always show the PowerShell line
-    if gb_is_windows; then
+# Line that loads the PowerShell functions, in $PROFILE
+PWSH_INIT_LINE='gitbash --init --shell=pwsh | Out-String | Invoke-Expression'
+
+# Offer to load the functions in the profiles of Windows PowerShell (powershell.exe)
+# and PowerShell 7 (pwsh.exe), and to allow local scripts if needed.
+# PowerShell edits its own profile: it may be UTF-16, which bash can't append to.
+check_pwsh_integration() {
+    local exe info profile has policy found=false
+    # Prints "<profile>|<True if it loads gitbash>|<execution policy>" (no double
+    # quotes in PowerShell commands: they don't survive the Windows command line)
+    local query="\$p = \$PROFILE; \$has = (Test-Path -LiteralPath \$p) -and [bool](Select-String -Quiet -SimpleMatch -Pattern 'gitbash --init' -LiteralPath \$p); Write-Output (\$p + '|' + \$has + '|' + (Get-ExecutionPolicy))"
+    for exe in powershell.exe pwsh.exe; do
+        command -v "$exe" >/dev/null 2>&1 || continue
+        info=$("$exe" -NoProfile -NonInteractive -Command "$query" 2>/dev/null | tr -d '\r' | tail -n 1)
+        IFS='|' read -r profile has policy <<< "$info"
+        [[ -n "$profile" ]] || continue
+        found=true
+
+        echo
+        if [[ "$has" == "True" ]]; then
+            print_info "PowerShell integration already configured in $profile"
+        elif gb_confirm "Load the gitbash functions in PowerShell ($profile)?" y; then
+            if "$exe" -NoProfile -NonInteractive -Command \
+                "\$p = \$PROFILE; if (!(Test-Path -LiteralPath \$p)) { New-Item -Force -Path \$p | Out-Null }; Add-Content -LiteralPath \$p '$PWSH_INIT_LINE'"; then
+                print_success "Added to $profile. Open a new PowerShell window to use it."
+            else
+                print_error "Could not change $profile. Add this line yourself: $PWSH_INIT_LINE"
+            fi
+        fi
+
+        # Restricted (the default of Windows PowerShell) and AllSigned block the profile
+        case "$policy" in
+            Restricted|AllSigned|Undefined)
+                if gb_confirm "PowerShell blocks scripts, including your profile ($policy). Allow local scripts (execution policy RemoteSigned)?" y; then
+                    if "$exe" -NoProfile -NonInteractive -Command 'Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force'; then
+                        print_success "Local scripts allowed."
+                    else
+                        print_error "Could not change the execution policy (it may be set by your organization)."
+                    fi
+                fi
+                ;;
+        esac
+    done
+    if [[ "$found" == false ]]; then
         echo
         print_info "For PowerShell, add this line to your \$PROFILE:"
-        echo "  gitbash --init --shell=pwsh | Out-String | Invoke-Expression"
+        echo "  $PWSH_INIT_LINE"
     fi
+}
+
+check_shell_integration() {
+    local shell_name shell_rc
+    # Can't tell PowerShell from Git Bash here: offer both
+    gb_is_windows && check_pwsh_integration
     shell_name=$(basename "${SHELL:-}")
     case "$shell_name" in
         zsh) shell_rc="$HOME/.zshrc" ;;

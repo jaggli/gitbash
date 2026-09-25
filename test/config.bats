@@ -86,3 +86,78 @@ EOF
     [ "$status" -eq 1 ]
     [ ! -e .gitbashrc ]
 }
+
+# Stub powershell.exe and pwsh.exe: each has its profile in $PWSH_STUB_DIR/<exe>.ps1
+# and the execution policy $PWSH_STUB_POLICY; commands are logged to $PWSH_STUB_DIR/log
+pwsh_stubs() {
+    export PWSH_STUB_DIR="$BATS_TEST_TMPDIR/pwsh"
+    export PWSH_STUB_POLICY="$1"
+    mkdir -p "$PWSH_STUB_DIR/bin"
+    cat > "$PWSH_STUB_DIR/bin/powershell.exe" <<'STUB'
+#!/usr/bin/env bash
+cmd="${*: -1}"
+profile="$PWSH_STUB_DIR/$(basename "$0").ps1"
+printf '%s: %s\n' "$(basename "$0")" "$cmd" >> "$PWSH_STUB_DIR/log"
+case "$cmd" in
+    *Get-ExecutionPolicy*)
+        has=False
+        grep -qF 'gitbash --init' "$profile" 2>/dev/null && has=True
+        printf '%s|%s|%s\r\n' "$profile" "$has" "$PWSH_STUB_POLICY"
+        ;;
+    *Add-Content*)
+        [[ "$cmd" =~ \'([^\']*)\'$ ]] && printf '%s\n' "${BASH_REMATCH[1]}" >> "$profile"
+        ;;
+esac
+STUB
+    chmod +x "$PWSH_STUB_DIR/bin/powershell.exe"
+    cp "$PWSH_STUB_DIR/bin/powershell.exe" "$PWSH_STUB_DIR/bin/pwsh.exe"
+    # delta and bat "installed": no offer to install dependencies
+    printf '#!/bin/sh\n' > "$PWSH_STUB_DIR/bin/delta"
+    printf '#!/bin/sh\n' > "$PWSH_STUB_DIR/bin/bat"
+    chmod +x "$PWSH_STUB_DIR/bin/delta" "$PWSH_STUB_DIR/bin/bat"
+    export PATH="$PWSH_STUB_DIR/bin:$PATH"
+}
+
+@test "--config on Windows loads the functions in the PowerShell profiles and allows scripts" {
+    gb_is_windows_host || skip "not on Windows"
+    pwsh_stubs Restricted
+    run gb_input '\n\n\n\n\n\n\n\n\n\n\n\n\ny\ny\ny\ny\n' --config
+    [ "$status" -eq 0 ]
+    for exe in powershell.exe pwsh.exe; do
+        [ "$(cat "$PWSH_STUB_DIR/$exe.ps1")" = 'gitbash --init --shell=pwsh | Out-String | Invoke-Expression' ]
+        grep -q "^$exe: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force" "$PWSH_STUB_DIR/log"
+    done
+
+    # Once is enough
+    run gb_input '\n\n\n\n\n\n\n\n\n\n\n\n\n' --config
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"PowerShell integration already configured"* ]]
+    [ "$(wc -l < "$PWSH_STUB_DIR/pwsh.exe.ps1")" -eq 1 ]
+}
+
+@test "--config on Windows leaves a RemoteSigned execution policy alone" {
+    gb_is_windows_host || skip "not on Windows"
+    pwsh_stubs RemoteSigned
+    run gb_input '\n\n\n\n\n\n\n\n\n\n\n\n\ny\ny\n' --config
+    [ "$status" -eq 0 ]
+    [ -s "$PWSH_STUB_DIR/pwsh.exe.ps1" ]
+    ! grep -q "Set-ExecutionPolicy" "$PWSH_STUB_DIR/log"
+}
+
+@test "the PowerShell commands of --config work in real PowerShell" {
+    command -v pwsh >/dev/null || skip "pwsh not installed"
+    # On Windows this would change the real profile; elsewhere $PROFILE is under $HOME
+    gb_is_windows_host && skip "on Windows"
+    pwsh_stubs Restricted
+    printf '#!/bin/sh\nexec pwsh "$@"\n' > "$PWSH_STUB_DIR/bin/pwsh.exe"
+    rm "$PWSH_STUB_DIR/bin/powershell.exe"
+    local profile
+    profile=$(pwsh -NoProfile -NonInteractive -Command 'Write-Output $PROFILE')
+    # Run gitbash as if on Windows
+    run bash -c 'printf "\n\n\n\n\n\n\n\n\n\n\n\n\ny\n" | "${GB_BASH:-bash}" -c "OSTYPE=msys; source \"\$1\" --config" _ "$1"' _ "$GB"
+    [ "$status" -eq 0 ]
+    [ "$(cat "$profile")" = 'gitbash --init --shell=pwsh | Out-String | Invoke-Expression' ]
+
+    run bash -c 'printf "\n\n\n\n\n\n\n\n\n\n\n\n\n" | "${GB_BASH:-bash}" -c "OSTYPE=msys; source \"\$1\" --config" _ "$1"' _ "$GB"
+    [[ "$output" == *"PowerShell integration already configured in $profile"* ]]
+}
