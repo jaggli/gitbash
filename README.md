@@ -46,16 +46,16 @@ winget install junegunn.fzf dandavison.delta sharkdp.bat   # needs fzf >= 0.54
 gitbash --config
 ```
 
-Shell integration for Git Bash, in `~/.bashrc`:
+Shell integration for Git Bash:
 
 ```bash
-eval "$(gitbash --init)"
+echo 'eval "$(gitbash --init)"' >> ~/.bashrc
 ```
 
 Shell integration for PowerShell: create the functions in Git Bash, then load them in your profile in PowerShell:
 
 ```bash
-gitbash --init --shell=pwsh --prefix=gb- > ~/gitbash.ps1   # gb-commit, ... (switch is a PowerShell keyword)
+gitbash --init --shell=pwsh > ~/gitbash.ps1   # switch is a PowerShell keyword: use gitbash switch
 ```
 
 ```powershell
@@ -66,7 +66,7 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   # Windows PowerShell 5.1 o
 
 ### Without npm
 
-Use the install script instead of `npm i -g gitbash`:
+Installation by script on machines without npm available
 
 ```bash
 # macOS, Linux, Git Bash (or: wget -qO- ... | sh)
