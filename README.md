@@ -46,32 +46,26 @@ echo 'eval "$(gitbash --init)"' >> ~/.zshrc
 
 ### Windows
 
-In Git Bash (part of [Git for Windows](https://gitforwindows.org)); in WSL, follow the Linux steps:
+Needs [Git for Windows](https://gitforwindows.org). In PowerShell or Git Bash; in WSL, follow the Linux steps:
 
-```bash
+```powershell
 npm i -g gitbash
 winget install junegunn.fzf dandavison.delta sharkdp.bat   # needs fzf >= 0.54
 gitbash --config
+```
+
+Shell integration for PowerShell. This creates your profile if needed, loads the functions in every new window, and allows local scripts to run (Windows PowerShell 5.1 blocks them by default):
+
+```powershell
+if (!(Test-Path $PROFILE)) { New-Item -Force $PROFILE }
+Add-Content $PROFILE 'gitbash --init --shell=pwsh | Out-String | Invoke-Expression'   # switch is a keyword: use gitbash switch
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   # Windows PowerShell 5.1 only
 ```
 
 Shell integration for Git Bash:
 
 ```bash
 echo 'eval "$(gitbash --init)"' >> ~/.bashrc
-```
-
-Shell integration for PowerShell: create the functions in Git Bash, then load them in your profile in PowerShell:
-
-```bash
-gitbash --init --shell=pwsh > ~/gitbash.ps1   # switch is a PowerShell keyword: use gitbash switch
-```
-
-This creates your PowerShell profile if needed, loads `gitbash.ps1` from it in every new window, and allows local scripts to run (Windows PowerShell 5.1 blocks them by default):
-
-```powershell
-if (!(Test-Path $PROFILE)) { New-Item -Force $PROFILE }
-Add-Content $PROFILE '. ~/gitbash.ps1'
-Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   # Windows PowerShell 5.1 only
 ```
 
 ### Without npm
@@ -84,7 +78,7 @@ curl -fsSL https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh | sh
 ```
 
 ```powershell
-# Windows PowerShell (needs Git for Windows)
+# Windows PowerShell (needs Git for Windows; prints the line for your $PROFILE)
 irm https://raw.githubusercontent.com/jaggli/gitbash/main/install.ps1 | iex
 ```
 

@@ -75,12 +75,14 @@ setup() {
     [ "$status" -eq 1 ]
 }
 
-@test "functions from --init --shell=pwsh work in PowerShell" {
+@test "the PowerShell profile line works" {
     command -v pwsh >/dev/null || skip "pwsh not installed"
-    local script="$BATS_TEST_TMPDIR/gitbash.ps1"
-    gb --init --shell=pwsh > "$script"
-    command -v cygpath >/dev/null && script=$(cygpath -m "$script")
-    run pwsh -NoProfile -NonInteractive -Command ". '$script'; stash --version; gitbash --version" < /dev/null
+    command -v node >/dev/null || skip "node not installed"
+    local launcher="$PROJECT_DIR/bin/gitbash.js"
+    command -v cygpath >/dev/null && launcher=$(cygpath -m "$launcher")
+    # Like 'gitbash --init --shell=pwsh | Out-String | Invoke-Expression' with the npm launcher
+    run pwsh -NoProfile -NonInteractive -Command \
+        "node '$launcher' --init --shell=pwsh | Out-String | Invoke-Expression; stash --version; gitbash --version" < /dev/null
     [ "$status" -eq 0 ]
     [[ "$output" == *"gitbash stash v"* ]]
     [[ "$output" == *"gitbash "[0-9]* ]]

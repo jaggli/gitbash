@@ -24,7 +24,7 @@
     "stash"
   ],
   "bin": {
-    "gitbash": "bin/gitbash"
+    "gitbash": "bin/gitbash.js"
   },
   "files": [
     "bin/",

@@ -3,6 +3,8 @@
 
 # Resolve symlinks to get the actual script location
 SOURCE="${BASH_SOURCE[0]}"
+# Started from Windows with C:\...\bin\gitbash: dirname needs forward slashes
+[[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]] && SOURCE="${SOURCE//\\//}"
 while [[ -L "$SOURCE" ]]; do
     DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
     SOURCE="$(readlink "$SOURCE")"
@@ -361,6 +363,12 @@ check_dependencies() {
 # Offer to add the shell integration to the rc file of the user's shell
 check_shell_integration() {
     local shell_name shell_rc
+    # Can't tell PowerShell from Git Bash here: always show the PowerShell line
+    if gb_is_windows; then
+        echo
+        print_info "For PowerShell, add this line to your \$PROFILE:"
+        echo "  gitbash --init --shell=pwsh | Out-String | Invoke-Expression"
+    fi
     shell_name=$(basename "${SHELL:-}")
     case "$shell_name" in
         zsh) shell_rc="$HOME/.zshrc" ;;
@@ -372,8 +380,10 @@ check_shell_integration() {
             fi
             ;;
         *)
-            echo
-            print_info "Shell '$shell_name' is not supported for integration. Use 'gitbash <command>' or aliases."
+            if ! gb_is_windows; then
+                echo
+                print_info "Shell '$shell_name' is not supported for integration. Use 'gitbash <command>' or aliases."
+            fi
             return 0
             ;;
     esac
@@ -540,9 +550,8 @@ show_init_pwsh() {
     gb_is_windows && command -v cygpath >/dev/null 2>&1 && bin=$(cygpath -m "$bin")
     bash_q=$(pwsh_quote "$(pwsh_bash)")
     bin_q=$(pwsh_quote "$bin")
-    echo "# gitbash shell integration for PowerShell - save it and dot-source it in your \$PROFILE:"
-    echo "#   gitbash --init --shell=pwsh${prefix:+ --prefix=$prefix} > ~/gitbash.ps1"
-    echo "#   . ~/gitbash.ps1"
+    echo "# gitbash shell integration for PowerShell - add to your \$PROFILE:"
+    echo "#   gitbash --init --shell=pwsh${prefix:+ --prefix=$prefix} | Out-String | Invoke-Expression"
     echo "function gitbash { & $bash_q $bin_q @args }"
     for cmd in "${COMMANDS[@]}"; do
         # 'switch' is a PowerShell keyword: a function by that name can't be called
