@@ -222,7 +222,7 @@ EOF
 
 @test "--config-user can turn update checks off" {
     # Keep every setting (Enter) except the last one: update checks
-    run gb_input '\n\n\n\n\n\n\n\n\n\n\nno\n' --config-user
+    run gb_input '\n\n\n\n\n\n\n\n\n\n\n\nno\n' --config-user
     [ "$status" -eq 0 ]
     grep -qx 'GITBASH_NO_UPDATE_CHECKS="yes"' .gitbashrc-user
     run gb stash --version

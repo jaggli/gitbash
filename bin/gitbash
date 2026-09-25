@@ -29,6 +29,7 @@ COMMANDS=(
     "create"
     "pr"
     "repo"
+    "reset-repo"
     "stale"
     "stash"
     "stashes"
@@ -61,6 +62,7 @@ SETTINGS=(
     "GITBASH_STALE_MONTHS|number|Stale remote branch threshold in months (used by 'stale')"
     "GITBASH_CLEANUP_DAYS|number|Stale local branch threshold in days (used by 'cleanup')"
     "GITBASH_PROTECTED_BRANCHES|text|Branches never offered for deletion (space-separated globs)"
+    "GITBASH_RESET_KEEP|text|Files kept by 'reset-repo' (space-separated .gitignore patterns, e.g. '.env .idea/')"
     "GITBASH_BASE_BRANCH|text|Base branch (empty = detect from the remote's HEAD, then main/master)"
     "GITBASH_REMOTE|text|Remote name"
     "GITBASH_NO_UPDATE_CHECKS|inverted|Check for gitbash updates now and then, and offer to install them? (yes/no)"
@@ -406,6 +408,7 @@ Commands:
   create      Create feature branch with Jira parsing
   pr          Open PR in browser
   repo        Open the repository in browser
+  reset-repo  Reset the branch like a fresh clone
   stale       List stale remote branches
   stash       Create named stash
   stashes     Interactive stash menu
