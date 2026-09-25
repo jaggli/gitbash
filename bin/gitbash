@@ -10,6 +10,12 @@ while [[ -L "$SOURCE" ]]; do
 done
 SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 GITBASH_BIN="$SCRIPT_DIR/bin/gitbash"
+# pnpm keeps each version in its own folder (node_modules/.pnpm/gitbash@X/node_modules/gitbash):
+# run gitbash through the node_modules/gitbash link instead, which follows updates
+if [[ "$SCRIPT_DIR" == */node_modules/.pnpm/gitbash@*/node_modules/gitbash &&
+      -x "${SCRIPT_DIR%%/.pnpm/*}/gitbash/bin/gitbash" ]]; then
+    GITBASH_BIN="${SCRIPT_DIR%%/.pnpm/*}/gitbash/bin/gitbash"
+fi
 COMMANDS_DIR="$SCRIPT_DIR/commands"
 VERSION="$(grep -o '"version": *"[^"]*"' "$SCRIPT_DIR/package.json" | head -1 | cut -d'"' -f4)"
 export SCRIPT_DIR GITBASH_BIN VERSION
@@ -512,6 +518,8 @@ main() {
             fi
             gb_load_config
             gb_update_check "$cmd" "$@"
+            # Commands run gitbash again (e.g. pr runs commit): no update prompt in there
+            export GITBASH_NESTED=1
             # shellcheck source=/dev/null
             source "$COMMANDS_DIR/$cmd.sh"
             "$cmd" "$@"

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# pnpm stub for update tests: the global root is PNPM_STUB_ROOT, where gitbash is a link to
+# .pnpm/gitbash@X/node_modules/gitbash; 'add -g gitbash@X' installs X in a new folder like
+# pnpm does, moves the link there and removes the old folder.
+case "$1 $2" in
+    "root -g")
+        [[ -n "${PNPM_STUB_ROOT:-}" ]] || exit 1
+        echo "$PNPM_STUB_ROOT"
+        ;;
+    "add -g")
+        [[ -n "${NPM_LOG:-}" ]] && echo "pnpm $*" >> "$NPM_LOG"
+        version="${3#gitbash@}"
+        old=$(cd -P "$PNPM_STUB_ROOT/gitbash" && pwd) || exit 1
+        new="$PNPM_STUB_ROOT/.pnpm/gitbash@$version/node_modules/gitbash"
+        mkdir -p "$new" && cp -R "$old/." "$new/" || exit 1
+        sed "s/\"version\": *\"[^\"]*\"/\"version\": \"$version\"/" "$old/package.json" > "$new/package.json"
+        ln -sfn ".pnpm/gitbash@$version/node_modules/gitbash" "$PNPM_STUB_ROOT/gitbash"
+        rm -rf "$old"
+        ;;
+    *)
+        exit 1
+        ;;
+esac
