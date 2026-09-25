@@ -1,5 +1,21 @@
 # gitbash
 
+## 2.1.0
+
+### Minor Changes
+
+- d572f6b: Show a colorful gitbash banner with the current version in `gitbash --help` (and `gitbash` without arguments), and color the section headings in the help of `gitbash` and all commands
+- 9fbb349: `commits` only lists the current branch's own commits (not in the base branch; first-parent history on the base branch itself), `--all` shows all recent commits. It offers to fast-forward first when the upstream has new commits.
+- 20040b8: Support `NO_COLOR` (https://no-color.org): a non-empty value now also turns off the colors of git output, `bat` and `delta` in previews, not only gitbash's own messages
+- f0a86ce: New `repo` command: opens the repository's web page in the browser (via `gh repo view --web` when the GitHub CLI is available), `--print` prints the URL
+- 7c7be1c: New `reset-repo` command: resets the current branch like a fresh clone (fetch, `reset --hard <remote>/<branch>`, delete untracked and ignored files) after listing what is lost and asking. Files matching the new `GITBASH_RESET_KEEP` setting (e.g. `.env`) and `.gitbashrc-user` are kept; `--dry-run` only lists, `--yes` skips the question
+- af39075: Add `gitbash --update`, which installs the latest release with npm or the install script, depending on how gitbash was installed. gitbash now also checks for new releases in the background (at most once a day) and offers the update on the next command at a terminal (at most every other day), with an option to skip a version. Turn the checks off with `GITBASH_NO_UPDATE_CHECKS` or in `gitbash --config` / `--config-user`; they are always off in CI
+
+### Patch Changes
+
+- 98b9e01: `switch <name>` now switches directly when `<name>` is an exact branch name (e.g. `switch master`), even if other branches contain it too, instead of opening fzf
+- 20aec1b: `unstash` now lists the restored files in green instead of git's red
+
 ## 2.0.1
 
 ### Patch Changes
