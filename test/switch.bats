@@ -82,3 +82,21 @@ setup() {
     [[ "$output" == *"behind its upstream"* ]]
     [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/feature/remote-only)" ]
 }
+
+@test "an exact branch name switches directly even if other branches contain it" {
+    git branch feature/alpha-2
+    git branch alpha
+    run gb switch alpha
+    [ "$status" -eq 0 ]
+    [ "$(git branch --show-current)" = "alpha" ]
+    [ ! -e "$FZF_STUB_LOG" ]
+}
+
+@test "an exact remote branch name switches directly" {
+    remote_commit feature/remote-only-2 r2.txt "r2" "more remote work"
+    git fetch --quiet origin
+    run gb switch feature/remote-only
+    [ "$status" -eq 0 ]
+    [ "$(git branch --show-current)" = "feature/remote-only" ]
+    [ ! -e "$FZF_STUB_LOG" ]
+}

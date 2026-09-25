@@ -107,7 +107,8 @@ Select a git branch using fzf and switch to it.
 
 Arguments:
   FILTER...     Optional search words to pre-fill fzf (joined with spaces).
-                If exactly one branch name contains them, switches directly.
+                Switches directly on an exact branch name, or if exactly
+                one branch name contains them.
 
 Options:
   -h, --help    Show this help message
@@ -152,10 +153,19 @@ EOF
   fi
 
   # -----------------------------
-  # Single match: switch directly
+  # Exact or single match: switch directly
   # -----------------------------
   local selected="" query="$filter"
   if [[ -n "$filter" ]]; then
+    # An exact branch name wins even if other branches contain it too
+    # (local first, then a remote branch like "origin/<filter>")
+    selected=$(printf '%s\n' "$branch_list" | awk -F'\t' -v f="$filter" '$2 == "local" && $3 == f { print; exit }')
+    if [[ -z "$selected" ]]; then
+      selected=$(printf '%s\n' "$branch_list" | awk -F'\t' -v f="$filter" '$2 == "remote" && ($3 == f || substr($3, index($3, "/") + 1) == f) { print; exit }')
+    fi
+    [[ -n "$selected" ]] && print_info "Exact match found, switching directly..."
+  fi
+  if [[ -n "$filter" && -z "$selected" ]]; then
     local matches match_count
     matches=$(printf '%s\n' "$branch_list" | awk -F'\t' '$2 != "spacer"' |
       while IFS= read -r line; do

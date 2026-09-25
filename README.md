@@ -126,7 +126,7 @@ create enhance login screen             # → feature/enhance-login-screen (pars
 switch [FILTER...]
 ```
 
-Switch branches with fzf. Shows local branches (`merged:` = fully merged into the base branch), then remote branches without a local copy. Preview shows commit history. If exactly one branch name matches the filter, switches directly. After switching, offers to fast-forward a branch that is behind.
+Switch branches with fzf. Shows local branches (`merged:` = fully merged into the base branch), then remote branches without a local copy. Preview shows commit history. Switches directly when the filter is an exact branch name or matches exactly one branch name. After switching, offers to fast-forward a branch that is behind.
 
 - `Del` deletes the selected local branch (asks first, default no; unmerged commits need a second confirmation)
 
