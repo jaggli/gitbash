@@ -40,6 +40,19 @@ setup() {
     [ -z "$(git stash list)" ]
 }
 
+@test "unstash lists the restored files in green" {
+    echo "change" >> README.md
+    echo "new" > new.txt
+    git stash push --quiet --include-untracked -m "first"
+    export FZF_STUB_STEP="first"
+    GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=color.status GIT_CONFIG_VALUE_0=always \
+        run gb unstash
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\033[32mmodified:   README.md'* ]]
+    [[ "$output" == *$'\033[32mnew.txt'* ]]
+    [[ "$output" != *$'\033[31m'* ]]
+}
+
 @test "cleanstash deletes the selected stashes (highest index first)" {
     local i
     for i in 1 2 3; do
