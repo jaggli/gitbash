@@ -66,7 +66,7 @@ EOF
 
 @test "--config-user writes plain values and excludes the file without touching .gitignore" {
     # Keep all settings (Enter) except the prefix
-    run gb_input 'mine\n\n\n\n\n\n\n\n\n\n\n' --config-user
+    run gb_input 'mine\n\n\n\n\n\n\n\n\n\n\n\n' --config-user
     [ "$status" -eq 0 ]
     grep -qx 'GITBASH_CREATE_BRANCH_PREFIX="mine"' .gitbashrc-user
     [ ! -e .gitignore ]

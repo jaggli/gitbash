@@ -28,6 +28,8 @@ setup_repo() {
     export MERGE_TOOL_LOG="$BATS_TEST_TMPDIR/merge-tool"
     unset FZF_DEFAULT_OPTS FZF_DEFAULT_OPTS_FILE FZF_STUB_PLAN FZF_STUB_STEP NO_COLOR
     unset GITBASH_ASSUME_YES GITBASH_MERGE_COMMAND
+    # No update checks (and no network) unless a test turns them on
+    export GITBASH_NO_UPDATE_CHECKS=1
 
     REMOTE="$BATS_TEST_TMPDIR/remote.git"
     REPO="$BATS_TEST_TMPDIR/repo"

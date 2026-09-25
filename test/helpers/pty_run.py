@@ -8,6 +8,7 @@ Environment:
            screen has been quiet for a moment, so slow machines don't lose keys.
   TIMEOUT  seconds before the command is killed (default 10)
   PTY_LOG  optional file that receives everything written to the terminal
+  WAIT_FOR optional text (e.g. a prompt) that also counts as interactive once printed
 
 Answers fzf's cursor position queries so it can render. The first chunk of keys
 is typed once fzf is interactive (it has enabled mouse reporting) and the screen
@@ -29,6 +30,8 @@ chunks = [
     if chunk
 ]
 timeout = float(os.environ.get("TIMEOUT", "10"))
+wait_for = os.environ.get("WAIT_FOR", "").encode()
+seen = b""
 
 pid, fd = pty.fork()
 if pid == 0:
@@ -54,6 +57,9 @@ while time.time() - start < timeout:
             os.write(fd, b"\x1b[1;1R")
         if b"\x1b[?1000h" in data:
             interactive = True
+        if wait_for and not interactive:
+            seen += data
+            interactive = wait_for in seen
         last_output = time.time()
         if os.environ.get("PTY_LOG"):
             with open(os.environ["PTY_LOG"], "ab") as log:

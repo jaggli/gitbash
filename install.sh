@@ -9,7 +9,7 @@
 #   GITBASH_INSTALL_DIR  where the files go (default: ${XDG_DATA_HOME:-~/.local/share}/gitbash)
 #   GITBASH_BIN_DIR      where the gitbash symlink goes (default: ~/.local/bin)
 #
-# Run it again to upgrade.
+# Run it again, or 'gitbash --update', to upgrade.
 set -eu
 
 REPO="jaggli/gitbash"
@@ -64,6 +64,8 @@ mkdir "$tmp/install"
 cp -R "$src/bin" "$src/commands" "$src/package.json" "$tmp/install/"
 [ -f "$src/LICENSE" ] && cp "$src/LICENSE" "$tmp/install/"
 chmod +x "$tmp/install/bin/gitbash"
+# Tells 'gitbash --update' how gitbash was installed
+printf 'method=script\nbin_dir=%s\n' "$BIN_DIR" > "$tmp/install/.gitbash-install"
 
 mkdir -p "$(dirname "$INSTALL_DIR")" "$BIN_DIR"
 rm -rf "$INSTALL_DIR"

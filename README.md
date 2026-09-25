@@ -22,7 +22,7 @@ curl -fsSL https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh | sh
 wget -qO- https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh | sh
 ```
 
-This downloads the latest GitHub release to `~/.local/share/gitbash` and links `~/.local/bin/gitbash`. Run it again to upgrade. Options are set as environment variables:
+This downloads the latest GitHub release to `~/.local/share/gitbash` and links `~/.local/bin/gitbash`. Run `gitbash --update` (or the script again) to upgrade. Options are set as environment variables:
 
 ```bash
 # Install a specific version
@@ -40,6 +40,7 @@ To uninstall, remove `~/.local/share/gitbash` and `~/.local/bin/gitbash`.
 ```bash
 gitbash --help         # Show help
 gitbash --version      # Show version
+gitbash --update       # Update to the latest release (npm or install script)
 gitbash --init         # Print shell functions (see Shell integration)
 gitbash --config       # Interactive configuration wizard
 gitbash --config-local # Configure overrides for the current repository (committed)
@@ -294,6 +295,9 @@ GITBASH_BASE_BRANCH=""
 
 # Remote name (default: "origin")
 GITBASH_REMOTE="origin"
+
+# Turn off the automatic update checks: yes or no (default: "no")
+GITBASH_NO_UPDATE_CHECKS="no"
 ```
 
 Config files are **read, never executed**. Only `GITBASH_*="value"` lines are used (double, single or no quotes, optional `export`, `# comments`). Values cannot contain `$`, backticks, backslashes or quotes; anything else is ignored with a warning.
@@ -311,6 +315,14 @@ Run `gitbash --config-user` to create `.gitbashrc-user` for personal overrides i
 1. `.gitbashrc-user` - Personal settings for this repository (not committed)
 2. `.gitbashrc` - Repository settings (committed)
 3. `~/.gitbashrc` - Global settings
+
+#### Updates
+
+`gitbash --update` installs the latest release the same way gitbash was installed: with `npm install -g` (or `pnpm add -g`) for a global package, or by running the release's install script again for the same locations.
+
+gitbash also checks for new releases on its own, at most once a day, in the background while a command runs, so commands never wait for the network. When a new version is known, the next command at a terminal asks (at most every other day) whether to update now, not now, or skip that version for good. It never asks in scripts or pipes.
+
+To turn the checks off, answer "no" in `gitbash --config` or `--config-user`, set `GITBASH_NO_UPDATE_CHECKS="yes"` in any config file, or export `GITBASH_NO_UPDATE_CHECKS=1`. They are also off in CI (`CI` and similar variables) and when running from a git checkout. The check state is kept in `~/.local/state/gitbash/update-check` (`$XDG_STATE_HOME` if set).
 
 #### Colors
 
