@@ -81,7 +81,9 @@ gitbash --init --shell=pwsh > ~/gitbash.ps1   # add --prefix=gb- to get gb-switc
 ```
 
 ```powershell
-. ~/gitbash.ps1   # in $PROFILE: defines gitbash, commit, status, ... (run with Git's bash)
+New-Item -Force -ItemType File $PROFILE   # only if you have no profile yet
+Add-Content $PROFILE '. ~/gitbash.ps1'    # new windows get gitbash, commit, status, ... (run with Git's bash)
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   # Windows PowerShell 5.1 only: it blocks the profile otherwise
 ```
 
 ## Commands
