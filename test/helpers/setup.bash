@@ -15,7 +15,7 @@ setup_repo() {
     git config --global init.defaultBranch main
     git config --global advice.detachedHead false
 
-    # Stubs (fzf, open, xdg-open, gh) and, if requested, a specific bash first on PATH
+    # Stubs (fzf, open, xdg-open, gh, fork) and, if requested, a specific bash first on PATH
     local path_prefix="$HELPERS_DIR/bin"
     if [[ -n "${GB_BASH:-}" ]]; then
         mkdir -p "$BATS_TEST_TMPDIR/bash-bin"
@@ -25,8 +25,9 @@ setup_repo() {
     export PATH="$path_prefix:$PATH"
     export FZF_STUB_LOG="$BATS_TEST_TMPDIR/fzf-log"
     export OPEN_LOG="$BATS_TEST_TMPDIR/opened"
+    export MERGE_TOOL_LOG="$BATS_TEST_TMPDIR/merge-tool"
     unset FZF_DEFAULT_OPTS FZF_DEFAULT_OPTS_FILE FZF_STUB_PLAN FZF_STUB_STEP NO_COLOR
-    unset GITBASH_ASSUME_YES
+    unset GITBASH_ASSUME_YES GITBASH_MERGE_COMMAND
 
     REMOTE="$BATS_TEST_TMPDIR/remote.git"
     REPO="$BATS_TEST_TMPDIR/repo"
