@@ -31,7 +31,7 @@ Behavior:
   - Otherwise opens the URL derived from the remote
     (GitHub, GitHub Enterprise, GitLab, Bitbucket, Azure DevOps)
   - Works with SSH and HTTPS remotes; credentials in the remote URL are never used
-  - Opens the browser with 'open' (macOS) or 'xdg-open' (Linux), otherwise prints the URL
+  - Opens the browser (macOS, Linux, WSL, Git Bash on Windows), otherwise prints the URL
 
 Examples:
   $ repo

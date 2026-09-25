@@ -75,3 +75,20 @@ STUB
     [ "$status" -eq 1 ]
     [[ "$output" == *"Unknown argument: --nope"* ]]
 }
+
+@test "URLs open with rundll32 in Git Bash on Windows, & and all" {
+    run bash -c 'source "$1/commands/_utils.sh"; OSTYPE=msys; gb_open_url "https://example.test/a?b=1&c=^2"' _ "$PROJECT_DIR"
+    [ "$status" -eq 0 ]
+    [ "$(cat "$OPEN_LOG")" = "https://example.test/a?b=1&c=^2" ]
+}
+
+@test "URLs open with wslview in WSL" {
+    run bash -c 'source "$1/commands/_utils.sh"; OSTYPE=linux-gnu; WSL_DISTRO_NAME=Ubuntu; gb_open_url "https://example.test/"' _ "$PROJECT_DIR"
+    [ "$status" -eq 0 ]
+    [ "$(cat "$OPEN_LOG")" = "https://example.test/" ]
+}
+
+@test "fzf needs 0.54 on Windows" {
+    run bash -c 'OSTYPE=msys; source "$1/commands/_utils.sh"; echo "$GB_FZF_MIN_VERSION"' _ "$PROJECT_DIR"
+    [ "$output" = "0.54.0" ]
+}

@@ -57,6 +57,35 @@ setup() {
     [[ "$output" == *"CLEAN"* ]]
 }
 
+@test "--init --shell=pwsh prints PowerShell functions" {
+    run gb --init --shell=pwsh
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"function gitbash { & '"*"' '"*"/bin/gitbash' @args }"* ]]
+    [[ "$output" == *"function commit { & '"*"/bin/gitbash' commit @args }"* ]]
+    # switch is a PowerShell keyword
+    [[ "$output" != *"function switch "* ]]
+
+    run gb --init --shell=pwsh --prefix=gb-
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"function gb-switch { "* ]]
+}
+
+@test "--init rejects unknown shells" {
+    run gb --init --shell=fish
+    [ "$status" -eq 1 ]
+}
+
+@test "functions from --init --shell=pwsh work in PowerShell" {
+    command -v pwsh >/dev/null || skip "pwsh not installed"
+    local script="$BATS_TEST_TMPDIR/gitbash.ps1"
+    gb --init --shell=pwsh > "$script"
+    command -v cygpath >/dev/null && script=$(cygpath -m "$script")
+    run pwsh -NoProfile -NonInteractive -Command ". '$script'; stash --version; gitbash --version" < /dev/null
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"gitbash stash v"* ]]
+    [[ "$output" == *"gitbash "[0-9]* ]]
+}
+
 @test "wrappers from --init work in zsh" {
     command -v zsh >/dev/null || skip "zsh not installed"
     run zsh -c 'eval "$("$0" "$1" --init)"; stash --version' "${GB_BASH:-bash}" "$GB"

@@ -16,6 +16,10 @@ jobs:
   test:
     name: test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
@@ -29,6 +33,12 @@ jobs:
           - name: macos, bash 5
             os: macos-latest
             bash: brew
+          - name: windows, git bash
+            os: windows-latest
+            bash: ""
+    env:
+      # Real symlinks in Git Bash (tests link directories like pnpm does)
+      MSYS: winsymlinks:nativestrict
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,6 +50,9 @@ jobs:
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: brew install fzf bash
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: choco install fzf -y --no-progress
       - name: Select bash
         run: |
           if [ "${{ matrix.bash }}" = "brew" ]; then
@@ -50,7 +63,12 @@ jobs:
       - run: npm ci
       - name: Versions
         run: |
-          "$GB_BASH" --version | head -1
+          "${GB_BASH:-bash}" --version | head -1
           git --version
           fzf --version
       - run: npm test
+        if: runner.os != 'Windows'
+      # npm would run bats through cmd.exe, which may not find Git's bash
+      - name: npm test (Git Bash)
+        if: runner.os == 'Windows'
+        run: ./node_modules/.bin/bats test

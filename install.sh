@@ -9,6 +9,8 @@
 #   GITBASH_INSTALL_DIR  where the files go (default: ${XDG_DATA_HOME:-~/.local/share}/gitbash)
 #   GITBASH_BIN_DIR      where the gitbash symlink goes (default: ~/.local/bin)
 #
+# Works in Git Bash on Windows, where a small launcher script replaces the symlink.
+#
 # Run it again, or 'gitbash --update', to upgrade.
 set -eu
 
@@ -70,10 +72,20 @@ printf 'method=script\nbin_dir=%s\n' "$BIN_DIR" > "$tmp/install/.gitbash-install
 mkdir -p "$(dirname "$INSTALL_DIR")" "$BIN_DIR"
 rm -rf "$INSTALL_DIR"
 mv "$tmp/install" "$INSTALL_DIR"
-ln -sf "$INSTALL_DIR/bin/gitbash" "$BIN_DIR/gitbash"
+rm -f "$BIN_DIR/gitbash"
+if ln -s "$INSTALL_DIR/bin/gitbash" "$BIN_DIR/gitbash" 2>/dev/null && [ -L "$BIN_DIR/gitbash" ]; then
+    linked="Linked $BIN_DIR/gitbash"
+else
+    # No symlinks (Git Bash on Windows copies the file instead): a launcher script
+    rm -f "$BIN_DIR/gitbash"
+    target="$(printf '%s' "$INSTALL_DIR/bin/gitbash" | sed "s/'/'\\\\''/g")"
+    printf '#!/bin/sh\nexec bash '"'"'%s'"'"' "$@"\n' "$target" > "$BIN_DIR/gitbash"
+    chmod +x "$BIN_DIR/gitbash"
+    linked="Created launcher $BIN_DIR/gitbash"
+fi
 
 say "Installed gitbash $version to $INSTALL_DIR"
-say "Linked $BIN_DIR/gitbash"
+say "$linked"
 
 case ":$PATH:" in
     *":$BIN_DIR:"*)

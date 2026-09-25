@@ -70,6 +70,20 @@ eval "$(gitbash --init --prefix=gb-)" # gb-commit, gb-switch, ... (avoids shadow
 
 This defines small wrapper functions; every command still runs in its own bash process, so nothing else is added to your shell. Individual aliases work too, e.g. `alias commit="gitbash commit"`.
 
+### Windows
+
+gitbash runs in Git Bash (comes with [Git for Windows](https://gitforwindows.org)) and in WSL. Install it from Git Bash with npm or the install script, and the dependencies with `winget install junegunn.fzf dandavison.delta sharkdp.bat` (`gitbash --config` offers this). fzf needs to be 0.54 or newer on Windows; Windows Terminal is recommended.
+
+To use the commands in PowerShell, save the PowerShell functions once (from Git Bash) and load them in your `$PROFILE`:
+
+```bash
+gitbash --init --shell=pwsh > ~/gitbash.ps1   # add --prefix=gb- to get gb-switch: switch is a PowerShell keyword
+```
+
+```powershell
+. ~/gitbash.ps1   # in $PROFILE: defines gitbash, commit, status, ... (run with Git's bash)
+```
+
 ## Commands
 
 ### branch

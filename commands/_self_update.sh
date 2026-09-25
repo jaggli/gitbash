@@ -18,6 +18,10 @@ _gb_global_package_dir() {
     local root
     root=$("$1" root -g 2>/dev/null) || return 1
     [[ -n "$root" ]] || return 1
+    # Windows: C:\Users\...\npm\node_modules
+    if gb_is_windows && command -v cygpath >/dev/null 2>&1; then
+        root=$(cygpath -u "$root") || return 1
+    fi
     (cd -P "$root/gitbash" 2>/dev/null && pwd)
 }
 

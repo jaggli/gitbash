@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Browser opener stub (WSL): records the URL
+printf "%s\n" "$*" >> "${OPEN_LOG:?}"
