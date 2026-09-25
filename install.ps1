@@ -39,5 +39,9 @@ if (-not $bash) {
 if ($LASTEXITCODE -ne 0) {
     throw 'gitbash install failed.'
 }
+# ~/.local/bin/gitbash is a sh script PowerShell can't run: the functions call Git's bash directly
+$installDir = if ($env:GITBASH_INSTALL_DIR) { $env:GITBASH_INSTALL_DIR } else { Join-Path $HOME '.local\share\gitbash' }
+$script = (Join-Path $installDir 'bin\gitbash') -replace '\\', '/'
 Write-Host ''
-Write-Host 'For the PowerShell integration, see https://github.com/jaggli/gitbash#windows'
+Write-Host 'To use gitbash in PowerShell, add this line to your $PROFILE:'
+Write-Host "  & '$bash' '$script' --init --shell=pwsh | Out-String | Invoke-Expression"
