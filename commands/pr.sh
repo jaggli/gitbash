@@ -5,52 +5,6 @@ SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_utils.sh
 source "$SOURCE_DIR/_utils.sh"
 
-# Convert a remote URL to the repository's web URL (credentials and .git removed).
-# Handles https://[user[:token]@]host/path, ssh://[user@]host[:port]/path and user@host:path.
-_pr_web_base() {
-  local url="$1" scheme="https" rest host path
-  case "$url" in
-    http://*|https://*)
-      scheme="${url%%://*}"
-      rest="${url#*://}"
-      host="${rest%%/*}"
-      host="${host##*@}"
-      path="${rest#*/}"
-      ;;
-    ssh://*)
-      rest="${url#ssh://}"
-      host="${rest%%/*}"
-      host="${host##*@}"
-      host="${host%%:*}"
-      path="${rest#*/}"
-      ;;
-    *@*:*)
-      host="${url%%:*}"
-      host="${host##*@}"
-      path="${url#*:}"
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-  path="${path%/}"
-  path="${path%.git}"
-  if [[ -z "$host" || -z "$path" || ( -n "$rest" && "$path" == "$rest" ) ]]; then
-    return 1
-  fi
-
-  # Azure DevOps SSH: ssh.dev.azure.com:v3/org/project/repo
-  if [[ "$host" == "ssh.dev.azure.com" && "$path" == v3/*/*/* ]]; then
-    local org project repo
-    path="${path#v3/}"
-    org="${path%%/*}"; path="${path#*/}"
-    project="${path%%/*}"; repo="${path#*/}"
-    echo "https://dev.azure.com/$org/$project/_git/$repo"
-    return 0
-  fi
-  echo "$scheme://$host/$path"
-}
-
 # Web URL for creating a pull/merge request for a branch
 _pr_create_url() {
   local base="$1" branch="$2" encoded
@@ -147,7 +101,7 @@ EOF
     print_error "Detached HEAD: check out a branch first."
     return 1
   fi
-  if ! base=$(_pr_web_base "$remote_url"); then
+  if ! base=$(gb_web_url "$remote_url"); then
     print_error "Don't know how to open '$remote_url' in a browser."
     return 1
   fi

@@ -10,7 +10,7 @@ setup() {
 }
 
 web_base() {
-    bash -c 'source "$1"; _pr_web_base "$2"' _ "$PROJECT_DIR/commands/pr.sh" "$1"
+    bash -c 'source "$1"; gb_web_url "$2"' _ "$PROJECT_DIR/commands/_utils.sh" "$1"
 }
 
 create_url() {

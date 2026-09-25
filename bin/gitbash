@@ -26,6 +26,7 @@ COMMANDS=(
     "commits"
     "create"
     "pr"
+    "repo"
     "stale"
     "stash"
     "stashes"
@@ -398,6 +399,7 @@ Commands:
   commits     List recent commits with revert option
   create      Create feature branch with Jira parsing
   pr          Open PR in browser
+  repo        Open the repository in browser
   stale       List stale remote branches
   stash       Create named stash
   stashes     Interactive stash menu
