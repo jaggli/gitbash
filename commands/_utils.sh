@@ -35,6 +35,26 @@ print_info()    { _gb_print 1 "0;34" "ℹ" "$@"; }
 print_warning() { _gb_print 2 "0;33" "⚠" "$@"; }
 print_error()   { _gb_print 2 "0;31" "✗" "$@"; }
 
+# Print help text from stdin, coloring the section headings
+# ("Options:", "See also:", ...) and the "Usage:" label.
+gb_help() {
+    if ! _gb_color_ok 1; then
+        cat
+        return 0
+    fi
+    local h=$'\033[1;38;5;209m' r=$'\033[0m' line
+    local heading='^[A-Z][A-Za-z ()]*:$'
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ "$line" =~ $heading ]]; then
+            printf '%s%s%s\n' "$h" "$line" "$r"
+        elif [[ "$line" == "Usage: "* ]]; then
+            printf '%sUsage:%s%s\n' "$h" "$r" "${line#Usage:}"
+        else
+            printf '%s\n' "$line"
+        fi
+    done
+}
+
 # =============================================================================
 # Prompts
 # =============================================================================

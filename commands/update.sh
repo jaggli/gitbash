@@ -21,7 +21,7 @@ update() {
         return 0
         ;;
       -h|--help)
-        cat << 'EOF'
+        gb_help << 'EOF'
 Usage: update [OPTIONS]
 
 Merge the latest base branch (main/master) from the remote into the current branch.

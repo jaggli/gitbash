@@ -37,7 +37,7 @@ cleanup() {
         return 0
         ;;
       -h|--help)
-        cat << 'EOF'
+        gb_help << 'EOF'
 Usage: cleanup [OPTIONS]
 
 Find and delete local branches that are no longer needed.

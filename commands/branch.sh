@@ -14,7 +14,7 @@ branch() {
         return 0
     fi
     if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-        cat << 'EOF'
+        gb_help << 'EOF'
 Usage: branch [OPTIONS]
 
 Interactive menu to manage git branches.

@@ -11,7 +11,7 @@ stash() {
         return 0
     fi
     if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-        cat << 'EOF'
+        gb_help << 'EOF'
 Usage: stash [NAME...]
 
 Create a git stash with a descriptive name.

@@ -25,7 +25,7 @@ unstash() {
         return 0
     fi
     if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-        cat << 'EOF'
+        gb_help << 'EOF'
 Usage: unstash [OPTIONS]
 
 Apply a git stash to your working directory with optional removal.

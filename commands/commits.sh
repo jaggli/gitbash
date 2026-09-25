@@ -12,7 +12,7 @@ commits() {
         return 0
     fi
     if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-        cat << 'EOF'
+        gb_help << 'EOF'
 Usage: commits [COUNT]
 
 List recent commits in the current branch with option to revert selected ones.

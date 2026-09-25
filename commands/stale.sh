@@ -28,7 +28,7 @@ stale() {
                 return 0
                 ;;
             -h|--help)
-                cat << 'EOF'
+                gb_help << 'EOF'
 Usage: stale [OPTIONS] [FILTER...]
 
 Show remote branches ordered by last commit date (oldest first) and delete

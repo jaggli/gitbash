@@ -45,7 +45,7 @@ status() {
     return 0
   fi
   if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-    cat << 'EOF'
+    gb_help << 'EOF'
 Usage: status [OPTIONS]
 
 Interactive git status: stage, unstage, discard and commit with diff previews.

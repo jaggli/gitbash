@@ -100,7 +100,7 @@ switch() {
       return 0
       ;;
     -h|--help)
-      cat << 'EOF'
+      gb_help << 'EOF'
 Usage: switch [FILTER...]
 
 Select a git branch using fzf and switch to it.
