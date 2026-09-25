@@ -104,6 +104,7 @@ When your PR is merged:
 3. Changesets are consumed and version is bumped
 4. CHANGELOG.md is automatically updated
 5. Changes are published with `npm run release`
+6. Pushing the `vX.Y.Z` tag triggers the Release workflow, which creates the GitHub release with that version's CHANGELOG.md section as its notes (re-run it for an existing tag via "Run workflow")
 
 ## Development Guidelines
 
