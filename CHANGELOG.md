@@ -1,5 +1,11 @@
 # gitbash
 
+## 2.2.2
+
+### Patch Changes
+
+- ae7f181: Windows: `gitbash --config` offers to load the gitbash functions in your PowerShell profiles (Windows PowerShell and PowerShell 7), creating the profile if needed, and to allow local scripts when PowerShell blocks them
+
 ## 2.2.1
 
 ### Patch Changes
