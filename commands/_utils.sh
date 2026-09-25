@@ -559,6 +559,52 @@ gb_urlencode() {
     printf '%s' "$out"
 }
 
+# Convert a remote URL to the repository's web URL (credentials and .git removed).
+# Handles https://[user[:token]@]host/path, ssh://[user@]host[:port]/path and user@host:path.
+gb_web_url() {
+    local url="$1" scheme="https" rest host path
+    case "$url" in
+        http://*|https://*)
+            scheme="${url%%://*}"
+            rest="${url#*://}"
+            host="${rest%%/*}"
+            host="${host##*@}"
+            path="${rest#*/}"
+            ;;
+        ssh://*)
+            rest="${url#ssh://}"
+            host="${rest%%/*}"
+            host="${host##*@}"
+            host="${host%%:*}"
+            path="${rest#*/}"
+            ;;
+        *@*:*)
+            host="${url%%:*}"
+            host="${host##*@}"
+            path="${url#*:}"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    path="${path%/}"
+    path="${path%.git}"
+    if [[ -z "$host" || -z "$path" || ( -n "$rest" && "$path" == "$rest" ) ]]; then
+        return 1
+    fi
+
+    # Azure DevOps SSH: ssh.dev.azure.com:v3/org/project/repo
+    if [[ "$host" == "ssh.dev.azure.com" && "$path" == v3/*/*/* ]]; then
+        local org project repo
+        path="${path#v3/}"
+        org="${path%%/*}"; path="${path#*/}"
+        project="${path%%/*}"; repo="${path#*/}"
+        echo "https://dev.azure.com/$org/$project/_git/$repo"
+        return 0
+    fi
+    echo "$scheme://$host/$path"
+}
+
 # Open a URL in the browser, or print it if no opener is available
 gb_open_url() {
     local url="$1"

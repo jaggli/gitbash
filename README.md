@@ -174,6 +174,14 @@ pr [-p|--push] [--print]
 
 Open the pull request in the browser: the existing PR via the GitHub CLI when available, otherwise the create page (GitHub, GitHub Enterprise, GitLab, Bitbucket, Azure DevOps). Offers to commit local changes and to push a branch that is not on the remote yet. `-p` pushes first, `--print` prints the URL.
 
+### repo
+
+```bash
+repo [--print]
+```
+
+Open the repository's web page in the browser: via the GitHub CLI (`gh repo view --web`) when available, otherwise the URL derived from the remote (GitHub, GitHub Enterprise, GitLab, Bitbucket, Azure DevOps). `--print` prints the URL.
+
 ### update
 
 ```bash
