@@ -84,7 +84,9 @@ EOF
     fi
 
     echo "Applying $stash_id ..."
-    if ! git stash apply "$stash_id"; then
+    # The restored files are good news: list them in green, not git's red
+    if ! git -c color.status.changed=green -c color.status.untracked=green \
+            stash apply "$stash_id"; then
         print_error "Apply failed or had conflicts - the stash was kept."
         return 1
     fi
