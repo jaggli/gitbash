@@ -6,84 +6,86 @@ Pure bash, zero-dependency git utilities. Reduce repetitive typing and superchar
 
 ## Installation
 
-### Via npm
+Needs git >= 2.23 and bash >= 3.2. [fzf](https://github.com/junegunn/fzf) (menus), [delta](https://github.com/dandavison/delta) (diffs) and [bat](https://github.com/sharkdp/bat) (previews) are optional but recommended.
+
+### macOS
 
 ```bash
-npm i -g gitbash && gitbash --config
+npm i -g gitbash
+brew install fzf git-delta bat
+gitbash --config
 ```
 
-### Via install script (no npm or node needed)
+### Linux
 
 ```bash
-# curl
-curl -fsSL https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh | sh
-
-# wget
-wget -qO- https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh | sh
+npm i -g gitbash
+sudo apt install fzf git-delta bat   # Debian/Ubuntu, needs fzf >= 0.36
+gitbash --config
 ```
 
-This downloads the latest GitHub release to `~/.local/share/gitbash` and links `~/.local/bin/gitbash`. Run `gitbash --update` (or the script again) to upgrade. Options are set as environment variables:
+### Windows
+
+Run these in Git Bash (part of [Git for Windows](https://gitforwindows.org)). In WSL, follow the Linux steps.
 
 ```bash
-# Install a specific version
+npm i -g gitbash
+winget install junegunn.fzf dandavison.delta sharkdp.bat   # needs fzf >= 0.54
+gitbash --config
+```
+
+To use gitbash in PowerShell too, create the functions in Git Bash, then load them in your PowerShell profile:
+
+```bash
+gitbash --init --shell=pwsh > ~/gitbash.ps1   # switch is a PowerShell keyword: add --prefix=gb- for gb-switch
+```
+
+```powershell
+if (!(Test-Path $PROFILE)) { New-Item -Force $PROFILE }
+Add-Content $PROFILE '. ~/gitbash.ps1'
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   # Windows PowerShell 5.1 only
+```
+
+### Without npm
+
+The install script puts gitbash in `~/.local/share/gitbash` and links it from `~/.local/bin`. On all systems, including Git Bash:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh | sh    # or: wget -qO- ... | sh
+
+# Options: a specific version, or a system-wide install
 curl -fsSL https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh | GITBASH_VERSION=2.0.1 sh
-
-# Custom locations (e.g. system-wide)
 curl -fsSL https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh \
   | sudo GITBASH_INSTALL_DIR=/usr/local/share/gitbash GITBASH_BIN_DIR=/usr/local/bin sh
 ```
 
-To uninstall, remove `~/.local/share/gitbash` and `~/.local/bin/gitbash`.
+To uninstall, delete `~/.local/share/gitbash` and `~/.local/bin/gitbash`.
 
-### Options
-
-```bash
-gitbash --help         # Show help
-gitbash --version      # Show version
-gitbash --update       # Update to the latest release (npm or install script)
-gitbash --init         # Print shell functions (see Shell integration)
-gitbash --config       # Interactive configuration wizard
-gitbash --config-local # Configure overrides for the current repository (committed)
-gitbash --config-user  # Configure personal overrides for the current repository
-```
-
-### Dependencies
+### Update
 
 ```bash
-# Required
-git >= 2.23, bash >= 3.2
-
-# Optional (recommended)
-brew install fzf        # Interactive menus and previews (fzf >= 0.36)
-brew install git-delta  # Better diff highlighting
-brew install bat        # File preview with syntax highlighting
+gitbash --update   # works for npm, pnpm and the install script
 ```
 
 ### Shell integration
 
-Add to your `.zshrc` or `.bashrc` to call the commands without the `gitbash` prefix:
+Call the commands without the `gitbash` prefix by adding this to your `.zshrc` or `.bashrc` (`gitbash --config` offers to do it):
 
 ```bash
-eval "$(gitbash --init)"             # commit, switch, status, ...
-eval "$(gitbash --init --prefix=gb-)" # gb-commit, gb-switch, ... (avoids shadowing e.g. /usr/bin/pr)
+eval "$(gitbash --init)"               # commit, switch, status, ...
+eval "$(gitbash --init --prefix=gb-)"  # gb-commit, gb-switch, ... (avoids shadowing e.g. /usr/bin/pr)
 ```
 
-This defines small wrapper functions; every command still runs in its own bash process, so nothing else is added to your shell. Individual aliases work too, e.g. `alias commit="gitbash commit"`.
+Each command still runs in its own bash process; nothing else is added to your shell.
 
-### Windows
-
-gitbash runs in Git Bash (comes with [Git for Windows](https://gitforwindows.org)) and in WSL. Install it from Git Bash with npm or the install script, and the dependencies with `winget install junegunn.fzf dandavison.delta sharkdp.bat` (`gitbash --config` offers this). fzf needs to be 0.54 or newer on Windows; Windows Terminal is recommended.
-
-To use the commands in PowerShell, save the PowerShell functions once (from Git Bash) and load them in your `$PROFILE`:
+### Options
 
 ```bash
-gitbash --init --shell=pwsh > ~/gitbash.ps1   # add --prefix=gb- to get gb-switch: switch is a PowerShell keyword
-```
-
-```powershell
-New-Item -Force -ItemType File $PROFILE   # only if you have no profile yet
-Add-Content $PROFILE '. ~/gitbash.ps1'    # new windows get gitbash, commit, status, ... (run with Git's bash)
-Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   # Windows PowerShell 5.1 only: it blocks the profile otherwise
+gitbash --help | --version | --update
+gitbash --init [--prefix=PREFIX] [--shell=pwsh]  # Shell functions (see Shell integration)
+gitbash --config                                 # Configuration wizard (~/.gitbashrc)
+gitbash --config-local                           # Overrides for this repository (committed)
+gitbash --config-user                            # Personal overrides for this repository
 ```
 
 ## Commands
