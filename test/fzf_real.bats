@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Tests against the real fzf binary (skipped when fzf or python3 is missing).
+# Tests against the real fzf binary (skipped when fzf, or python3 with pty support, is missing).
 
 load helpers/setup
 
@@ -13,10 +13,13 @@ setup() {
         break
     done < <(type -ap fzf)
     [[ -n "$REAL_FZF" ]] || skip "real fzf not installed"
-    command -v python3 >/dev/null || skip "python3 not installed"
+    # All but the version check drive fzf in a pty
+    [[ "$BATS_TEST_DESCRIPTION" == "installed fzf meets the minimum version" ]] || require_pty
     # Put the real fzf ahead of the stub
     mkdir -p "$BATS_TEST_TMPDIR/real-bin"
-    ln -sf "$REAL_FZF" "$BATS_TEST_TMPDIR/real-bin/fzf"
+    # A script, not a symlink: Git Bash on Windows copies instead of linking
+    printf '#!/usr/bin/env bash\nexec %q "$@"\n' "$REAL_FZF" > "$BATS_TEST_TMPDIR/real-bin/fzf"
+    chmod +x "$BATS_TEST_TMPDIR/real-bin/fzf"
     export PATH="$BATS_TEST_TMPDIR/real-bin:$PATH"
 }
 

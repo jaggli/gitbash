@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Browser opener stub (Windows: rundll32 url.dll,FileProtocolHandler URL): records the URL
+printf "%s\n" "${*:2}" >> "${OPEN_LOG:?}"

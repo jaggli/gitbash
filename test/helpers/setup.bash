@@ -97,3 +97,8 @@ remote_commit() {
 remote_has_branch() {
     [[ -n "$(git ls-remote --heads "$REMOTE" "refs/heads/$1")" ]]
 }
+
+# Skip tests that drive a pseudo-terminal (python3 with pty support; not on Windows)
+require_pty() {
+    python3 -c 'import pty, termios' 2>/dev/null || skip "python3 with pty support not installed"
+}

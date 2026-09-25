@@ -59,7 +59,7 @@ Behavior:
       Bitbucket                    <repo>/pull-requests/new?source=<branch>
       Azure DevOps                 <repo>/pullrequestcreate?sourceRef=<branch>
   - Works with SSH and HTTPS remotes; credentials in the remote URL are never used
-  - Opens the browser with 'open' (macOS) or 'xdg-open' (Linux), otherwise prints the URL
+  - Opens the browser (macOS, Linux, WSL, Git Bash on Windows), otherwise prints the URL
 
 Examples:
   $ pr

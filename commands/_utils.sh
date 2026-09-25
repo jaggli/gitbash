@@ -9,7 +9,29 @@ if [[ -n "${_GB_UTILS_LOADED:-}" ]]; then
 fi
 _GB_UTILS_LOADED=1
 
-GB_FZF_MIN_VERSION="0.36.0"
+# =============================================================================
+# Platform
+# =============================================================================
+
+# Git Bash (MSYS2) or Cygwin on Windows
+gb_is_windows() {
+    case "${OSTYPE:-}" in
+        msys*|cygwin*) return 0 ;;
+    esac
+    return 1
+}
+
+# Linux in WSL
+_gb_is_wsl() {
+    [[ -n "${WSL_DISTRO_NAME:-}" || -n "${WSL_INTEROP:-}" ]]
+}
+
+# On Windows, fzf runs previews with bash and quotes {} for it since 0.54
+if gb_is_windows; then
+    GB_FZF_MIN_VERSION="0.54.0"
+else
+    GB_FZF_MIN_VERSION="0.36.0"
+fi
 
 # =============================================================================
 # Output
@@ -286,7 +308,11 @@ _gb_version_ge() {
 # Check that fzf is installed and recent enough
 require_fzf() {
     if ! command -v fzf >/dev/null 2>&1; then
-        print_error "fzf is not installed. Install it with 'brew install fzf' (macOS) or 'sudo apt install fzf' (Debian/Ubuntu)."
+        if gb_is_windows; then
+            print_error "fzf is not installed. Install it with 'winget install junegunn.fzf'."
+        else
+            print_error "fzf is not installed. Install it with 'brew install fzf' (macOS) or 'sudo apt install fzf' (Debian/Ubuntu)."
+        fi
         return 1
     fi
     local version
@@ -632,7 +658,14 @@ gb_web_url() {
 # Open a URL in the browser, or print it if no opener is available
 gb_open_url() {
     local url="$1"
-    if command -v open >/dev/null 2>&1 && [[ "$(uname -s)" == "Darwin" ]]; then
+    if gb_is_windows && command -v rundll32 >/dev/null 2>&1; then
+        # Not cmd's start: it would need & and ^ in the URL escaped
+        rundll32 url.dll,FileProtocolHandler "$url"
+    elif _gb_is_wsl && command -v wslview >/dev/null 2>&1; then
+        wslview "$url"
+    elif _gb_is_wsl && command -v rundll32.exe >/dev/null 2>&1; then
+        rundll32.exe url.dll,FileProtocolHandler "$url"
+    elif command -v open >/dev/null 2>&1 && [[ "$(uname -s)" == "Darwin" ]]; then
         open "$url"
     elif command -v xdg-open >/dev/null 2>&1; then
         xdg-open "$url" >/dev/null 2>&1

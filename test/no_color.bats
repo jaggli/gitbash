@@ -49,7 +49,7 @@ utils() {
 }
 
 @test "NO_COLOR removes the colors from the help" {
-    command -v python3 >/dev/null || skip "python3 not installed"
+    require_pty
     export PTY_LOG="$BATS_TEST_TMPDIR/pty-help"
     NO_COLOR=1 run python3 "$HELPERS_DIR/pty_run.py" "\"${GB_BASH:-bash}\" \"$GB\" --help"
     [ "$status" -eq 0 ]
