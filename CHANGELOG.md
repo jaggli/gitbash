@@ -1,5 +1,11 @@
 # gitbash
 
+## 2.0.1
+
+### Patch Changes
+
+- ff7f2b9: stale/cleanup: show the commit author instead of the committer, so branches updated via GitHub's "Update branch" button no longer show "GitHub" as the owner
+
 ## 2.0.0
 
 ### Major Changes
