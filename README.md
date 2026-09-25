@@ -6,7 +6,7 @@ Pure bash, zero-dependency git utilities. Reduce repetitive typing and superchar
 
 ## Installation
 
-Needs git >= 2.23 and bash >= 3.2. [fzf](https://github.com/junegunn/fzf) (menus), [delta](https://github.com/dandavison/delta) (diffs) and [bat](https://github.com/sharkdp/bat) (previews) are optional but recommended.
+Needs git >= 2.23 and bash >= 3.2. fzf (menus), delta (diffs) and bat (previews) are optional but recommended.
 
 ### macOS
 
@@ -14,6 +14,12 @@ Needs git >= 2.23 and bash >= 3.2. [fzf](https://github.com/junegunn/fzf) (menus
 npm i -g gitbash
 brew install fzf git-delta bat
 gitbash --config
+```
+
+Shell integration (lets you type `commit` instead of `gitbash commit`), in `~/.zshrc`:
+
+```bash
+eval "$(gitbash --init)"
 ```
 
 ### Linux
@@ -24,9 +30,15 @@ sudo apt install fzf git-delta bat   # Debian/Ubuntu, needs fzf >= 0.36
 gitbash --config
 ```
 
+Shell integration, in `~/.bashrc` or `~/.zshrc`:
+
+```bash
+eval "$(gitbash --init)"
+```
+
 ### Windows
 
-Run these in Git Bash (part of [Git for Windows](https://gitforwindows.org)). In WSL, follow the Linux steps.
+In Git Bash (part of [Git for Windows](https://gitforwindows.org)); in WSL, follow the Linux steps:
 
 ```bash
 npm i -g gitbash
@@ -34,10 +46,16 @@ winget install junegunn.fzf dandavison.delta sharkdp.bat   # needs fzf >= 0.54
 gitbash --config
 ```
 
-To use gitbash in PowerShell too, create the functions in Git Bash, then load them in your PowerShell profile:
+Shell integration for Git Bash, in `~/.bashrc`:
 
 ```bash
-gitbash --init --shell=pwsh > ~/gitbash.ps1   # switch is a PowerShell keyword: add --prefix=gb- for gb-switch
+eval "$(gitbash --init)"
+```
+
+Shell integration for PowerShell: create the functions in Git Bash, then load them in your profile in PowerShell:
+
+```bash
+gitbash --init --shell=pwsh --prefix=gb- > ~/gitbash.ps1   # gb-commit, ... (switch is a PowerShell keyword)
 ```
 
 ```powershell
@@ -48,45 +66,27 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   # Windows PowerShell 5.1 o
 
 ### Without npm
 
-The install script puts gitbash in `~/.local/share/gitbash` and links it from `~/.local/bin`. On all systems, including Git Bash:
+On any of the above, replace `npm i -g gitbash` with the install script (`wget -qO-` works instead of `curl -fsSL`):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh | sh    # or: wget -qO- ... | sh
-
-# Options: a specific version, or a system-wide install
-curl -fsSL https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh | GITBASH_VERSION=2.0.1 sh
-curl -fsSL https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh \
-  | sudo GITBASH_INSTALL_DIR=/usr/local/share/gitbash GITBASH_BIN_DIR=/usr/local/bin sh
+curl -fsSL https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh | sh
 ```
 
-To uninstall, delete `~/.local/share/gitbash` and `~/.local/bin/gitbash`.
+It installs to `~/.local/share/gitbash` and links `~/.local/bin/gitbash`; delete both to uninstall. Set `GITBASH_VERSION` (e.g. `| GITBASH_VERSION=2.0.1 sh`) for a specific version, and `GITBASH_INSTALL_DIR` / `GITBASH_BIN_DIR` for other locations.
 
-### Update
+## Options
 
-```bash
-gitbash --update   # works for npm, pnpm and the install script
-```
-
-### Shell integration
-
-Call the commands without the `gitbash` prefix by adding this to your `.zshrc` or `.bashrc` (`gitbash --config` offers to do it):
-
-```bash
-eval "$(gitbash --init)"               # commit, switch, status, ...
-eval "$(gitbash --init --prefix=gb-)"  # gb-commit, gb-switch, ... (avoids shadowing e.g. /usr/bin/pr)
-```
-
-Each command still runs in its own bash process; nothing else is added to your shell.
-
-### Options
-
-```bash
-gitbash --help | --version | --update
-gitbash --init [--prefix=PREFIX] [--shell=pwsh]  # Shell functions (see Shell integration)
-gitbash --config                                 # Configuration wizard (~/.gitbashrc)
-gitbash --config-local                           # Overrides for this repository (committed)
-gitbash --config-user                            # Personal overrides for this repository
-```
+| Option | Description |
+| --- | --- |
+| `-h`, `--help` | Show the help |
+| `-v`, `--version` | Show the version |
+| `--update` | Update to the latest release (npm, pnpm or install script) |
+| `--init` | Print shell functions to call commands without the `gitbash` prefix |
+| `--init --prefix=gb-` | Prefixed functions: `gb-commit`, `gb-switch`, ... (avoids shadowing e.g. `/usr/bin/pr`) |
+| `--init --shell=pwsh` | PowerShell functions instead of bash/zsh |
+| `--config` | Configuration wizard (`~/.gitbashrc`); offers to install dependencies and the shell integration |
+| `--config-local` | Overrides for the current repository (`.gitbashrc`, committed) |
+| `--config-user` | Personal overrides for the current repository (`.gitbashrc-user`, not committed) |
 
 ## Commands
 
