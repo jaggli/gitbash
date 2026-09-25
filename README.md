@@ -66,13 +66,19 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   # Windows PowerShell 5.1 o
 
 ### Without npm
 
-On any of the above, replace `npm i -g gitbash` with the install script (`wget -qO-` works instead of `curl -fsSL`):
+Use the install script instead of `npm i -g gitbash`:
 
 ```bash
+# macOS, Linux, Git Bash (or: wget -qO- ... | sh)
 curl -fsSL https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh | sh
 ```
 
-It installs to `~/.local/share/gitbash` and links `~/.local/bin/gitbash`; delete both to uninstall. Set `GITBASH_VERSION` (e.g. `| GITBASH_VERSION=2.0.1 sh`) for a specific version, and `GITBASH_INSTALL_DIR` / `GITBASH_BIN_DIR` for other locations.
+```powershell
+# Windows PowerShell (needs Git for Windows)
+irm https://raw.githubusercontent.com/jaggli/gitbash/main/install.ps1 | iex
+```
+
+It installs to `~/.local/share/gitbash` and links `~/.local/bin/gitbash` (add that folder to your PATH if the script says so); delete both to uninstall. Set `GITBASH_VERSION` for a specific version, and `GITBASH_INSTALL_DIR` / `GITBASH_BIN_DIR` for other locations.
 
 ## Options
 
