@@ -102,3 +102,8 @@ remote_has_branch() {
 require_pty() {
     python3 -c 'import pty, termios' 2>/dev/null || skip "python3 with pty support not installed"
 }
+
+# Tests running in Git Bash (or Cygwin) on Windows
+gb_is_windows_host() {
+    [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]
+}

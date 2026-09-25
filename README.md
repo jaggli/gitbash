@@ -54,18 +54,12 @@ winget install junegunn.fzf dandavison.delta sharkdp.bat   # needs fzf >= 0.54
 gitbash --config
 ```
 
-Shell integration for PowerShell. This creates your profile if needed, loads the functions in every new window, and allows local scripts to run (Windows PowerShell 5.1 blocks them by default):
+`gitbash --config` also sets up the shell integration: it offers to load the gitbash functions in your PowerShell profile (and to allow local scripts, which Windows PowerShell blocks by default) and in `~/.bashrc` for Git Bash. Open a new window afterwards. `switch` is a PowerShell keyword: use `gitbash switch` there.
+
+To set it up by hand, add this line to your PowerShell profile (`notepad $PROFILE`):
 
 ```powershell
-if (!(Test-Path $PROFILE)) { New-Item -Force $PROFILE }
-Add-Content $PROFILE 'gitbash --init --shell=pwsh | Out-String | Invoke-Expression'   # switch is a keyword: use gitbash switch
-Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   # Windows PowerShell 5.1 only
-```
-
-Shell integration for Git Bash:
-
-```bash
-echo 'eval "$(gitbash --init)"' >> ~/.bashrc
+gitbash --init --shell=pwsh | Out-String | Invoke-Expression
 ```
 
 ### Without npm
