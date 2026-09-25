@@ -242,25 +242,6 @@ EOF
   fi
   print_success "Switched to branch: $(gb_current_branch)"
 
-  # -----------------------------
   # Offer to fast-forward if behind the upstream
-  # -----------------------------
-  local now upstream_remote upstream_merge behind
-  now=$(gb_current_branch) || return 0
-  upstream_remote=$(git config "branch.$now.remote" 2>/dev/null) || return 0
-  upstream_merge=$(git config "branch.$now.merge" 2>/dev/null) || return 0
-  git fetch --quiet "$upstream_remote" "$upstream_merge" 2>/dev/null || return 0
-  behind=$(git rev-list --count "HEAD..@{upstream}" 2>/dev/null) || return 0
-  if [[ "$behind" -gt 0 ]]; then
-    print_warning "Branch is $behind commit(s) behind its upstream."
-    if gb_confirm "Fast-forward to the latest changes?" y; then
-      if git merge --ff-only --quiet "@{upstream}"; then
-        print_success "Up to date."
-      else
-        print_error "Could not fast-forward (you have local commits or changes). Run 'git pull' to reconcile."
-        return 1
-      fi
-    fi
-  fi
-  return 0
+  gb_offer_fast_forward
 }

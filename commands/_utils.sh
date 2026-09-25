@@ -352,6 +352,29 @@ gb_base_ref() {
     fi
 }
 
+# Fetch the current branch's upstream and, if it has new commits, offer to
+# fast-forward. Returns 1 only when the fast-forward fails.
+gb_offer_fast_forward() {
+    local branch upstream_remote upstream_merge behind
+    branch=$(gb_current_branch) || return 0
+    upstream_remote=$(git config "branch.$branch.remote" 2>/dev/null) || return 0
+    upstream_merge=$(git config "branch.$branch.merge" 2>/dev/null) || return 0
+    git fetch --quiet "$upstream_remote" "$upstream_merge" 2>/dev/null || return 0
+    behind=$(git rev-list --count "HEAD..@{upstream}" 2>/dev/null) || return 0
+    if [[ "$behind" -gt 0 ]]; then
+        print_warning "Branch is $behind commit(s) behind its upstream."
+        if gb_confirm "Fast-forward to the latest changes?" y; then
+            if git merge --ff-only --quiet "@{upstream}"; then
+                print_success "Up to date."
+            else
+                print_error "Could not fast-forward (you have local commits or changes). Run 'git pull' to reconcile."
+                return 1
+            fi
+        fi
+    fi
+    return 0
+}
+
 # Returns 0 if the branch is protected (base branch or GITBASH_PROTECTED_BRANCHES).
 # Set GB_BASE beforehand to avoid detecting the base branch on every call.
 gb_is_protected() {

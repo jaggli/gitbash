@@ -5,7 +5,7 @@ SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_utils.sh
 source "$SOURCE_DIR/_utils.sh"
 
-# List recent commits and optionally revert selected ones
+# List the current branch's own commits and optionally revert selected ones
 commits() {
     if [[ "${1:-}" == "-v" || "${1:-}" == "--version" ]]; then
         echo "gitbash ${FUNCNAME[0]} v$VERSION"
@@ -13,12 +13,19 @@ commits() {
     fi
     if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
         gb_help << 'EOF'
-Usage: commits [COUNT]
+Usage: commits [-a|--all] [COUNT]
 
-List recent commits in the current branch with option to revert selected ones.
+List the commits made on the current branch with option to revert selected ones.
+
+On a feature branch only the commits that are not in the base branch are
+shown. On the base branch its own history is shown (--first-parent), so
+merged branches appear as their merge commit.
 
 Arguments:
   COUNT         Number of commits to show (default: 20)
+
+Options:
+  -a, --all     Show all recent commits reachable from HEAD
 
 Navigation:
   ↑/↓           Navigate through commits
@@ -27,6 +34,7 @@ Navigation:
   ESC/Ctrl-C    Exit without action
 
 Notes:
+  - If the upstream has new commits, offers to fast-forward first
   - Preview shows the full commit diff
   - Selected commits are reverted newest first, whatever order you picked them in
   - Merge commits are reverted against their first parent (the branch they were merged into)
@@ -35,6 +43,7 @@ Notes:
 Examples:
   $ commits
   $ commits 50
+  $ commits --all
 
 Requirements:
   - Must be in a git repository
@@ -46,15 +55,55 @@ EOF
 
     require_git_repo || return 1
 
-    local count="${1:-20}"
+    local all=false count=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -a|--all) all=true ;;
+            -*) print_error "Unknown option '$1'. See 'commits --help'."; return 1 ;;
+            *)
+                if [[ -n "$count" ]]; then
+                    print_error "Unexpected argument '$1'. See 'commits --help'."
+                    return 1
+                fi
+                count="$1"
+                ;;
+        esac
+        shift
+    done
+    count="${count:-20}"
     if ! [[ "$count" =~ ^[1-9][0-9]*$ ]]; then
         print_error "COUNT must be a positive number (got '$count')."
         return 1
     fi
     require_fzf || return 1
 
+    # Offer to pull remote commits first, so they show up (and can be reverted)
+    gb_offer_fast_forward || true
+
     local current_branch
     current_branch=$(gb_current_branch) || current_branch="(detached HEAD)"
+
+    # -----------------------------
+    # Which commits: the branch's own (not in the base branch) or, on the
+    # base branch, its first-parent history
+    # -----------------------------
+    local log_args=() scope="last $count commits" empty_hint="" base_branch base_ref
+    if [[ "$all" == false ]] && base_branch=$(gb_base_branch 2>/dev/null); then
+        base_ref=$(gb_base_ref "$base_branch")
+        if [[ "$current_branch" == "$base_branch" ]]; then
+            log_args=(--first-parent)
+            scope="last $count commits on '$base_branch' (merged branches as merge commits)"
+        elif git rev-parse --verify --quiet "$base_ref^{commit}" >/dev/null; then
+            log_args=(--not "$base_ref")
+            # Also exclude the local base branch when it is ahead of the remote one
+            if [[ "$base_ref" != "$base_branch" ]] &&
+               git show-ref --verify --quiet "refs/heads/$base_branch"; then
+                log_args+=("$base_branch")
+            fi
+            scope="commits not in '$base_ref' (up to $count)"
+            empty_hint="No commits on '$current_branch' that are not in '$base_ref'. Use 'commits --all' to show all recent commits."
+        fi
+    fi
 
     # -----------------------------
     # Build commit list (fields separated by \x1f, subject last)
@@ -67,10 +116,10 @@ EOF
         fi
         commit_list+=$(printf "%-10s  %-60s  %-15s  %s" "$hash" "$subject" "$date" "$author")
         commit_list+=$'\t'"$hash"$'\n'
-    done < <(git log -n "$count" --format='%h%x1f%cr%x1f%an%x1f%s' 2>/dev/null)
+    done < <(git log -n "$count" --format='%h%x1f%cr%x1f%an%x1f%s' HEAD ${log_args[@]+"${log_args[@]}"} 2>/dev/null)
 
     if [[ -z "$commit_list" ]]; then
-        echo "No commits found."
+        echo "${empty_hint:-No commits found.}"
         return 0
     fi
 
@@ -92,7 +141,7 @@ EOF
         --reverse \
         --border \
         --header="[TAB] select for revert | [Enter] revert selected | [ESC] exit
-Showing last $count commits" \
+Showing $scope" \
         --multi \
         --delimiter=$'\t' \
         --with-nth=1 \

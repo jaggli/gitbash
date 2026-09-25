@@ -266,14 +266,15 @@ Unpushed commits are shown per branch. Deletes with `git branch -d`; force-delet
 ### commits
 
 ```bash
-commits [COUNT]
+commits [-a|--all] [COUNT]
 ```
 
-List recent commits with option to revert. Multi-select with TAB; selected commits are reverted newest first.
+List the current branch's own commits with option to revert. On a feature branch only commits not in the base branch are shown; on the base branch its first-parent history (merged branches as their merge commit). If the upstream has new commits, offers to fast-forward first. Multi-select with TAB; selected commits are reverted newest first.
 
 ```bash
-commits        # Show last 20 commits
-commits 50     # Show last 50 commits
+commits          # Show the branch's last 20 commits
+commits 50       # Show up to 50
+commits --all    # All recent commits, like git log
 ```
 
 ## Configuration
