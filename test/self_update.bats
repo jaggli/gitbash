@@ -67,6 +67,30 @@ wait_for_latest() {
     [ "$(state_value latest)" = "9.9.9" ]
 }
 
+# Install gitbash like a global pnpm install: node_modules/gitbash links to a folder per version
+install_pnpm_copy() {
+    export PNPM_STUB_ROOT="$BATS_TEST_TMPDIR/pnpm-global/node_modules"
+    install_copy "$PNPM_STUB_ROOT/.pnpm/gitbash@$CURRENT/node_modules/gitbash"
+    ln -s ".pnpm/gitbash@$CURRENT/node_modules/gitbash" "$PNPM_STUB_ROOT/gitbash"
+    GB="$PNPM_STUB_ROOT/gitbash/bin/gitbash"
+}
+
+@test "--update installs the new version with pnpm for a global pnpm install" {
+    install_pnpm_copy
+    run gb --update
+    [ "$status" -eq 0 ]
+    grep -qx 'pnpm add -g gitbash@9.9.9' "$NPM_LOG"
+    [[ "$output" == *"Updated gitbash $CURRENT → 9.9.9"* ]]
+}
+
+@test "--init of a pnpm install uses the link that follows updates" {
+    install_pnpm_copy
+    run gb --init
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"$PNPM_STUB_ROOT/gitbash/bin/gitbash commit"* ]]
+    [[ "$output" != *".pnpm"* ]]
+}
+
 @test "--update does nothing when gitbash is up to date" {
     export CURL_STUB_TAG="v$CURRENT"
     run gb --update
@@ -157,6 +181,13 @@ EOF
     [ "$(fetches)" -eq 0 ]
 }
 
+@test "GITBASH_NO_UPDATE_CHECKS=no in the environment wins over the config files" {
+    echo 'GITBASH_NO_UPDATE_CHECKS="yes"' > "$HOME/.gitbashrc"
+    GITBASH_NO_UPDATE_CHECKS=no run gb stash --version
+    [ "$status" -eq 0 ]
+    [ -e "$STATE" ]
+}
+
 @test "no update checks in CI" {
     CI=true run gb stash --version
     sleep 0.3
@@ -218,6 +249,33 @@ EOF
     [ "$status" -eq 0 ]
     grep -qx 'npm install -g gitbash@9.9.9' "$NPM_LOG"
     [[ "$output" == *"gitbash stash v9.9.9"* ]]
+}
+
+@test "'yes' updates a pnpm install and runs the command with the new version" {
+    command -v python3 >/dev/null || skip "python3 not installed"
+    install_pnpm_copy
+    write_state "$(date +%s)" "9.9.9" 0 ""
+    WAIT_FOR="(y/N/s):" KEYS='y\r' run in_pty stash --version
+    [ "$status" -eq 0 ]
+    grep -qx 'pnpm add -g gitbash@9.9.9' "$NPM_LOG"
+    [[ "$output" == *"gitbash stash v9.9.9"* ]]
+}
+
+@test "never asks when gitbash runs itself from a command" {
+    command -v python3 >/dev/null || skip "python3 not installed"
+    write_state "$(date +%s)" "9.9.9" 0 ""
+    GITBASH_NESTED=1 run in_pty stash --version
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"is available"* ]]
+    [ "$(state_value prompted)" = "0" ]
+}
+
+@test "commands run gitbash again as nested" {
+    # A stash command that shows what the gitbash processes it starts see
+    echo 'stash() { echo "nested=${GITBASH_NESTED:-}"; }' > "$NPM_STUB_ROOT/gitbash/commands/stash.sh"
+    run gb stash
+    [ "$status" -eq 0 ]
+    [ "$output" = "nested=1" ]
 }
 
 @test "--config-user can turn update checks off" {

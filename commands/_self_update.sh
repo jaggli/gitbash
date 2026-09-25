@@ -179,10 +179,11 @@ gb_self_update_to() {
             ;;
     esac
 
-    local installed
-    installed=$(grep -o '"version": *"[^"]*"' "$SCRIPT_DIR/package.json" 2>/dev/null | head -1 | cut -d'"' -f4)
+    # GITBASH_BIN, not SCRIPT_DIR: pnpm installs the new version in a new folder
+    local installed pkg_dir="${GITBASH_BIN%/bin/gitbash}"
+    installed=$(grep -o '"version": *"[^"]*"' "$pkg_dir/package.json" 2>/dev/null | head -1 | cut -d'"' -f4)
     if [[ "$installed" != "$latest" ]]; then
-        print_error "Update finished, but gitbash in $SCRIPT_DIR is still at ${installed:-an unknown version}."
+        print_error "Update finished, but gitbash in $pkg_dir is still at ${installed:-an unknown version}."
         return 1
     fi
     print_success "Updated gitbash $VERSION → $latest"
@@ -246,10 +247,10 @@ gb_self_update() {
 # Returns 0 if update checks are on: not turned off, not in CI, not a git checkout
 gb_update_checks_enabled() {
     case "$_GB_ENV_NO_UPDATE_CHECKS" in
-        ""|no|0|false) ;;
+        "") [[ "${GITBASH_NO_UPDATE_CHECKS:-no}" == "yes" ]] && return 1 ;;
+        no|0|false) ;;
         *) return 1 ;;
     esac
-    [[ "${GITBASH_NO_UPDATE_CHECKS:-no}" == "yes" ]] && return 1
     local var
     for var in CI CONTINUOUS_INTEGRATION BUILD_NUMBER GITHUB_ACTIONS GITLAB_CI TF_BUILD \
                JENKINS_URL BUILDKITE CIRCLECI TRAVIS TEAMCITY_VERSION BITBUCKET_BUILD_NUMBER; do
@@ -266,6 +267,8 @@ gb_update_checks_enabled() {
 # On a successful update, runs the command with the new version instead.
 # Usage: gb_update_check <command> [args...]
 gb_update_check() {
+    # Not when gitbash runs itself from a command (the parent already checked)
+    [[ -z "${GITBASH_NESTED:-}" ]] || return 0
     gb_update_checks_enabled || return 0
 
     local now
