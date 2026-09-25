@@ -136,7 +136,7 @@ gb_choice() {
 GB_CONFIG_KEYS="GITBASH_CREATE_BRANCH_PREFIX GITBASH_FEATURE_BRANCH_PREFIX GITBASH_MERGE_COMMAND \
 GITBASH_CREATE_NO_ISSUE_PARSING GITBASH_CREATE_ISSUE_PARSING_FALLBACK GITBASH_CREATE_AUTO_PUSH \
 GITBASH_THEME GITBASH_STALE_MONTHS GITBASH_CLEANUP_DAYS GITBASH_PROTECTED_BRANCHES \
-GITBASH_BASE_BRANCH GITBASH_REMOTE"
+GITBASH_BASE_BRANCH GITBASH_REMOTE GITBASH_NO_UPDATE_CHECKS"
 
 _gb_config_key_allowed() {
     [[ " $GB_CONFIG_KEYS " == *" $1 "* ]]
@@ -229,6 +229,12 @@ _gb_normalize_config() {
         auto|dark|light) GITBASH_THEME="${GITBASH_THEME:-auto}" ;;
         *) print_warning "Invalid GITBASH_THEME '$GITBASH_THEME', using 'auto'."
            GITBASH_THEME="auto" ;;
+    esac
+    case "${GITBASH_NO_UPDATE_CHECKS:-no}" in
+        yes|1|true) GITBASH_NO_UPDATE_CHECKS="yes" ;;
+        no|0|false) GITBASH_NO_UPDATE_CHECKS="no" ;;
+        *) print_warning "Invalid GITBASH_NO_UPDATE_CHECKS '$GITBASH_NO_UPDATE_CHECKS', using 'no'."
+           GITBASH_NO_UPDATE_CHECKS="no" ;;
     esac
     if ! [[ "${GITBASH_STALE_MONTHS:-3}" =~ ^[1-9][0-9]*$ ]]; then
         print_warning "Invalid GITBASH_STALE_MONTHS '$GITBASH_STALE_MONTHS', using 3."

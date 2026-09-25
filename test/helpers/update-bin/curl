@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# curl stub for update tests: serves the latest release (CURL_STUB_TAG) and
+# the install script (CURL_STUB_INSTALLER); fails like curl -f for anything else.
+url="${*: -1}"
+[[ -n "${CURL_LOG:-}" ]] && echo "$url" >> "$CURL_LOG"
+case "$url" in
+    */releases/latest)
+        [[ -n "${CURL_STUB_TAG:-}" ]] || exit 22
+        printf '{\n  "url": "https://example.test",\n  "tag_name": "%s",\n  "name": "%s"\n}\n' \
+            "$CURL_STUB_TAG" "$CURL_STUB_TAG"
+        ;;
+    */install.sh)
+        [[ -f "${CURL_STUB_INSTALLER:-}" ]] || exit 22
+        cat "$CURL_STUB_INSTALLER"
+        ;;
+    *)
+        exit 22
+        ;;
+esac

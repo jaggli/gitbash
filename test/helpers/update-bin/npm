@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# npm stub for update tests: the global root is NPM_STUB_ROOT, and
+# 'install -g gitbash@X' sets the version of the gitbash package there.
+case "$1 $2" in
+    "root -g")
+        echo "$NPM_STUB_ROOT"
+        ;;
+    "install -g")
+        [[ -n "${NPM_LOG:-}" ]] && echo "npm $*" >> "$NPM_LOG"
+        version="${3#gitbash@}"
+        pkg="$NPM_STUB_ROOT/gitbash/package.json"
+        sed "s/\"version\": *\"[^\"]*\"/\"version\": \"$version\"/" "$pkg" > "$pkg.new" && mv "$pkg.new" "$pkg"
+        ;;
+    *)
+        exit 1
+        ;;
+esac
