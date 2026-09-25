@@ -16,10 +16,10 @@ brew install fzf git-delta bat
 gitbash --config
 ```
 
-Shell integration (lets you type `commit` instead of `gitbash commit`), in `~/.zshrc`:
+Shell integration (lets you type `commit` instead of `gitbash commit`):
 
 ```bash
-eval "$(gitbash --init)"
+echo 'eval "$(gitbash --init)"' >> ~/.zshrc
 ```
 
 ### Linux
@@ -30,10 +30,10 @@ sudo apt install fzf git-delta bat   # Debian/Ubuntu, needs fzf >= 0.36
 gitbash --config
 ```
 
-Shell integration, in `~/.bashrc` or `~/.zshrc`:
+Shell integration:
 
 ```bash
-eval "$(gitbash --init)"
+echo 'eval "$(gitbash --init)"' >> ~/.bashrc   # zsh: ~/.zshrc
 ```
 
 ### Windows
