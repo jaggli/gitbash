@@ -86,8 +86,8 @@ Examples:
   ✓ 'feature/PROJ-123-add-new-feature' is now up-to-date with 'main'.
 
 Actions:
-  🌿 Create  - Create a new feature branch with Jira parsing
-  🔀 Switch  - Switch to another branch using fzf
+  🌿 Create - Create a new feature branch with Jira parsing
+  🔀 Switch - Switch to another branch using fzf
   ⬆️  Update - Update current branch with latest main/master
 
 Requirements:
