@@ -12,8 +12,8 @@ _stash_preview() {
     printf '%s' '
         sel=$(printf "%s" {} | grep -o "^stash@{[0-9]*}" || true)
         if [[ -n "$sel" ]]; then
-            { git stash show --include-untracked -p --color=always "$sel" 2>/dev/null ||
-              git stash show -p --color=always "$sel" 2>/dev/null; } | '"$pager"'
+            { git stash show --include-untracked -p --color=$GB_COLOR "$sel" 2>/dev/null ||
+              git stash show -p --color=$GB_COLOR "$sel" 2>/dev/null; } | '"$pager"'
         else
             echo "No preview"
         fi'

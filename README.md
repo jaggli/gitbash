@@ -312,6 +312,10 @@ Run `gitbash --config-user` to create `.gitbashrc-user` for personal overrides i
 2. `.gitbashrc` - Repository settings (committed)
 3. `~/.gitbashrc` - Global settings
 
+#### Colors
+
+gitbash supports [`NO_COLOR`](https://no-color.org): set it to any non-empty value (e.g. `export NO_COLOR=1`) to turn off all colors, including the help, messages, the git output in previews and `bat`. `delta` is not used then, and fzf uses its black-and-white theme. Colors are also left out when the output is not a terminal.
+
 ## License
 
 See [LICENSE](LICENSE) file for details.

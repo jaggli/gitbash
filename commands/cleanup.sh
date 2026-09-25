@@ -273,14 +273,14 @@ ${#sorted[@]} branches, $preselect_count pre-selected" \
             if [[ -z "$branch" ]]; then echo "Exit without action"; exit 0; fi
             echo "Branch: $branch"
             echo
-            unpushed=$(git log --oneline --color=always "refs/heads/$branch" --not --remotes 2>/dev/null)
+            unpushed=$(git log --oneline --color=$GB_COLOR "refs/heads/$branch" --not --remotes 2>/dev/null)
             if [[ -n "$unpushed" ]]; then
                 echo "Unpushed commits (only on this machine):"
                 echo "$unpushed"
                 echo
             fi
             echo "Recent commits:"
-            git log --oneline --color=always -n 15 "refs/heads/$branch" 2>/dev/null
+            git log --oneline --color=$GB_COLOR -n 15 "refs/heads/$branch" 2>/dev/null
         ' \
         --preview-window=right:40% \
         --bind "load:$toggle_sequence" \

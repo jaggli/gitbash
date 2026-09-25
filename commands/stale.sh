@@ -229,7 +229,7 @@ TOGGLE_EOF
                 echo \"Branch: $remote_q/\$branch\"
                 echo
                 echo 'Recent commits:'
-                git log --oneline --color=always -n 15 \"refs/remotes/$remote_q/\$branch\" 2>/dev/null || echo 'No commits found'
+                git log --oneline --color=\$GB_COLOR -n 15 \"refs/remotes/$remote_q/\$branch\" 2>/dev/null || echo 'No commits found'
             " \
             --preview-window=right:35% \
             < "$tmp_dir/$(cat "$tmp_dir/state")"

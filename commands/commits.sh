@@ -78,11 +78,11 @@ EOF
     pager=$(gb_diff_pager)
     preview='
         hash=$(printf "%s" {} | cut -f2)
-        git show --stat --color=always "$hash" 2>/dev/null
+        git show --stat --color=$GB_COLOR "$hash" 2>/dev/null
         echo
         echo "─────────────────────────────────────────────────────"
         echo
-        git show --color=always --format= "$hash" 2>/dev/null | head -300 | __PAGER__'
+        git show --color=$GB_COLOR --format= "$hash" 2>/dev/null | head -300 | __PAGER__'
     preview="${preview//__PAGER__/$pager}"
 
     local selection

@@ -92,8 +92,8 @@ EOF
       echo "=== UNTRACKED ==="; echo
       if [[ -d "$file" ]]; then ls -la "$file"; else __BAT__ "$file" 2>/dev/null || echo "Cannot preview file"; fi
     else
-      staged=$(git diff --cached --color=always -- "$file" 2>/dev/null)
-      unstaged=$(git diff --color=always -- "$file" 2>/dev/null)
+      staged=$(git diff --cached --color=$GB_COLOR -- "$file" 2>/dev/null)
+      unstaged=$(git diff --color=$GB_COLOR -- "$file" 2>/dev/null)
       if [[ -n "$staged" ]]; then echo "=== STAGED CHANGES ==="; echo; printf "%s\n" "$staged" | __PAGER__; fi
       if [[ -n "$unstaged" ]]; then
         [[ -n "$staged" ]] && echo
