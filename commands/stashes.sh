@@ -14,7 +14,7 @@ stashes() {
         return 0
     fi
     if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-        cat << 'EOF'
+        gb_help << 'EOF'
 Usage: stashes [OPTIONS]
 
 Interactive menu to manage git stashes.
@@ -87,7 +87,7 @@ Examples:
 Actions:
   💾 Stash       - Create a new stash with all changes
   📦 Unstash     - Apply stash to working directory, optionally drop it
-  🗑️  Clean up   - Delete stashes without applying (supports multi-select)
+  🗑️  Clean up    - Delete stashes without applying (supports multi-select)
 
 Requirements:
   - fzf (fuzzy finder)

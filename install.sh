@@ -55,7 +55,9 @@ fetch_to "https://github.com/$REPO/archive/refs/tags/$version.tar.gz" "$tmp/gitb
 mkdir "$tmp/src"
 tar -xzf "$tmp/gitbash.tar.gz" -C "$tmp/src"
 src="$(find "$tmp/src" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-[ -n "$src" ] && [ -f "$src/bin/gitbash" ] || die "unexpected archive layout"
+if [ -z "$src" ] || [ ! -f "$src/bin/gitbash" ]; then
+    die "unexpected archive layout"
+fi
 
 # Copy only what gitbash needs at runtime
 mkdir "$tmp/install"

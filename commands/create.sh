@@ -51,7 +51,7 @@ create() {
         return 0
         ;;
       -h|--help)
-        cat << 'EOF'
+        gb_help << 'EOF'
 Usage: create [OPTIONS] [JIRA_LINK] [TITLE...]
 
 Create a new git branch from the latest base branch, with optional Jira issue parsing.

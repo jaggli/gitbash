@@ -83,7 +83,7 @@ pr() {
         return 0
         ;;
       -h|--help)
-        cat << 'EOF'
+        gb_help << 'EOF'
 Usage: pr [OPTIONS]
 
 Open the current branch's pull request in your browser.

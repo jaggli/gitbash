@@ -23,7 +23,7 @@ commit() {
         return 0
         ;;
       -h|--help)
-        cat << 'EOF'
+        gb_help << 'EOF'
 Usage: commit [OPTIONS] [MESSAGE...] [-- MESSAGE...]
 
 Commit your changes with a message.

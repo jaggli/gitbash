@@ -53,6 +53,8 @@ setup() {
     [ "$status" -eq 1 ]
     [[ "$output" == *"Merge conflicts in"* ]]
     [[ "$output" == *"main.txt"* ]]
+    # The default merge tool (stubbed) is opened on the repository
+    [ "$(cat "$MERGE_TOOL_LOG")" = "." ]
 }
 
 @test "update on the base branch fast-forwards it" {

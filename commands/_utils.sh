@@ -20,6 +20,21 @@ _gb_color_ok() {
     [[ -z "${NO_COLOR:-}" && -t "$1" ]]
 }
 
+# NO_COLOR (https://no-color.org): a non-empty value turns off all colors.
+# GB_COLOR is the --color value for git and bat in fzf previews; it is
+# exported because previews run in a separate bash started by fzf.
+if [[ -n "${NO_COLOR:-}" ]]; then
+    GB_COLOR="never"
+    # Also for git's own output (added to any GIT_CONFIG_* entries already set)
+    _gb_n="${GIT_CONFIG_COUNT:-0}"
+    export "GIT_CONFIG_KEY_$_gb_n=color.ui" "GIT_CONFIG_VALUE_$_gb_n=never"
+    export GIT_CONFIG_COUNT=$((_gb_n + 1))
+    unset _gb_n
+else
+    GB_COLOR="always"
+fi
+export GB_COLOR
+
 _gb_print() {
     local fd="$1" color="$2" symbol="$3"
     shift 3
@@ -34,6 +49,26 @@ print_success() { _gb_print 1 "0;32" "✓" "$@"; }
 print_info()    { _gb_print 1 "0;34" "ℹ" "$@"; }
 print_warning() { _gb_print 2 "0;33" "⚠" "$@"; }
 print_error()   { _gb_print 2 "0;31" "✗" "$@"; }
+
+# Print help text from stdin, coloring the section headings
+# ("Options:", "See also:", ...) and the "Usage:" label.
+gb_help() {
+    if ! _gb_color_ok 1; then
+        cat
+        return 0
+    fi
+    local h=$'\033[1;38;5;209m' r=$'\033[0m' line
+    local heading='^[A-Z][A-Za-z ()]*:$'
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ "$line" =~ $heading ]]; then
+            printf '%s%s%s\n' "$h" "$line" "$r"
+        elif [[ "$line" == "Usage: "* ]]; then
+            printf '%sUsage:%s%s\n' "$h" "$r" "${line#Usage:}"
+        else
+            printf '%s\n' "$line"
+        fi
+    done
+}
 
 # =============================================================================
 # Prompts
@@ -454,9 +489,9 @@ gb_sync_and_push() {
 # Previews
 # =============================================================================
 
-# Command that colors a diff read from stdin (delta if installed)
+# Command that colors a diff read from stdin (delta if installed and colors are on)
 gb_diff_pager() {
-    if command -v delta >/dev/null 2>&1; then
+    if [[ "$GB_COLOR" == "always" ]] && command -v delta >/dev/null 2>&1; then
         case "${GITBASH_THEME:-auto}" in
             dark) echo "delta --dark" ;;
             light) echo "delta --light" ;;
@@ -480,9 +515,9 @@ gb_bat_cmd() {
         return 0
     fi
     case "${GITBASH_THEME:-auto}" in
-        dark) echo "$bat --color=always --style=numbers --theme=Dracula" ;;
-        light) echo "$bat --color=always --style=numbers --theme=GitHub" ;;
-        *) echo "$bat --color=always --style=numbers" ;;
+        dark) echo "$bat --color=$GB_COLOR --style=numbers --theme=Dracula" ;;
+        light) echo "$bat --color=$GB_COLOR --style=numbers --theme=GitHub" ;;
+        *) echo "$bat --color=$GB_COLOR --style=numbers" ;;
     esac
 }
 

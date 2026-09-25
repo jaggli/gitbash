@@ -63,3 +63,46 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"gitbash stash v"* ]]
 }
+
+@test "help shows the banner with the version, also without arguments" {
+    run gb --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'\__, |_|\__|_.__/'* ]]
+    [[ "$output" =~ v[0-9]+\.[0-9]+\.[0-9]+\ -\ Interactive ]]
+    [[ "$output" == *"Commands:"* ]]
+
+    local help="$output"
+    run gb
+    [ "$status" -eq 0 ]
+    [ "$output" == "$help" ]
+}
+
+@test "help has no color codes when not writing to a terminal" {
+    run gb --help
+    [[ "$output" != *$'\033'* ]]
+
+    local cmd
+    for cmd in $(ls "$PROJECT_DIR/commands" | grep -v '^_' | sed 's/\.sh$//'); do
+        run gb "$cmd" --help
+        [ "$status" -eq 0 ]
+        [[ "$output" == "Usage: $cmd"* ]]
+        [[ "$output" != *$'\033'* ]]
+    done
+}
+
+@test "help headings are colored in a terminal" {
+    command -v python3 >/dev/null || skip "python3 not installed"
+    export PTY_LOG="$BATS_TEST_TMPDIR/pty-help"
+    run python3 "$HELPERS_DIR/pty_run.py" "\"${GB_BASH:-bash}\" \"$GB\" --help"
+    [ "$status" -eq 0 ]
+    [[ "$(cat "$PTY_LOG")" == *$'\033[1;38;5;209mCommands:\033[0m'* ]]
+
+    export PTY_LOG="$BATS_TEST_TMPDIR/pty-commit"
+    run python3 "$HELPERS_DIR/pty_run.py" "\"${GB_BASH:-bash}\" \"$GB\" commit --help"
+    [ "$status" -eq 0 ]
+    local log
+    log=$(cat "$PTY_LOG")
+    [[ "$log" == *$'\033[1;38;5;209mUsage:\033[0m commit'* ]]
+    [[ "$log" == *$'\033[1;38;5;209mWhat gets committed:\033[0m'* ]]
+    [[ "$log" != *$'\033[1;38;5;209m  '* ]]
+}

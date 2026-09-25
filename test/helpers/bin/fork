@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Merge tool stub (the default GITBASH_MERGE_COMMAND): records the arguments
+printf "%s\n" "$*" >> "${MERGE_TOOL_LOG:?}"

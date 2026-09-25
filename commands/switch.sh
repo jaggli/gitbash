@@ -100,7 +100,7 @@ switch() {
       return 0
       ;;
     -h|--help)
-      cat << 'EOF'
+      gb_help << 'EOF'
 Usage: switch [FILTER...]
 
 Select a git branch using fzf and switch to it.
@@ -192,9 +192,9 @@ EOF
             remote) ref=\"refs/remotes/\$name\" ;;
             *) echo 'Spacer - not selectable'; exit 0 ;;
           esac
-          git log --color=always -n 1 --format='%C(bold cyan)Author:%C(reset) %an%n%C(bold cyan)Date:%C(reset) %ar (%ad)%n%C(bold cyan)Message:%C(reset) %s%n' --date=format:'%Y-%m-%d %H:%M' \"\$ref\" 2>/dev/null
+          git log --color=\$GB_COLOR -n 1 --format='%C(bold cyan)Author:%C(reset) %an%n%C(bold cyan)Date:%C(reset) %ar (%ad)%n%C(bold cyan)Message:%C(reset) %s%n' --date=format:'%Y-%m-%d %H:%M' \"\$ref\" 2>/dev/null
           echo
-          git log --oneline --color=always -n 10 \"\$ref\" 2>/dev/null
+          git log --oneline --color=\$GB_COLOR -n 10 \"\$ref\" 2>/dev/null
         " \
         --preview-window=right:50% \
         --header="[Enter] switch | [Del] delete local branch | [Esc] exit | Current: $current_branch" \
