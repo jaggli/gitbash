@@ -182,6 +182,14 @@ repo [--print]
 
 Open the repository's web page in the browser: via the GitHub CLI (`gh repo view --web`) when available, otherwise the URL derived from the remote (GitHub, GitHub Enterprise, GitLab, Bitbucket, Azure DevOps). `--print` prints the URL.
 
+### reset-repo
+
+```bash
+reset-repo [-n|--dry-run] [-y|--yes]
+```
+
+Reset the current branch like a fresh clone: fetch, `git reset --hard <remote>/<branch>` and delete all untracked and ignored files (`git clean -dx`). Lists the unpushed commits, local changes and files it removes and asks first. Aborts an unfinished merge or rebase. Files matching `GITBASH_RESET_KEEP` (e.g. `.env`), `.gitbashrc-user` and nested repositories are kept; stashes and other branches are not touched.
+
 ### update
 
 ```bash
@@ -297,6 +305,9 @@ GITBASH_CLEANUP_DAYS="7"
 
 # Branches never offered for deletion, space-separated globs
 GITBASH_PROTECTED_BRANCHES="main master develop release/*"
+
+# Files 'reset-repo' keeps, space-separated .gitignore patterns, e.g. ".env .idea/" (default: "")
+GITBASH_RESET_KEEP=""
 
 # Base branch (default: detected from origin/HEAD, then main, then master)
 GITBASH_BASE_BRANCH=""
