@@ -139,3 +139,15 @@ json_field() {
     fzf_env | grep -qx "FZF_DEFAULT_OPTS="
     fzf_env | grep -q "^SHELL=.*bash$"
 }
+
+@test "shows the author, not the committer (GitHub 'Update branch' merges)" {
+    git switch --quiet -c web-merged
+    printf 'w\n' > w.txt
+    git add w.txt
+    GIT_AUTHOR_NAME="Jane Doe" GIT_AUTHOR_EMAIL="jane@example.com" \
+        GIT_COMMITTER_NAME="GitHub" GIT_COMMITTER_EMAIL="noreply@github.com" \
+        git commit --quiet -m "Merge branch 'main' into web-merged"
+    git switch --quiet main
+    [ "$(json_field web-merged author_name)" = '"Jane Doe"' ]
+    [ "$(json_field web-merged author_email)" = '"jane@example.com"' ]
+}

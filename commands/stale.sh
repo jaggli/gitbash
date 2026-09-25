@@ -63,7 +63,7 @@ Examples:
   $ stale --json
 
 Output format:
-  <branch-name>   <relative-date>   <last committer>
+  <branch-name>   <relative-date>   <last author>
 
 Requirements:
   - Must be in a git repository
@@ -167,7 +167,7 @@ EOF
             stale_list+="$row"
         fi
     done < <(git for-each-ref --sort=committerdate \
-        --format="%(refname:short)%1f%(committerdate:unix)%1f%(committerdate:relative)%1f%(committeremail)%1f%(committername)" \
+        --format="%(refname:short)%1f%(committerdate:unix)%1f%(committerdate:relative)%1f%(authoremail)%1f%(authorname)" \
         "refs/remotes/$remote" 2>/dev/null)
 
     if [[ "$json_mode" == true ]]; then

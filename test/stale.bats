@@ -34,6 +34,21 @@ setup() {
     [[ "$output" != *'"name":"develop"'* ]]
 }
 
+@test "shows the author, not the committer (GitHub 'Update branch' merges)" {
+    git switch --quiet -c feature/web-merged main
+    printf 'w\n' > w.txt
+    git add w.txt
+    GIT_AUTHOR_NAME="Jane Doe" GIT_AUTHOR_EMAIL="jane@example.com" \
+        GIT_COMMITTER_NAME="GitHub" GIT_COMMITTER_EMAIL="noreply@github.com" \
+        GIT_AUTHOR_DATE="2020-01-01T00:00:00" GIT_COMMITTER_DATE="2020-01-01T00:00:00" \
+        git commit --quiet -m "Merge branch 'main' into feature/web-merged"
+    git push --quiet -u origin feature/web-merged 2>/dev/null
+    git switch --quiet main
+    run gb stale --json
+    [[ "$output" == *'"author_email":"jane@example.com","author_name":"Jane Doe","name":"feature/web-merged"'* ]]
+    [[ "$output" != *'GitHub'* ]]
+}
+
 @test "the picker never offers protected branches, even in 'all' mode" {
     run gb stale --all
     ! fzf_input | cut -f2 | grep -qx main
