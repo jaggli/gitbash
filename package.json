@@ -44,7 +44,7 @@
     "test": "bats test",
     "changeset": "changeset",
     "version": "changeset version",
-    "release": "npm run version && VERSION=$(node -p \"require('./package.json').version\") && ./bin/gitbash commit --yes -p \"chore: release v$VERSION\" && git tag \"v$VERSION\" && git push origin \"v$VERSION\" && npm publish"
+    "release": "scripts/release.sh"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",
