@@ -69,18 +69,6 @@ eval "$(gitbash --init --prefix=gb-)" # gb-commit, gb-switch, ... (avoids shadow
 
 This defines small wrapper functions; every command still runs in its own bash process, so nothing else is added to your shell. Individual aliases work too, e.g. `alias commit="gitbash commit"`.
 
-### Upgrading to 2.0
-
-2.0 is a security and safety release. What changes for you:
-
-- **Restart your shell** after upgrading, so `eval "$(gitbash --init)"` picks up the new wrapper functions.
-- Config files are **read, not executed**: only plain `GITBASH_*="value"` lines are used, other lines are ignored with a warning. `GITBASH_MERGE_COMMAND` is ignored in a committed `.gitbashrc`.
-- `status` no longer commits and pushes after staging. Use `Ctrl-O` to commit.
-- `stale` toggles all/stale branches with `Ctrl-T` (was `Ctrl-A`).
-- Protected branches (base branch and `GITBASH_PROTECTED_BRANCHES`) are never offered for deletion. `cleanup` and `switch` delete with `git branch -d` and ask again before force-deleting unmerged work.
-- When your branch and the remote diverged, `commit -p`, `pr -p` and `update -p` ask whether to rebase, merge or abort instead of rebasing silently.
-- fzf 0.36 or newer is required for the interactive menus.
-
 ## Commands
 
 ### branch

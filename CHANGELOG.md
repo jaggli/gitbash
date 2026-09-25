@@ -12,6 +12,16 @@
 
 - 30949c3: gitbash 2.0: security, safety and reliability release.
 
+  **Upgrading from 1.x**
+
+  - **Restart your shell** after upgrading, so `eval "$(gitbash --init)"` picks up the new wrapper functions.
+  - Config files are **read, not executed**: only plain `GITBASH_*="value"` lines are used, other lines are ignored with a warning. `GITBASH_MERGE_COMMAND` is ignored in a committed `.gitbashrc`.
+  - `status` no longer commits and pushes after staging. Use `Ctrl-O` to commit.
+  - `stale` toggles all/stale branches with `Ctrl-T` (was `Ctrl-A`).
+  - Protected branches (base branch and `GITBASH_PROTECTED_BRANCHES`) are never offered for deletion. `cleanup` and `switch` delete with `git branch -d` and ask again before force-deleting unmerged work.
+  - When your branch and the remote diverged, `commit -p`, `pr -p` and `update -p` ask whether to rebase, merge or abort instead of rebasing silently.
+  - fzf 0.36 or newer is required for the interactive menus.
+
   **Security**
 
   - Config files (`~/.gitbashrc`, `.gitbashrc`, `.gitbashrc-user`) are now parsed instead of executed. Before, a cloned repository could run arbitrary code through its `.gitbashrc`.
