@@ -92,11 +92,17 @@ setup() {
 
 @test "help headings are colored in a terminal" {
     command -v python3 >/dev/null || skip "python3 not installed"
-    run python3 "$HELPERS_DIR/pty_run.py" "'$GB' --help"
-    [[ "$output" == *$'\033[1;38;5;209mCommands:\033[0m'* ]]
+    export PTY_LOG="$BATS_TEST_TMPDIR/pty-help"
+    run python3 "$HELPERS_DIR/pty_run.py" "\"${GB_BASH:-bash}\" \"$GB\" --help"
+    [ "$status" -eq 0 ]
+    [[ "$(cat "$PTY_LOG")" == *$'\033[1;38;5;209mCommands:\033[0m'* ]]
 
-    run python3 "$HELPERS_DIR/pty_run.py" "'$GB' commit --help"
-    [[ "$output" == *$'\033[1;38;5;209mUsage:\033[0m commit'* ]]
-    [[ "$output" == *$'\033[1;38;5;209mWhat gets committed:\033[0m'* ]]
-    [[ "$output" != *$'\033[1;38;5;209m  '* ]]
+    export PTY_LOG="$BATS_TEST_TMPDIR/pty-commit"
+    run python3 "$HELPERS_DIR/pty_run.py" "\"${GB_BASH:-bash}\" \"$GB\" commit --help"
+    [ "$status" -eq 0 ]
+    local log
+    log=$(cat "$PTY_LOG")
+    [[ "$log" == *$'\033[1;38;5;209mUsage:\033[0m commit'* ]]
+    [[ "$log" == *$'\033[1;38;5;209mWhat gets committed:\033[0m'* ]]
+    [[ "$log" != *$'\033[1;38;5;209m  '* ]]
 }
