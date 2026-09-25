@@ -12,6 +12,29 @@ Pure bash, zero-dependency git utilities. Reduce repetitive typing and superchar
 npm i -g gitbash && gitbash --config
 ```
 
+### Via install script (no npm or node needed)
+
+```bash
+# curl
+curl -fsSL https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh | sh
+
+# wget
+wget -qO- https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh | sh
+```
+
+This downloads the latest GitHub release to `~/.local/share/gitbash` and links `~/.local/bin/gitbash`. Run it again to upgrade. Options are set as environment variables:
+
+```bash
+# Install a specific version
+curl -fsSL https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh | GITBASH_VERSION=2.0.1 sh
+
+# Custom locations (e.g. system-wide)
+curl -fsSL https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh \
+  | sudo GITBASH_INSTALL_DIR=/usr/local/share/gitbash GITBASH_BIN_DIR=/usr/local/bin sh
+```
+
+To uninstall, remove `~/.local/share/gitbash` and `~/.local/bin/gitbash`.
+
 ### Options
 
 ```bash

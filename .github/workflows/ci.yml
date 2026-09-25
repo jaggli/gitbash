@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: shellcheck
-        run: shellcheck -x bin/gitbash commands/*.sh scripts/*.sh test/helpers/bin/*
+        run: shellcheck -x install.sh bin/gitbash commands/*.sh scripts/*.sh test/helpers/bin/*
 
   test:
     name: test (${{ matrix.name }})
