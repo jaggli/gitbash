@@ -120,7 +120,7 @@ setup() {
 }
 
 @test "help headings are colored in a terminal" {
-    command -v python3 >/dev/null || skip "python3 not installed"
+    require_pty
     export PTY_LOG="$BATS_TEST_TMPDIR/pty-help"
     run python3 "$HELPERS_DIR/pty_run.py" "\"${GB_BASH:-bash}\" \"$GB\" --help"
     [ "$status" -eq 0 ]

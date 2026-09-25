@@ -13,10 +13,8 @@ setup() {
         break
     done < <(type -ap fzf)
     [[ -n "$REAL_FZF" ]] || skip "real fzf not installed"
-    # All but the version check drive fzf in a pty (not available on Windows)
-    if [[ "$BATS_TEST_DESCRIPTION" != "installed fzf meets the minimum version" ]]; then
-        python3 -c 'import pty, termios' 2>/dev/null || skip "python3 with pty support not installed"
-    fi
+    # All but the version check drive fzf in a pty
+    [[ "$BATS_TEST_DESCRIPTION" == "installed fzf meets the minimum version" ]] || require_pty
     # Put the real fzf ahead of the stub
     mkdir -p "$BATS_TEST_TMPDIR/real-bin"
     # A script, not a symlink: Git Bash on Windows copies instead of linking

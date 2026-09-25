@@ -85,9 +85,11 @@ install_pnpm_copy() {
 
 @test "--init of a pnpm install uses the link that follows updates" {
     install_pnpm_copy
+    local root
+    root=$(cd -P "$PNPM_STUB_ROOT" && pwd)
     run gb --init
     [ "$status" -eq 0 ]
-    [[ "$output" == *"$PNPM_STUB_ROOT/gitbash/bin/gitbash commit"* ]]
+    [[ "$output" == *"$root/gitbash/bin/gitbash commit"* ]]
     [[ "$output" != *".pnpm"* ]]
 }
 
@@ -204,7 +206,7 @@ EOF
 }
 
 @test "asks at a terminal and 'skip' never asks about that version again" {
-    command -v python3 >/dev/null || skip "python3 not installed"
+    require_pty
     write_state "$(date +%s)" "9.9.9" 0 ""
     WAIT_FOR="(y/N/s):" KEYS='s\r' run in_pty stash --version
     [ "$status" -eq 0 ]
@@ -224,7 +226,7 @@ EOF
 }
 
 @test "'not now' asks again only after two days" {
-    command -v python3 >/dev/null || skip "python3 not installed"
+    require_pty
     write_state "$(date +%s)" "9.9.9" 0 ""
     WAIT_FOR="(y/N/s):" KEYS='n\r' run in_pty stash --version
     [[ "$output" == *"is available"* ]]
@@ -243,7 +245,7 @@ EOF
 }
 
 @test "'yes' updates and runs the command with the new version" {
-    command -v python3 >/dev/null || skip "python3 not installed"
+    require_pty
     write_state "$(date +%s)" "9.9.9" 0 ""
     WAIT_FOR="(y/N/s):" KEYS='y\r' run in_pty stash --version
     [ "$status" -eq 0 ]
@@ -252,7 +254,7 @@ EOF
 }
 
 @test "'yes' updates a pnpm install and runs the command with the new version" {
-    command -v python3 >/dev/null || skip "python3 not installed"
+    require_pty
     install_pnpm_copy
     write_state "$(date +%s)" "9.9.9" 0 ""
     WAIT_FOR="(y/N/s):" KEYS='y\r' run in_pty stash --version
@@ -262,7 +264,7 @@ EOF
 }
 
 @test "never asks when gitbash runs itself from a command" {
-    command -v python3 >/dev/null || skip "python3 not installed"
+    require_pty
     write_state "$(date +%s)" "9.9.9" 0 ""
     GITBASH_NESTED=1 run in_pty stash --version
     [ "$status" -eq 0 ]
