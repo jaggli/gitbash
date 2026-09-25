@@ -19,6 +19,10 @@ gitbash --config
 Shell integration (lets you type `commit` instead of `gitbash commit`):
 
 ```bash
+## for bash
+echo 'eval "$(gitbash --init)"' >> ~/.bashrc
+
+## for zsh
 echo 'eval "$(gitbash --init)"' >> ~/.zshrc
 ```
 
@@ -33,7 +37,11 @@ gitbash --config
 Shell integration:
 
 ```bash
-echo 'eval "$(gitbash --init)"' >> ~/.bashrc   # zsh: ~/.zshrc
+## for bash
+echo 'eval "$(gitbash --init)"' >> ~/.bashrc
+
+## for zsh
+echo 'eval "$(gitbash --init)"' >> ~/.zshrc
 ```
 
 ### Windows
