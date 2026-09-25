@@ -402,7 +402,7 @@ Commands:
   cleanstash  Delete stashes (multi-select)
   cleanup     Find and delete leftover local branches
   commit      Commit with optional push
-  commits     List recent commits with revert option
+  commits     List the branch's commits with revert option
   create      Create feature branch with Jira parsing
   pr          Open PR in browser
   repo        Open the repository in browser
