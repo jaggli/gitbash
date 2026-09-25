@@ -66,6 +66,8 @@ Shell integration for PowerShell: create the functions in Git Bash, then load th
 gitbash --init --shell=pwsh > ~/gitbash.ps1   # switch is a PowerShell keyword: use gitbash switch
 ```
 
+This creates your PowerShell profile if needed, loads `gitbash.ps1` from it in every new window, and allows local scripts to run (Windows PowerShell 5.1 blocks them by default):
+
 ```powershell
 if (!(Test-Path $PROFILE)) { New-Item -Force $PROFILE }
 Add-Content $PROFILE '. ~/gitbash.ps1'
