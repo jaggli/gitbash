@@ -65,22 +65,28 @@ json_field() {
     printf '%s' "$1" | tr ',{}' '\n\n\n' | sed -n "s/^\"$2\":\"\([^\"]*\)\"\$/\1/p" | head -n 1
 }
 
+# Returns 0 for a plain version number like 3.0.0 (digits and exactly two dots)
+valid_version() {
+    case "$1" in
+        *[!0-9.]*|.*|*.|*..*|*.*.*.*) return 1 ;;
+        *.*.*) return 0 ;;
+    esac
+    return 1
+}
+
 # Resolve the version, then read its tarball URL and checksum from npm
 version="${GITBASH_VERSION:-latest}"
 version="${version#v}"
-case "$version" in
-    latest|[0-9]*.[0-9]*.[0-9]*) ;;
-    *) die "invalid GITBASH_VERSION '$version' (use e.g. 3.0.0)" ;;
-esac
+if [ "$version" != latest ] && ! valid_version "$version"; then
+    die "invalid GITBASH_VERSION '$version' (use e.g. 3.0.0)"
+fi
 if [ "$version" = latest ]; then
     # Not the version document's "version": its npm scripts have one too
     tags="$(fetch "https://registry.npmjs.org/-/package/gitbash/dist-tags")" ||
         die "could not look up the latest version on npm (set GITBASH_VERSION to pick one)"
     version="$(json_field "$tags" latest)"
-    case "$version" in
-        [0-9]*.[0-9]*.[0-9]*) ;;
-        *) die "could not look up the latest version on npm (set GITBASH_VERSION to pick one)" ;;
-    esac
+    valid_version "$version" ||
+        die "could not look up the latest version on npm (set GITBASH_VERSION to pick one)"
 fi
 meta="$(fetch "$REGISTRY/$version")" || die "could not find gitbash $version on npm"
 tarball="$(json_field "$meta" tarball)"

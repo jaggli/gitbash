@@ -68,9 +68,17 @@ publish() {
 }
 
 @test "install.sh rejects invalid versions and unknown ones" {
-    GITBASH_VERSION='1;rm -rf' run sh "$PROJECT_DIR/install.sh"
+    local v
+    for v in '1;rm -rf' '1.2.3/../../x' '1.2.3.4' '1..2.3' '.1.2.3' 'a.b.c' "1.2.3
+4.5.6"; do
+        GITBASH_VERSION="$v" run sh "$PROJECT_DIR/install.sh"
+        [ "$status" -eq 1 ]
+        [[ "$output" == *"invalid GITBASH_VERSION"* ]] || false
+    done
+    echo '{"latest":"9.1.0/../../evil/1.0.0"}' > "$NPM_STUB_DIR/dist-tags.json"
+    run sh "$PROJECT_DIR/install.sh"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"invalid GITBASH_VERSION"* ]]
+    [[ "$output" == *"could not look up the latest version"* ]] || false
     GITBASH_VERSION=8.8.8 run sh "$PROJECT_DIR/install.sh"
     [ "$status" -eq 1 ]
     [[ "$output" == *"could not find gitbash 8.8.8 on npm"* ]]
