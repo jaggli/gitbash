@@ -70,6 +70,17 @@ STUB
     [[ "$output" == *"Don't know how to open"* ]]
 }
 
+@test "credentials in a remote URL that can't be opened are not printed" {
+    git remote set-url origin "https://alice:ghp_secret@git.example.test"
+    run gb repo
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Don't know how to open 'https://git.example.test'"* ]]
+    [[ "$output" != *ghp_secret* && "$output" != *alice* ]]
+    run gb pr --print
+    [ "$status" -eq 1 ]
+    [[ "$output" != *ghp_secret* ]]
+}
+
 @test "repo rejects unknown arguments" {
     run gb repo --nope
     [ "$status" -eq 1 ]

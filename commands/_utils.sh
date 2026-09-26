@@ -711,6 +711,12 @@ gb_web_url() {
     echo "$scheme://$host/$path"
 }
 
+# A remote URL for messages, without user name and password or token
+# (https://user:token@host/path -> https://host/path)
+gb_redact_url() {
+    printf '%s' "$1" | sed -E 's#^([A-Za-z][A-Za-z0-9+.-]*://)[^/@]*@#\1#'
+}
+
 # Open a URL in the browser, or print it if no opener is available
 gb_open_url() {
     local url="$1"

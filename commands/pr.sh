@@ -102,7 +102,7 @@ EOF
     return 1
   fi
   if ! base=$(gb_web_url "$remote_url"); then
-    print_error "Don't know how to open '$remote_url' in a browser."
+    print_error "Don't know how to open '$(gb_redact_url "$remote_url")' in a browser."
     return 1
   fi
 
