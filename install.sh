@@ -1,11 +1,15 @@
 #!/bin/sh
-# gitbash installer - installs gitbash from a GitHub release, no npm or node needed.
+# gitbash installer - installs gitbash without npm or node.
+#
+# Downloads the package published on npm (released only from GitHub Actions,
+# with provenance, after approval with 2FA) and checks it against the sha512
+# integrity npm records for that version before installing anything.
 #
 #   curl -fsSL https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh | sh
 #   wget -qO- https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh | sh
 #
 # Environment:
-#   GITBASH_VERSION      version to install, e.g. 2.0.1 or v2.0.1 (default: latest release)
+#   GITBASH_VERSION      version to install, e.g. 3.0.0 or v3.0.0 (default: latest)
 #   GITBASH_INSTALL_DIR  where the files go (default: ${XDG_DATA_HOME:-~/.local/share}/gitbash)
 #   GITBASH_BIN_DIR      where the gitbash symlink goes (default: ~/.local/bin)
 #
@@ -14,7 +18,7 @@
 # Run it again, or 'gitbash --update', to upgrade.
 set -eu
 
-REPO="jaggli/gitbash"
+REGISTRY="https://registry.npmjs.org/gitbash"
 INSTALL_DIR="${GITBASH_INSTALL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/gitbash}"
 BIN_DIR="${GITBASH_BIN_DIR:-$HOME/.local/bin}"
 
@@ -34,14 +38,60 @@ command -v tar >/dev/null 2>&1 || die "tar is required"
 command -v bash >/dev/null 2>&1 || die "bash is required to run gitbash"
 command -v git >/dev/null 2>&1 || say "Warning: git is not installed; gitbash needs git >= 2.23."
 
-# Resolve the version
-version="${GITBASH_VERSION:-}"
-if [ -z "$version" ]; then
-    version="$(fetch "https://api.github.com/repos/$REPO/releases/latest" \
-        | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)" || true
-    [ -n "$version" ] || die "could not determine the latest release (set GITBASH_VERSION to pick one)"
+# SHA-512 of a file, in hex
+sha512_hex() {
+    if command -v sha512sum >/dev/null 2>&1; then
+        sha512sum "$1" | cut -d ' ' -f 1
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 512 "$1" | cut -d ' ' -f 1
+    elif command -v openssl >/dev/null 2>&1; then
+        openssl dgst -sha512 "$1" | sed 's/.*= *//'
+    else
+        return 1
+    fi
+}
+
+# Base64 (npm's integrity format) to hex
+base64_to_hex() {
+    { printf '%s' "$1" | base64 -d 2>/dev/null ||
+      printf '%s' "$1" | base64 -D 2>/dev/null ||
+      printf '%s' "$1" | openssl base64 -d -A 2>/dev/null; } | od -An -v -tx1 | tr -d ' \n'
+}
+
+# A string field of npm's (single-line) version document
+json_field() {
+    # shellcheck disable=SC2020  # each of , { } becomes a newline
+    printf '%s' "$1" | tr ',{}' '\n\n\n' | sed -n "s/^\"$2\":\"\([^\"]*\)\"\$/\1/p" | head -n 1
+}
+
+# Resolve the version, then read its tarball URL and checksum from npm
+version="${GITBASH_VERSION:-latest}"
+version="${version#v}"
+case "$version" in
+    latest|[0-9]*.[0-9]*.[0-9]*) ;;
+    *) die "invalid GITBASH_VERSION '$version' (use e.g. 3.0.0)" ;;
+esac
+if [ "$version" = latest ]; then
+    # Not the version document's "version": its npm scripts have one too
+    tags="$(fetch "https://registry.npmjs.org/-/package/gitbash/dist-tags")" ||
+        die "could not look up the latest version on npm (set GITBASH_VERSION to pick one)"
+    version="$(json_field "$tags" latest)"
+    case "$version" in
+        [0-9]*.[0-9]*.[0-9]*) ;;
+        *) die "could not look up the latest version on npm (set GITBASH_VERSION to pick one)" ;;
+    esac
 fi
-version="v${version#v}"
+meta="$(fetch "$REGISTRY/$version")" || die "could not find gitbash $version on npm"
+tarball="$(json_field "$meta" tarball)"
+integrity="$(json_field "$meta" integrity)"
+case "$tarball" in
+    "$REGISTRY/-/gitbash-$version.tgz") ;;
+    *) die "unexpected package location '$tarball'" ;;
+esac
+case "$integrity" in
+    sha512-?*) ;;
+    *) die "npm has no sha512 checksum for gitbash $version" ;;
+esac
 
 # Refuse to replace a directory that is not a gitbash install
 if [ -e "$INSTALL_DIR" ] && [ ! -f "$INSTALL_DIR/bin/gitbash" ]; then
@@ -52,14 +102,20 @@ tmp="$(mktemp -d 2>/dev/null || mktemp -d -t gitbash)"
 trap 'rm -rf "$tmp"' EXIT INT TERM
 
 say "Downloading gitbash $version..."
-fetch_to "https://github.com/$REPO/archive/refs/tags/$version.tar.gz" "$tmp/gitbash.tar.gz" \
-    || die "download failed; does release $version exist?"
-mkdir "$tmp/src"
-tar -xzf "$tmp/gitbash.tar.gz" -C "$tmp/src"
-src="$(find "$tmp/src" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-if [ -z "$src" ] || [ ! -f "$src/bin/gitbash" ]; then
-    die "unexpected archive layout"
+fetch_to "$tarball" "$tmp/gitbash.tgz" || die "download failed"
+
+# Nothing is unpacked before the checksum matches
+expected="$(base64_to_hex "${integrity#sha512-}")"
+actual="$(sha512_hex "$tmp/gitbash.tgz")" || die "sha512sum, shasum or openssl is required to verify the download"
+if [ -z "$expected" ] || [ "$actual" != "$expected" ]; then
+    die "checksum mismatch for gitbash $version: the download was not installed"
 fi
+say "Verified sha512 checksum."
+
+mkdir "$tmp/src"
+tar -xzf "$tmp/gitbash.tgz" -C "$tmp/src"
+src="$tmp/src/package"
+[ -f "$src/bin/gitbash" ] || die "unexpected package layout"
 
 # Copy only what gitbash needs at runtime
 mkdir "$tmp/install"

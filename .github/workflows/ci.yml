@@ -16,7 +16,7 @@ jobs:
         with:
           persist-credentials: false
       - name: shellcheck
-        run: shellcheck -x install.sh bin/gitbash commands/*.sh scripts/*.sh test/helpers/bin/* test/helpers/update-bin/*
+        run: shellcheck -x install.sh bin/gitbash commands/*.sh scripts/*.sh test/helpers/bin/* test/helpers/update-bin/* test/helpers/install-bin/*
 
   test:
     name: test (${{ matrix.name }})

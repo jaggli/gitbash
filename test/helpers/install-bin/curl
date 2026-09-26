@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# curl stub for install.sh tests: serves npm's dist-tags ($NPM_STUB_DIR/dist-tags.json),
+# version documents ($NPM_STUB_DIR/<version>.json) and tarballs ($NPM_STUB_DIR/<file>.tgz).
+# Fails like curl -f for anything else.
+out=""
+while [[ $# -gt 1 ]]; do
+    case "$1" in
+        -o) out="$2"; shift ;;
+    esac
+    shift
+done
+url="$1"
+case "$url" in
+    https://registry.npmjs.org/-/package/gitbash/dist-tags) file="$NPM_STUB_DIR/dist-tags.json" ;;
+    https://registry.npmjs.org/gitbash/-/*.tgz) file="$NPM_STUB_DIR/${url##*/}" ;;
+    https://registry.npmjs.org/gitbash/*) file="$NPM_STUB_DIR/${url##*/}.json" ;;
+    *) exit 22 ;;
+esac
+[[ -f "$file" ]] || exit 22
+if [[ -n "$out" ]]; then cp "$file" "$out"; else cat "$file"; fi
