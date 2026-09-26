@@ -184,7 +184,7 @@ Showing $scope" \
     echo
     echo "Commits to revert (newest first):"
     for hash in "${to_revert[@]}"; do
-        echo "  - $(git log -1 --format='%h %s' "$hash")"
+        echo "  - $(git log -1 --format='%h %s' "$hash" | gb_sanitize)"
     done
     echo
 

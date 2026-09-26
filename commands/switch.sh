@@ -72,7 +72,7 @@ _switch_delete_branch() {
 
   count=$(git rev-list --count "refs/heads/$name" --not --remotes "$(gb_base_ref "$(gb_base_branch 2>/dev/null || echo HEAD)")" 2>/dev/null || echo "?")
   print_warning "'$name' has $count commit(s) that are not merged or pushed:"
-  git log --oneline -n 10 "refs/heads/$name" --not --remotes 2>/dev/null | sed 's/^/    /'
+  git log --oneline -n 10 "refs/heads/$name" --not --remotes 2>/dev/null | gb_sanitize | sed 's/^/    /'
   if gb_confirm --strict "Force-delete '$name' and lose these commits?" n; then
     if git branch -D "$name" >/dev/null 2>&1; then
       print_success "Force-deleted $name"

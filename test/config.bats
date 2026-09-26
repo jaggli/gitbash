@@ -233,3 +233,10 @@ STUB
     run gb repo --print
     [[ "$output" == *"Invalid GITBASH_REMOTE"* ]]
 }
+
+@test "warnings don't print terminal control sequences from a config file" {
+    printf 'junk\033]52;c;ZWNobw==\a\n' > .gitbashrc
+    run gb stash --version
+    [[ "$output" == *"ignored (config files are no longer executed): junk]52;c;ZWNobw=="* ]]
+    [[ "$output" != *$'\033'* && "$output" != *$'\a'* ]]
+}

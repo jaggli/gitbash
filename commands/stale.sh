@@ -268,7 +268,7 @@ TOGGLE_EOF
 
     echo
     echo "Selected branches to delete from '$remote':"
-    printf '  - %s\n' "${branches_to_delete[@]}"
+    printf '  - %s\n' "${branches_to_delete[@]}" | gb_sanitize
     echo
 
     if ! gb_confirm --strict "Delete these ${#branches_to_delete[@]} branch(es) from '$remote'? This cannot be undone from here." n; then

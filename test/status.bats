@@ -105,3 +105,11 @@ status_list() {
     fi
     ! fzf_args | grep -q 'delta --light'
 }
+
+@test "terminal control sequences in file names are not printed" {
+    printf 'x\n' > "$(printf 'notes\033]52;c;ZWNobw==\a.txt')"
+    fzf_plan "notes" "esc"
+    run gb status
+    [[ "$output" == *"Staging: notes]52;c;ZWNobw==.txt"* ]]
+    [[ "$output" != *$'\033'* && "$output" != *$'\a'* ]]
+}

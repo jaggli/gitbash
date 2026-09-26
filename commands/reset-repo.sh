@@ -147,17 +147,17 @@ EOF_HELP
   if [[ -n "$lost_commits" ]]; then
     echo
     print_warning "$(printf '%s\n' "$lost_commits" | wc -l | tr -d ' ') unpushed commit(s) will be removed from '$branch':"
-    printf '%s\n' "$lost_commits" | sed 's/^/    /'
+    printf '%s\n' "$lost_commits" | gb_sanitize | sed 's/^/    /'
   fi
   if [[ -n "$changes" ]]; then
     echo
     echo "Local changes to discard:"
-    printf '%s\n' "$changes" | sed 's/^/    /'
+    printf '%s\n' "$changes" | gb_sanitize | sed 's/^/    /'
   fi
   if [[ -n "$untracked" ]]; then
     echo
     echo "Untracked and ignored files to delete:"
-    printf '%s\n' "$untracked" | sed 's/^Would remove /    /'
+    printf '%s\n' "$untracked" | gb_sanitize | sed 's/^Would remove /    /'
   fi
   if [[ ${#keep[@]} -gt 1 ]]; then
     echo

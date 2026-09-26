@@ -57,13 +57,24 @@ else
 fi
 export GB_COLOR
 
+# Remove terminal control characters from text read from stdin: C0 controls
+# except tab and newline (ESC, BEL, CR, ...), DEL, and C1 controls in UTF-8.
+# Commit messages, file names, branch names and config lines come from
+# repositories and could otherwise change the clipboard or fake output.
+gb_sanitize() {
+    local c1
+    c1=$(printf '\302[\200-\237]')
+    LC_ALL=C tr -d '\000-\010\013-\037\177' | LC_ALL=C sed "s/$c1//g"
+}
+
 _gb_print() {
-    local fd="$1" color="$2" symbol="$3"
+    local fd="$1" color="$2" symbol="$3" text
     shift 3
+    text=$(printf '%s' "$*" | gb_sanitize)
     if _gb_color_ok "$fd"; then
-        printf '\033[%sm%s\033[0m %s\n' "$color" "$symbol" "$*" >&"$fd"
+        printf '\033[%sm%s\033[0m %s\n' "$color" "$symbol" "$text" >&"$fd"
     else
-        printf '%s %s\n' "$symbol" "$*" >&"$fd"
+        printf '%s %s\n' "$symbol" "$text" >&"$fd"
     fi
 }
 

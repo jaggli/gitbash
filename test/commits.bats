@@ -115,3 +115,12 @@ setup() {
     [ "$status" -eq 1 ]
     [[ "$output" == *"Unknown option"* ]]
 }
+
+@test "terminal control sequences in commit messages are not printed" {
+    commit_file b.txt "b" "$(printf 'fix\033]52;c;ZWNobw==\a\033[2K\rfake')"
+    export FZF_STUB_STEP="fix"
+    run gb commits --all
+    [[ "$output" == *"Commits to revert"* ]]
+    [[ "$output" == *"fix]52;c;ZWNobw==[2Kfake"* ]]
+    [[ "$output" != *$'\033'* && "$output" != *$'\a'* && "$output" != *$'\r'* ]]
+}

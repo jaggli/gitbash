@@ -159,3 +159,14 @@ json_field() {
     [ "$status" -eq 0 ]
     git show-ref --verify --quiet refs/heads/old-merged
 }
+
+@test "C1 control characters in branch names are not printed" {
+    local name
+    name="old$(printf '\302\233')2J"
+    commit_file old.txt "old" "old work" "2020-01-01T00:00:00"
+    git push --quiet origin main 2>/dev/null
+    git branch "$name"
+    run gb cleanup --dry-run
+    [[ "$output" == *"  - old2J"* ]]
+    [[ "$output" != *$'\302\233'* ]]
+}
