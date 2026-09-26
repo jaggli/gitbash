@@ -269,7 +269,12 @@ _gb_normalize_config() {
         GITBASH_CLEANUP_DAYS=7
     fi
     GITBASH_CLEANUP_DAYS="${GITBASH_CLEANUP_DAYS:-7}"
-    if ! [[ "${GITBASH_REMOTE:-origin}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    # Values reach git as arguments: a leading '-' would be read as an option
+    if [[ -n "$GITBASH_BASE_BRANCH" ]] && ! _gb_valid_branch_name "$GITBASH_BASE_BRANCH"; then
+        print_warning "Invalid GITBASH_BASE_BRANCH '$GITBASH_BASE_BRANCH', detecting the base branch instead."
+        GITBASH_BASE_BRANCH=""
+    fi
+    if ! [[ "${GITBASH_REMOTE:-origin}" =~ ^[A-Za-z0-9._][A-Za-z0-9._-]*$ ]]; then
         print_warning "Invalid GITBASH_REMOTE '$GITBASH_REMOTE', using 'origin'."
         GITBASH_REMOTE="origin"
     fi
@@ -345,15 +350,24 @@ gb_current_branch() {
     git symbolic-ref --quiet --short HEAD 2>/dev/null
 }
 
-# Detect the base branch: GITBASH_BASE_BRANCH, <remote>/HEAD, main, master
+# Returns 0 if $1 is a valid branch name that can't be mistaken for an option.
+# (git itself accepts refs like "refs/heads/--output=file", so check the dash too.)
+_gb_valid_branch_name() {
+    [[ -n "$1" && "$1" != -* ]] && git check-ref-format "refs/heads/$1" >/dev/null 2>&1
+}
+
+# Detect the base branch: GITBASH_BASE_BRANCH, <remote>/HEAD, main, master.
+# The result is passed to git as an argument: names from a committed .gitbashrc
+# or from the remote are only used when valid.
 gb_base_branch() {
     local remote branch
     remote=$(gb_remote)
-    if [[ -n "${GITBASH_BASE_BRANCH:-}" ]]; then
+    if [[ -n "${GITBASH_BASE_BRANCH:-}" ]] && _gb_valid_branch_name "$GITBASH_BASE_BRANCH"; then
         echo "$GITBASH_BASE_BRANCH"
         return 0
     fi
-    if branch=$(git symbolic-ref --quiet --short "refs/remotes/$remote/HEAD" 2>/dev/null); then
+    if branch=$(git symbolic-ref --quiet --short "refs/remotes/$remote/HEAD" 2>/dev/null) &&
+       _gb_valid_branch_name "${branch#"$remote"/}"; then
         echo "${branch#"$remote"/}"
         return 0
     fi

@@ -273,7 +273,8 @@ TOGGLE_EOF
 
     local failed=0 out
     for branch in "${branches_to_delete[@]}"; do
-        if out=$(git push "$remote" --delete "$branch" 2>&1); then
+        # A refspec, not a bare name: branch names come from the remote
+        if out=$(git push "$remote" ":refs/heads/$branch" 2>&1); then
             print_success "Deleted $remote/$branch"
         else
             print_error "Failed to delete $remote/$branch:"

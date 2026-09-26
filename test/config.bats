@@ -161,3 +161,35 @@ STUB
     run bash -c 'printf "\n\n\n\n\n\n\n\n\n\n\n\n\n" | "${GB_BASH:-bash}" -c "OSTYPE=msys; source \"\$1\" --config" _ "$1"' _ "$GB"
     [[ "$output" == *"PowerShell integration already configured in $profile"* ]]
 }
+
+@test "a committed GITBASH_BASE_BRANCH cannot inject git options" {
+    local victim="$BATS_TEST_TMPDIR/victim"
+    echo "important" > "$victim"
+    printf 'GITBASH_BASE_BRANCH="--output=%s"\n' "$victim" > .gitbashrc
+    git switch --quiet -c unmerged
+    commit_file u.txt "u" "unmerged work"
+    git switch --quiet main
+    # Deleting an unmerged branch counts its commits against the base branch
+    run gb_input 'y\nn\n' switch --delete-branch $'local: unmerged\tlocal\tunmerged'
+    [[ "$output" == *"Invalid GITBASH_BASE_BRANCH"* ]]
+    [ "$(cat "$victim")" = "important" ]
+}
+
+@test "a base branch name from the remote's HEAD cannot inject git options" {
+    git push --quiet origin "main:refs/heads/--output=victim"
+    git fetch --quiet origin
+    git symbolic-ref refs/remotes/origin/HEAD "refs/remotes/origin/--output=victim"
+    # Dangling (e.g. pruned): the base ref falls back to the bare name
+    git update-ref -d "refs/remotes/origin/--output=victim"
+    git switch --quiet -c unmerged
+    commit_file u.txt "u" "unmerged work"
+    git switch --quiet main
+    run gb_input 'y\nn\n' switch --delete-branch $'local: unmerged\tlocal\tunmerged'
+    [ ! -e victim ]
+}
+
+@test "a remote name that looks like an option is rejected" {
+    echo 'GITBASH_REMOTE="--all"' > .gitbashrc
+    run gb repo --print
+    [[ "$output" == *"Invalid GITBASH_REMOTE"* ]]
+}
