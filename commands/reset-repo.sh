@@ -189,7 +189,9 @@ EOF_HELP
     return 1
   fi
   if [[ -f .gitmodules ]]; then
-    git submodule update --init --recursive --force --quiet ||
+    # Only submodules that were initialized: --init would clone every URL in
+    # the repository's .gitmodules, which a fresh clone doesn't do either
+    git submodule update --recursive --force --quiet ||
       print_warning "Failed to update submodules."
   fi
 

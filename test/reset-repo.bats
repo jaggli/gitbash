@@ -182,3 +182,36 @@ make_mess() {
     [ "$status" -eq 1 ]
     [[ "$output" == *"Unknown argument: --nope"* ]]
 }
+
+@test "reset-repo doesn't clone submodules that were never initialized" {
+    printf '[submodule "lib"]\n\tpath = lib\n\turl = https://attacker.invalid/x.git\n' > .gitmodules
+    git add .gitmodules
+    git update-index --add --cacheinfo 160000,1111111111111111111111111111111111111111,lib
+    git commit --quiet -m "submodule"
+    git push --quiet origin main 2>/dev/null
+    echo "junk" > build.log
+    run gb reset-repo -y
+    [ "$status" -eq 0 ]
+    [ -z "$(git config --get submodule.lib.url)" ]
+    [ ! -e build.log ]
+}
+
+@test "reset-repo resets initialized submodules" {
+    git config --global protocol.file.allow always
+    git init --quiet "$BATS_TEST_TMPDIR/lib"
+    commit_in() { git -C "$BATS_TEST_TMPDIR/lib" commit --quiet --allow-empty -m "$1"; }
+    commit_in "lib v1"
+    git submodule add --quiet "$BATS_TEST_TMPDIR/lib" lib 2>/dev/null
+    git commit --quiet -m "add lib"
+    git push --quiet origin main 2>/dev/null
+    local recorded
+    recorded=$(git -C lib rev-parse HEAD)
+    commit_in "lib v2"
+    git -C lib pull --quiet origin 2>/dev/null || git -C lib fetch --quiet origin
+    git -C lib checkout --quiet FETCH_HEAD 2>/dev/null || true
+    [ "$(git -C lib rev-parse HEAD)" != "$recorded" ]
+    run gb reset-repo -y
+    [ "$status" -eq 0 ]
+    [ "$(git -C lib rev-parse HEAD)" = "$recorded" ]
+}
+
