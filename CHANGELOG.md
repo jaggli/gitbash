@@ -1,5 +1,12 @@
 # gitbash
 
+## 3.0.1
+
+### Patch Changes
+
+- 2fba96a: `gitbash --config` on Windows no longer changes the PowerShell execution policy when you just press Enter: allowing local scripts now needs an explicit "y".
+- 131ceaf: The install script (and `gitbash --update` for script installs) now installs the package published on npm and verifies it against npm's sha512 checksum before installing anything, instead of downloading GitHub's tag archive unverified.
+
 ## 3.0.0
 
 ### Major Changes
