@@ -209,7 +209,7 @@ EOF
 @test "a committed .gitbashrc cannot turn off update checks" {
     echo 'GITBASH_NO_UPDATE_CHECKS="yes"' > .gitbashrc
     run gb stash --version
-    [[ "$output" == *"ignored GITBASH_NO_UPDATE_CHECKS"* ]]
+    [[ "$output" == *"ignored GITBASH_NO_UPDATE_CHECKS"* ]] || false
     sleep 0.3
     [ -e "$STATE" ]
 }

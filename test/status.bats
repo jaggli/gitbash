@@ -110,6 +110,6 @@ status_list() {
     printf 'x\n' > "$(printf 'notes\033]52;c;ZWNobw==\a.txt')"
     fzf_plan "notes" "esc"
     run gb status
-    [[ "$output" == *"Staging: notes]52;c;ZWNobw==.txt"* ]]
+    [[ "$output" == *"Staging: notes]52;c;ZWNobw==.txt"* ]] || false
     [[ "$output" != *$'\033'* && "$output" != *$'\a'* ]]
 }

@@ -70,7 +70,7 @@ EOF
     remote_commit main app.txt "main" "main change"
     run gb update
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Merge conflicts in"* ]]
+    [[ "$output" == *"Merge conflicts in"* ]] || false
     [ ! -e "$marker" ]
     # The default merge tool (stubbed) is opened instead
     [ "$(cat "$MERGE_TOOL_LOG")" = "." ]
@@ -237,6 +237,6 @@ STUB
 @test "warnings don't print terminal control sequences from a config file" {
     printf 'junk\033]52;c;ZWNobw==\a\n' > .gitbashrc
     run gb stash --version
-    [[ "$output" == *"ignored (config files are no longer executed): junk]52;c;ZWNobw=="* ]]
+    [[ "$output" == *"ignored (config files are no longer executed): junk]52;c;ZWNobw=="* ]] || false
     [[ "$output" != *$'\033'* && "$output" != *$'\a'* ]]
 }

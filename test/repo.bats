@@ -74,8 +74,8 @@ STUB
     git remote set-url origin "https://alice:ghp_secret@git.example.test"
     run gb repo
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Don't know how to open 'https://git.example.test'"* ]]
-    [[ "$output" != *ghp_secret* && "$output" != *alice* ]]
+    [[ "$output" == *"Don't know how to open 'https://git.example.test'"* ]] || false
+    [[ "$output" != *ghp_secret* && "$output" != *alice* ]] || false
     run gb pr --print
     [ "$status" -eq 1 ]
     [[ "$output" != *ghp_secret* ]]

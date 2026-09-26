@@ -167,6 +167,6 @@ json_field() {
     git push --quiet origin main 2>/dev/null
     git branch "$name"
     run gb cleanup --dry-run
-    [[ "$output" == *"  - old2J"* ]]
+    [[ "$output" == *"  - old2J"* ]] || false
     [[ "$output" != *$'\302\233'* ]]
 }
