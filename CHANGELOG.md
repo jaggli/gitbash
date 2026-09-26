@@ -1,5 +1,21 @@
 # gitbash
 
+## 3.0.0
+
+### Major Changes
+
+- a37876e: **Breaking:** `stash`, `status`, `branch`, `stashes`, `unstash`, `cleanstash` and `switch` reject unknown options and extra arguments instead of treating them as names or ignoring them (`stash -- -name` for a stash name starting with `-`).
+
+  Consistent flags: `-y/--yes` is passed on to nested commands (`pr -y` no longer asks inside `commit`), and is now available on `create`, `commits`, `unstash` and `cleanstash`. New short forms `create -p` and `cleanup -n`; `--days` and `--age` also take a separate value.
+
+- 5e1a51a: **Breaking:** pushing (`commit -p`, `pr -p`, `update -p`, `status`) now goes to the branch's upstream, e.g. a fork remote or a remote branch with a different name, instead of always to `origin/<branch>`. A branch started from `origin/main` is still pushed under its own name, never to `main`.
+
+### Patch Changes
+
+- 5c0426b: Help for `branch` and `stashes` no longer shows outdated example sessions or claims j/k navigation; README and CONTRIBUTING describe the dependencies and `create -t` correctly.
+- eeb19f7: gitbash no longer exports `VERSION`, `SCRIPT_DIR` and `GITBASH_BIN` into the environment of git hooks, editors and merge tools.
+- dc83098: Security: a committed `.gitbashrc` could set `GITBASH_BASE_BRANCH` to a git option such as `--output=<file>` and make `switch` or `cleanup` overwrite that file. Base branch names (from any config file or the remote's HEAD) and `GITBASH_REMOTE` can no longer start with `-`, and `stale` deletes remote branches through an explicit refspec.
+
 ## 2.2.2
 
 ### Patch Changes
