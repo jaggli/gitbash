@@ -38,9 +38,27 @@ jobs:
           - name: macos, bash 5
             os: macos-latest
             bash: brew
-          - name: windows, git bash
+          # Starting processes is slow in Git Bash: split its tests into shards
+          - name: windows, git bash, 1/4
             os: windows-latest
             bash: ""
+            shard: 1
+            shards: 4
+          - name: windows, git bash, 2/4
+            os: windows-latest
+            bash: ""
+            shard: 2
+            shards: 4
+          - name: windows, git bash, 3/4
+            os: windows-latest
+            bash: ""
+            shard: 3
+            shards: 4
+          - name: windows, git bash, 4/4
+            os: windows-latest
+            bash: ""
+            shard: 4
+            shards: 4
     env:
       # Real symlinks in Git Bash (tests link directories like pnpm does)
       MSYS: winsymlinks:nativestrict
@@ -73,9 +91,37 @@ jobs:
           "${GB_BASH:-bash}" --version | head -1
           git --version
           fzf --version
-      - run: npm test
-        if: runner.os != 'Windows'
-      # npm would run bats through cmd.exe, which may not find Git's bash
-      - name: npm test (Git Bash)
-        if: runner.os == 'Windows'
-        run: ./node_modules/.bin/bats test
+      # bats directly: on Windows npm would run it through cmd.exe, which may not find Git's bash
+      - name: Run tests
+        env:
+          SHARD: ${{ matrix.shard || 1 }}
+          SHARDS: ${{ matrix.shards || 1 }}
+        run: |
+          # Test files go to the shard with the fewest tests so far (largest files first)
+          files=()
+          while IFS= read -r file; do files+=("$file"); done < <(
+            for f in test/*.bats; do echo "$(grep -c '^@test' "$f") $f"; done | sort -k1,1rn -k2 |
+              awk -v n="$SHARDS" -v me="$SHARD" '{
+                best = 1
+                for (i = 2; i <= n; i++) if (load[i] < load[best]) best = i
+                load[best] += $1
+                if (best == me) print $2
+              }')
+          echo "Shard $SHARD/$SHARDS: ${files[*]}"
+          ./node_modules/.bin/bats "${files[@]}"
+
+  # The one check the main branch ruleset requires: independent of the jobs above
+  passed:
+    name: CI passed
+    if: ${{ always() }}
+    needs: [shellcheck, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All jobs succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          for result in $RESULTS; do
+            [ "$result" = success ] || exit 1
+          done
