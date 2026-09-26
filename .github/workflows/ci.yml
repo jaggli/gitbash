@@ -4,9 +4,6 @@ on:
   pull_request:
   # Pushes to main run CI through release.yml, which only releases when it passes
   workflow_call:
-  # Started by release.yml for the release pull request (PRs opened by the
-  # workflow token don't trigger pull_request runs)
-  workflow_dispatch:
 
 permissions:
   contents: read
