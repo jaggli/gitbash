@@ -86,7 +86,7 @@ EOF
   # -----------------------------
   if [[ "$current_branch" == "$base_branch" ]]; then
     print_info "Pulling latest '$base_branch' from '$remote'..."
-    if git pull --ff-only "$remote" "$base_branch"; then
+    if git pull --ff-only "$remote" "refs/heads/$base_branch"; then
       print_success "'$base_branch' is up to date."
       return 0
     fi
@@ -143,7 +143,7 @@ EOF
   fi
 
   print_info "Merging '$remote/$base_branch' into '$current_branch'..."
-  if git merge --no-edit "$remote/$base_branch"; then
+  if git merge --no-edit "refs/remotes/$remote/$base_branch"; then
     print_success "'$current_branch' is up to date with '$base_branch'."
   else
     local conflicts

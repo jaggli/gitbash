@@ -170,3 +170,18 @@ json_field() {
     [[ "$output" == *"  - old2J"* ]] || false
     [[ "$output" != *$'\302\233'* ]]
 }
+
+@test "a tag named like a branch doesn't hide or rename the branch" {
+    git switch --quiet -c feature/done
+    commit_file d.txt "d" "done" "2020-01-01T00:00:00"
+    git switch --quiet main
+    git merge --quiet --no-edit feature/done
+    git push --quiet origin main 2>/dev/null
+    git tag feature/done feature/done
+    git tag main main
+    run gb cleanup --json
+    [[ "$output" == *'"name":"feature/done"'* ]] || false
+    [[ "$output" != *'heads/'* ]] || false
+    [[ "$output" != *'"name":"main"'* ]]
+}
+

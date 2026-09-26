@@ -100,7 +100,7 @@ EOF_HELP
     return 1
   fi
 
-  local remote target
+  local remote target target_ref
   remote=$(gb_remote)
   if ! git remote get-url "$remote" >/dev/null 2>&1; then
     print_error "No remote '$remote' configured."
@@ -111,10 +111,13 @@ EOF_HELP
     print_error "Failed to fetch '$remote'."
     return 1
   fi
+  # Full ref names for git (a tag called <remote>/<branch> must not win), short ones for messages
   if git show-ref --verify --quiet "refs/remotes/$remote/$branch"; then
     target="$remote/$branch"
+    target_ref="refs/remotes/$remote/$branch"
   else
     target="$branch"
+    target_ref="refs/heads/$branch"
     print_warning "'$branch' is not on '$remote': keeping its commits, only local changes are discarded."
   fi
 
@@ -130,14 +133,14 @@ EOF_HELP
 
   # What would be lost
   local lost_commits changes untracked
-  lost_commits=$(git log --oneline "$target..refs/heads/$branch")
+  lost_commits=$(git log --oneline "$target_ref..refs/heads/$branch")
   changes=$(git status --porcelain --untracked-files=no)
   untracked=$(git clean -n "${clean_args[@]}")
 
   local head_commit
   head_commit=$(git rev-parse "refs/heads/$branch")
   if [[ -z "$lost_commits" && -z "$changes" && -z "$untracked" &&
-        "$(git rev-parse HEAD)" == "$(git rev-parse "$target")" ]]; then
+        "$(git rev-parse HEAD)" == "$(git rev-parse "$target_ref")" ]]; then
     _reset_repo_abort_operations
     print_success "'$branch' is already like a fresh clone of '$target'."
     return 0
@@ -180,7 +183,7 @@ EOF_HELP
     print_error "Failed to check out '$branch'."
     return 1
   fi
-  if ! git reset --quiet --hard "$target"; then
+  if ! git reset --quiet --hard "$target_ref"; then
     print_error "Failed to reset '$branch' to '$target'."
     return 1
   fi

@@ -183,7 +183,7 @@ EOF
     fi
     entries+=("$preselect|$label|$ts|$branch|$rel|$email|$unpushed|$name")
   done < <(git for-each-ref \
-      --format="%(refname:short)%1f%(committerdate:unix)%1f%(committerdate:relative)%1f%(authoremail)%1f%(upstream:short)%1f%(upstream:track)%1f%(authorname)" \
+      --format="%(refname:lstrip=2)%1f%(committerdate:unix)%1f%(committerdate:relative)%1f%(authoremail)%1f%(upstream:short)%1f%(upstream:track)%1f%(authorname)" \
       refs/heads 2>/dev/null)
 
   # Pre-selected first, then newest first

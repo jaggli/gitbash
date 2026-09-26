@@ -71,3 +71,22 @@ setup() {
     [ "$status" -eq 0 ]
     [ "$(git branch --show-current)" = "feature/PROJ-8-asked-title" ]
 }
+
+# A commit that is not on main, tagged with the name git would also try for a
+# branch (like a tag pushed by someone who can't push to main)
+_tag_unreviewed() {
+    local name="$1" commit
+    git switch --quiet --detach
+    commit_file unreviewed.txt "unreviewed" "unreviewed change"
+    commit=$(git rev-parse HEAD)
+    git switch --quiet -
+    git tag "$name" "$commit"
+}
+
+@test "create starts from the remote branch, not a tag named like it" {
+    _tag_unreviewed origin/main
+    run gb create --no-push PROJ-1 work
+    [ "$status" -eq 0 ]
+    [ "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/origin/main)" ]
+    [[ "$output" == *"(from origin/main)"* ]]
+}

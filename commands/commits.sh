@@ -98,12 +98,14 @@ EOF
         elif git rev-parse --verify --quiet "$base_ref^{commit}" >/dev/null; then
             log_args=(--not "$base_ref")
             # Also exclude the local base branch when it is ahead of the remote one
-            if [[ "$base_ref" != "$base_branch" ]] &&
+            if [[ "$base_ref" != "refs/heads/$base_branch" ]] &&
                git show-ref --verify --quiet "refs/heads/$base_branch"; then
-                log_args+=("$base_branch")
+                log_args+=("refs/heads/$base_branch")
             fi
-            scope="commits not in '$base_ref' (up to $count)"
-            empty_hint="No commits on '$current_branch' that are not in '$base_ref'. Use 'commits --all' to show all recent commits."
+            local base_name
+            base_name=$(gb_ref_short "$base_ref")
+            scope="commits not in '$base_name' (up to $count)"
+            empty_hint="No commits on '$current_branch' that are not in '$base_name'. Use 'commits --all' to show all recent commits."
         fi
     fi
 

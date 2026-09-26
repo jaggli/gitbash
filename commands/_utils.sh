@@ -370,9 +370,12 @@ gb_remote() {
     echo "${GITBASH_REMOTE:-origin}"
 }
 
-# Current branch name; fails on detached HEAD
+# Current branch name; fails on detached HEAD. Not --short: with a tag of the
+# same name, that prints "heads/<branch>".
 gb_current_branch() {
-    git symbolic-ref --quiet --short HEAD 2>/dev/null
+    local ref
+    ref=$(git symbolic-ref --quiet HEAD 2>/dev/null) || return 1
+    echo "${ref#refs/heads/}"
 }
 
 # Returns 0 if $1 is a valid branch name that can't be mistaken for an option.
@@ -391,9 +394,11 @@ gb_base_branch() {
         echo "$GITBASH_BASE_BRANCH"
         return 0
     fi
-    if branch=$(git symbolic-ref --quiet --short "refs/remotes/$remote/HEAD" 2>/dev/null) &&
-       _gb_valid_branch_name "${branch#"$remote"/}"; then
-        echo "${branch#"$remote"/}"
+    # Full ref name: --short would give "remotes/origin/main" when a tag "origin/main" exists
+    if branch=$(git symbolic-ref --quiet "refs/remotes/$remote/HEAD" 2>/dev/null) &&
+       [[ "$branch" == "refs/remotes/$remote/"* ]] &&
+       _gb_valid_branch_name "${branch#"refs/remotes/$remote/"}"; then
+        echo "${branch#"refs/remotes/$remote/"}"
         return 0
     fi
     for branch in main master; do
@@ -406,15 +411,23 @@ gb_base_branch() {
     return 1
 }
 
-# The ref to compare against: <remote>/<base> if it exists, else the local base
+# The ref to compare against, as a full ref name: refs/remotes/<remote>/<base>
+# if it exists, else refs/heads/<base>. Never a short name like origin/main:
+# git resolves those to a tag of the same name first, and tags come from the remote.
 gb_base_ref() {
     local base="$1" remote
     remote=$(gb_remote)
     if git show-ref --verify --quiet "refs/remotes/$remote/$base"; then
-        echo "$remote/$base"
+        echo "refs/remotes/$remote/$base"
     else
-        echo "$base"
+        echo "refs/heads/$base"
     fi
+}
+
+# Short name of a full ref, for messages: refs/remotes/origin/main -> origin/main
+gb_ref_short() {
+    local ref="${1#refs/remotes/}"
+    echo "${ref#refs/heads/}"
 }
 
 # Fetch the current branch's upstream and, if it has new commits, offer to

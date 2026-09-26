@@ -69,3 +69,33 @@ setup() {
     [ "$status" -eq 0 ]
     [ "$(git ls-remote "$REMOTE" refs/heads/feature/work | cut -f1)" = "$(git rev-parse HEAD)" ]
 }
+
+# A commit that is not on main, tagged with the name git would also try for a
+# branch (like a tag pushed by someone who can't push to main)
+_tag_unreviewed() {
+    local name="$1" commit
+    git switch --quiet --detach
+    commit_file unreviewed.txt "unreviewed" "unreviewed change"
+    commit=$(git rev-parse HEAD)
+    git switch --quiet -
+    git tag "$name" "$commit"
+}
+
+@test "update merges the remote branch, not a tag named like it" {
+    _tag_unreviewed origin/main
+    run gb update
+    [ "$status" -eq 0 ]
+    [ ! -e unreviewed.txt ]
+    [ -e main.txt ]
+}
+
+@test "update on the base branch pulls the branch, not a tag named like it" {
+    git switch --quiet main
+    _tag_unreviewed main
+    git push --quiet origin refs/tags/main 2>/dev/null
+    git reset --quiet --hard HEAD~0
+    run gb update
+    [ "$status" -eq 0 ]
+    [ ! -e unreviewed.txt ]
+    [ "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/origin/main)" ]
+}

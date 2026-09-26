@@ -244,10 +244,10 @@ release/ - Release preparation branches"
   if base_branch=$(gb_base_branch); then
     print_info "Fetching latest '$base_branch' from '$remote'..."
     if git fetch --quiet "$remote" "+refs/heads/$base_branch:refs/remotes/$remote/$base_branch" 2>/dev/null; then
-      start_point="$remote/$base_branch"
+      start_point="refs/remotes/$remote/$base_branch"
     elif git show-ref --verify --quiet "refs/heads/$base_branch"; then
       print_warning "Could not fetch '$base_branch'. Creating the branch from local '$base_branch'."
-      start_point="$base_branch"
+      start_point="refs/heads/$base_branch"
     fi
   fi
   if [[ -z "$start_point" ]]; then
@@ -257,7 +257,7 @@ release/ - Release preparation branches"
   print_info "Creating branch..."
   if [[ -n "$start_point" ]]; then
     git switch --quiet --no-track -c "$branch_name" "$start_point" || { print_error "Failed to create branch."; return 1; }
-    print_success "Created and switched to '$branch_name' (from $start_point)"
+    print_success "Created and switched to '$branch_name' (from $(gb_ref_short "$start_point"))"
   else
     git switch --quiet -c "$branch_name" || { print_error "Failed to create branch."; return 1; }
     print_success "Created and switched to '$branch_name'"

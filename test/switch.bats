@@ -100,3 +100,21 @@ setup() {
     [ "$(git branch --show-current)" = "feature/remote-only" ]
     [ ! -e "$FZF_STUB_LOG" ]
 }
+
+@test "tags named like branches don't change the branch list or what is checked out" {
+    git switch --quiet -c feature/x
+    commit_file x.txt "x" "x"
+    git push --quiet -u origin feature/x 2>/dev/null
+    git switch --quiet main
+    git branch --quiet -D feature/x
+    git tag origin/feature/x main
+    git tag main HEAD
+    run gb switch --list-branches
+    [[ "$output" == *$'local: main\tlocal\tmain'* ]] || false
+    [[ "$output" == *$'remote: origin/feature/x\tremote\torigin/feature/x'* ]] || false
+    run gb switch feature/x
+    [ "$status" -eq 0 ]
+    [ "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/origin/feature/x)" ]
+    [ "$(git config branch.feature/x.merge)" = "refs/heads/feature/x" ]
+}
+

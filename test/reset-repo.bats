@@ -215,3 +215,22 @@ make_mess() {
     [ "$(git -C lib rev-parse HEAD)" = "$recorded" ]
 }
 
+# A commit that is not on main, tagged with the name git would also try for a
+# branch (like a tag pushed by someone who can't push to main)
+_tag_unreviewed() {
+    local name="$1" commit
+    git switch --quiet --detach
+    commit_file unreviewed.txt "unreviewed" "unreviewed change"
+    commit=$(git rev-parse HEAD)
+    git switch --quiet -
+    git tag "$name" "$commit"
+}
+
+@test "reset-repo resets to the remote branch, not a tag named like it" {
+    _tag_unreviewed origin/main
+    commit_file local.txt "local" "local work"
+    run gb reset-repo -y
+    [ "$status" -eq 0 ]
+    [ "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/origin/main)" ]
+    [ ! -e unreviewed.txt ]
+}
