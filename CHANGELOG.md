@@ -1,5 +1,25 @@
 # gitbash
 
+## 3.1.0
+
+### Minor Changes
+
+- 026b188: Security: for installs made with `install.sh`, `gitbash --update` downloaded the install script from the newest GitHub release's git tag and ran it, so anyone able to create a release (for example with a leaked GitHub token) could run code on updating machines without npm's 2FA approval. The npm package now includes `install.sh`, the install script keeps its verified copy, and `--update` runs that copy (it still downloads the new version from npm and checks its sha512). Installations made before this version show a one-time command to update; npm and pnpm installs are not affected.
+
+### Patch Changes
+
+- 8867b34: Security: a repository that commits a `.gitbashrc-user` file could set `GITBASH_MERGE_COMMAND`, and `update` ran that program when a merge had conflicts. A `.gitbashrc-user` that is tracked by git is now treated like the committed `.gitbashrc`: it cannot choose a program to run.
+- aae3c32: A repository's `.gitbashrc` (or committed `.gitbashrc-user`) that is a symbolic link is now ignored with a warning, instead of reading, and printing lines of, whatever file it points to.
+- cc7a7ad: Security: gitbash passed short names like `origin/main` to git, which resolves them to a **tag** of the same name first. Anyone who can push a tag (for example to a repository where `main` is protected) could make `update` merge an unreviewed commit, `create` start new branches from it, and `reset-repo` reset your branch to it; a tag named like a branch also broke the base branch detection and the branch lists. gitbash now uses full ref names (`refs/remotes/origin/main`, `refs/heads/…`) everywhere.
+- 28e67f4: The install script now only accepts plain version numbers like `3.1.0` (from `GITBASH_VERSION` or npm), not anything that merely starts like one.
+- f63494a: `-y` (`GITBASH_ASSUME_YES`) and gitbash's internal `GITBASH_NESTED` and `GB_COLOR` are no longer exported to git hooks, editors and merge tools; only gitbash commands run by gitbash (and fzf previews) get them. Before, a gitbash started from a hook during `commit -y` answered yes to every question.
+- 5badc09: A repository's committed `.gitbashrc` can now only add to `GITBASH_PROTECTED_BRANCHES`: branches protected by your own settings or the default (`main master develop release/*`) stay protected.
+- a75719e: `pr` and `repo` no longer print the user name and password or token of a remote URL they can't open in a browser.
+- 0bde366: Security: a repository's committed `.gitbashrc` can no longer turn off gitbash's update checks (`GITBASH_NO_UPDATE_CHECKS`), so users working in it still hear about security releases. Set it in `~/.gitbashrc` or an uncommitted `.gitbashrc-user` instead.
+- 0e73723: Security: `reset-repo` ran `git submodule update --init`, which cloned every URL in the repository's `.gitmodules`, also submodules you never initialized (a fresh clone doesn't). It now only resets submodules that are already initialized; run `git submodule update --init` yourself to clone the others.
+- 72985e2: Security: commit messages, file names, branch names and lines of a repository's `.gitbashrc` were printed with their terminal control characters, so a repository could write to the clipboard (OSC 52) or change what is shown before a confirmation. gitbash now removes control characters from them.
+- 76acdcd: `gitbash --update` and the update check now take the latest version from npm, like the install script, instead of from GitHub releases. npm's `latest` tag only moves when a maintainer approves a release with 2FA.
+
 ## 3.0.1
 
 ### Patch Changes
