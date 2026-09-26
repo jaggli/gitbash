@@ -1,15 +1,23 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
+  # Pushes to main run CI through release.yml, which only releases when it passes
+  workflow_call:
+  # Started by release.yml for the release pull request (PRs opened by the
+  # workflow token don't trigger pull_request runs)
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   shellcheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: shellcheck
         run: shellcheck -x install.sh bin/gitbash commands/*.sh scripts/*.sh test/helpers/bin/* test/helpers/update-bin/*
 
@@ -40,10 +48,12 @@ jobs:
       # Real symlinks in Git Bash (tests link directories like pnpm does)
       MSYS: winsymlinks:nativestrict
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: 20
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y fzf zsh
