@@ -83,7 +83,7 @@ EOF
         shift
         ;;
       -y|--yes)
-        GITBASH_ASSUME_YES=1
+        export GITBASH_ASSUME_YES=1
         shift
         ;;
       --force-with-lease)

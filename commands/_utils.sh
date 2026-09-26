@@ -111,7 +111,8 @@ prompt_read() {
 }
 
 # Yes/no question. Returns 0 for yes, 1 for no. EOF or Enter picks the default.
-# GITBASH_ASSUME_YES=1 (set by --yes flags) answers yes, unless --strict is given.
+# GITBASH_ASSUME_YES=1 (exported by --yes flags, so commands run from a command
+# inherit it) answers yes, unless --strict is given.
 # Usage: gb_confirm [--strict] "Question?" y|n
 gb_confirm() {
     local strict=false

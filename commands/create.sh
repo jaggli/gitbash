@@ -63,8 +63,9 @@ Options:
   --bugfix         Use 'bugfix/' type
   --hotfix         Use 'hotfix/' type
   --release        Use 'release/' type
-  --push           Push the new branch to the remote (default: GITBASH_CREATE_AUTO_PUSH)
+  -p, --push       Push the new branch to the remote (default: GITBASH_CREATE_AUTO_PUSH)
   --no-push        Don't push the new branch
+  -y, --yes        Don't ask for confirmations (switches to an existing branch of the same name)
 
 Configuration (run 'gitbash --config'):
   - GITBASH_CREATE_BRANCH_PREFIX: Custom prefix between type and issue (default: "")
@@ -101,7 +102,8 @@ EOF
       --bugfix) branch_type="bugfix/"; shift ;;
       --hotfix) branch_type="hotfix/"; shift ;;
       --release) branch_type="release/"; shift ;;
-      --push) auto_push="yes"; shift ;;
+      -p|--push) auto_push="yes"; shift ;;
+      -y|--yes) export GITBASH_ASSUME_YES=1; shift ;;
       --no-push) auto_push="no"; shift ;;
       --)
         shift

@@ -20,6 +20,7 @@ Delete git stashes without applying them.
 Interactive fuzzy finder (fzf) with preview and multi-select support.
 
 Options:
+  -y, --yes     Delete the selected stashes without asking again
   -h, --help    Show this help message
 
 Navigation:
@@ -39,6 +40,19 @@ Requirements:
 EOF
         return 0
     fi
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--help) cleanstash --help; return 0 ;;
+            -y|--yes) export GITBASH_ASSUME_YES=1 ;;
+            *)
+                print_error "Unknown argument: $1"
+                echo "Usage: cleanstash [-y|--yes]" >&2
+                return 1
+                ;;
+        esac
+        shift
+    done
 
     require_git_repo || return 1
 

@@ -101,6 +101,12 @@ EOF
         return 0
     fi
 
+    if [[ $# -gt 0 ]]; then
+        print_error "Unknown argument: $1"
+        echo "Usage: stashes [-h|--help]" >&2
+        return 1
+    fi
+
     # -----------------------------
     # 1. Check for fzf
     # -----------------------------

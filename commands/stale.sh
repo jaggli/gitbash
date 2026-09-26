@@ -84,8 +84,13 @@ EOF
                 my_mode=true
                 shift
                 ;;
-            --age=*)
-                stale_months="${1#--age=}"
+            --age=*|--age)
+                if [[ "$1" == --age ]]; then
+                    stale_months="${2:-}"
+                    shift
+                else
+                    stale_months="${1#--age=}"
+                fi
                 if ! [[ "$stale_months" =~ ^[1-9][0-9]*$ ]]; then
                     print_error "Invalid age value: $stale_months"
                     return 1

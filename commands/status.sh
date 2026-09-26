@@ -74,6 +74,11 @@ Requirements:
 EOF
     return 0
   fi
+  if [[ $# -gt 0 ]]; then
+    print_error "Unknown argument: $1"
+    echo "Usage: status [-h|--help]" >&2
+    return 1
+  fi
 
   require_git_repo || return 1
   require_fzf || return 1

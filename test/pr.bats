@@ -60,3 +60,12 @@ create_url() {
     [[ "$output" == *"https://github.com/acme/repo/compare/feature/print?expand=1"* ]]
     [ ! -e "$OPEN_LOG" ]
 }
+
+@test "pr -y passes --yes on to the commit it runs" {
+    git switch --quiet -c feature/yes
+    echo "new" > new-file.txt
+    run gb_input 'wip\n' pr -y --print
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Add these files"* ]]
+    [ -z "$(git status --porcelain)" ]
+}

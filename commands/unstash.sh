@@ -32,6 +32,7 @@ Apply a git stash to your working directory with optional removal.
 Interactive fuzzy finder (fzf) with preview support.
 
 Options:
+  -y, --yes     Don't ask for confirmations (drops the stash after applying it)
   -h, --help    Show this help message
 
 Workflow:
@@ -48,6 +49,19 @@ Requirements:
 EOF
         return 0
     fi
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--help) unstash --help; return 0 ;;
+            -y|--yes) export GITBASH_ASSUME_YES=1 ;;
+            *)
+                print_error "Unknown argument: $1"
+                echo "Usage: unstash [-y|--yes]" >&2
+                return 1
+                ;;
+        esac
+        shift
+    done
 
     require_git_repo || return 1
 
