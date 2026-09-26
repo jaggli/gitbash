@@ -6,10 +6,10 @@ The following versions of this project are currently receiving security updates:
 
 | Version | Supported |
 |--------|-----------|
-| 2.x.x  | ✅        |
-| < 2.0  | ❌        |
+| 3.x.x  | ✅        |
+| < 3.0  | ❌        |
 
-Security fixes are only applied to the latest minor/patch release of the **2.x.x** series. Older versions must be upgraded to receive patches.
+Security fixes are only applied to the latest minor/patch release of the **3.x.x** series. Older versions must be upgraded to receive patches.
 
 Versions before 2.0 executed repository `.gitbashrc` files as shell code, so opening a cloned repository with a malicious `.gitbashrc` could run arbitrary commands. Upgrade to 2.0 or later.
 
@@ -19,7 +19,7 @@ Versions before 2.0 executed repository `.gitbashrc` files as shell code, so ope
 
 - Configuration files (`~/.gitbashrc`, a repository's `.gitbashrc` and `.gitbashrc-user`) are **parsed, never executed**. Only plain `GITBASH_*="value"` lines from a fixed list of settings are read; values containing `$`, backticks, backslashes or quotes are rejected.
 - A repository's committed `.gitbashrc` is treated as untrusted: it cannot set `GITBASH_MERGE_COMMAND` (the only setting that names a program to run). That setting is only read from `~/.gitbashrc` and `.gitbashrc-user`.
-- Settings that reach git as arguments are validated: `GITBASH_BASE_BRANCH` (and a base branch taken from the remote's `HEAD`) must be a valid branch name that does not start with `-`, and `GITBASH_REMOTE` must not start with `-`. Before 2.2.3, a committed `.gitbashrc` could set `GITBASH_BASE_BRANCH="--output=<file>"` and make `switch` or `cleanup` overwrite that file.
+- Settings that reach git as arguments are validated: `GITBASH_BASE_BRANCH` (and a base branch taken from the remote's `HEAD`) must be a valid branch name that does not start with `-`, and `GITBASH_REMOTE` must not start with `-`. Before 3.0.0, a committed `.gitbashrc` could set `GITBASH_BASE_BRANCH="--output=<file>"` and make `switch` or `cleanup` overwrite that file.
 - `gitbash --init` prints wrapper functions that call the installed `gitbash` binary; command code is not sourced into your shell.
 - `pr` and `repo` never pass credentials from the remote URL to the browser.
 
