@@ -57,7 +57,7 @@ create_url() {
     git push --quiet -u origin feature/print 2>/dev/null
     run gb pr --print
     [ "$status" -eq 0 ]
-    [[ "$output" == *"https://github.com/acme/repo/compare/feature/print?expand=1"* ]]
+    [[ "$output" == *"https://github.com/acme/repo/compare/feature/print?expand=1"* ]] || false
     [ ! -e "$OPEN_LOG" ]
 }
 
@@ -66,6 +66,6 @@ create_url() {
     echo "new" > new-file.txt
     run gb_input 'wip\n' pr -y --print
     [ "$status" -eq 0 ]
-    [[ "$output" != *"Add these files"* ]]
+    [[ "$output" != *"Add these files"* ]] || false
     [ -z "$(git status --porcelain)" ]
 }

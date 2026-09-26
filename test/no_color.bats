@@ -54,6 +54,6 @@ utils() {
     export PTY_LOG="$BATS_TEST_TMPDIR/pty-help"
     NO_COLOR=1 run python3 "$HELPERS_DIR/pty_run.py" "\"${GB_BASH:-bash}\" \"$GB\" --help"
     [ "$status" -eq 0 ]
-    [[ "$(cat "$PTY_LOG")" == *"Commands:"* ]]
+    [[ "$(cat "$PTY_LOG")" == *"Commands:"* ]] || false
     [[ "$(cat "$PTY_LOG")" != *$'\033'* ]]
 }

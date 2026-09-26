@@ -18,7 +18,7 @@ setup() {
 @test "nothing to commit fails before asking for a message" {
     run gb commit
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Nothing to commit"* ]]
+    [[ "$output" == *"Nothing to commit"* ]] || false
     [[ "$output" != *"Commit message"* ]]
 }
 
@@ -26,7 +26,7 @@ setup() {
     echo "change" >> README.md
     run gb_input '\n' commit
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Empty commit message"* ]]
+    [[ "$output" == *"Empty commit message"* ]] || false
     [ "$(git rev-list --count HEAD)" -eq 1 ]
 }
 
@@ -44,7 +44,7 @@ setup() {
     echo "secret" > .env
     run gb_input 'n\n' commit add stuff
     [ "$status" -eq 1 ]
-    [[ "$output" == *"+ .env"* ]]
+    [[ "$output" == *"+ .env"* ]] || false
     [ "$(git rev-list --count HEAD)" -eq 1 ]
 }
 
@@ -56,7 +56,7 @@ setup() {
     cd src
     run gb_input 'n\n' commit msg
     [ "$status" -eq 1 ]
-    [[ "$output" == *"+ .env"* ]]
+    [[ "$output" == *"+ .env"* ]] || false
     [ "$(git log -1 --format=%s)" = "add a" ]
 }
 
@@ -122,7 +122,7 @@ setup() {
     # Default is abort: committed locally, nothing pushed
     run gb commit --yes -p mine
     [ "$status" -eq 1 ]
-    [[ "$output" == *"diverged"* ]]
+    [[ "$output" == *"diverged"* ]] || false
     [ "$(git log -1 --format=%s)" = "mine" ]
     [ "$(git ls-remote "$REMOTE" refs/heads/feature/div | cut -f1)" = "$(git rev-parse origin/feature/div)" ]
 

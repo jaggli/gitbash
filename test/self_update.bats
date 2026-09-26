@@ -63,7 +63,7 @@ wait_for_latest() {
     run gb --update
     [ "$status" -eq 0 ]
     grep -qx 'npm install -g gitbash@9.9.9' "$NPM_LOG"
-    [[ "$output" == *"Updated gitbash $CURRENT → 9.9.9"* ]]
+    [[ "$output" == *"Updated gitbash $CURRENT → 9.9.9"* ]] || false
     [ "$(state_value latest)" = "9.9.9" ]
 }
 
@@ -89,7 +89,7 @@ install_pnpm_copy() {
     root=$(cd -P "$PNPM_STUB_ROOT" && pwd)
     run gb --init
     [ "$status" -eq 0 ]
-    [[ "$output" == *"$root/gitbash/bin/gitbash commit"* ]]
+    [[ "$output" == *"$root/gitbash/bin/gitbash commit"* ]] || false
     [[ "$output" != *".pnpm"* ]]
 }
 
@@ -97,7 +97,7 @@ install_pnpm_copy() {
     export CURL_STUB_TAG="v$CURRENT"
     run gb --update
     [ "$status" -eq 0 ]
-    [[ "$output" == *"gitbash $CURRENT is up to date"* ]]
+    [[ "$output" == *"gitbash $CURRENT is up to date"* ]] || false
     [ ! -e "$NPM_LOG" ]
 }
 
@@ -157,7 +157,7 @@ EOF
     GB="$PROJECT_DIR/bin/gitbash"
     run gb --update
     [ "$status" -eq 1 ]
-    [[ "$output" == *"git pull"* ]]
+    [[ "$output" == *"git pull"* ]] || false
     [ ! -e "$NPM_LOG" ]
 }
 
@@ -232,7 +232,7 @@ EOF
     write_state "$(date +%s)" "9.9.9" 0 ""
     run gb stash --version
     [ "$status" -eq 0 ]
-    [[ "$output" != *"is available"* ]]
+    [[ "$output" != *"is available"* ]] || false
     [ "$(state_value prompted)" = "0" ]
 }
 
@@ -241,14 +241,14 @@ EOF
     write_state "$(date +%s)" "9.9.9" 0 ""
     WAIT_FOR="(y/N/s):" KEYS='s\r' run in_pty stash --version
     [ "$status" -eq 0 ]
-    [[ "$output" == *"gitbash 9.9.9 is available (you have $CURRENT)"* ]]
-    [[ "$output" == *"gitbash stash v$CURRENT"* ]]
+    [[ "$output" == *"gitbash 9.9.9 is available (you have $CURRENT)"* ]] || false
+    [[ "$output" == *"gitbash stash v$CURRENT"* ]] || false
     [ "$(state_value skipped)" = "9.9.9" ]
 
     # Not asked again, even when asking would be due
     write_state "$(date +%s)" "9.9.9" 0 "9.9.9"
     run in_pty stash --version
-    [[ "$output" != *"is available"* ]]
+    [[ "$output" != *"is available"* ]] || false
 
     # But a newer version is offered
     write_state "$(date +%s)" "9.9.10" 0 "9.9.9"
@@ -260,16 +260,16 @@ EOF
     require_pty
     write_state "$(date +%s)" "9.9.9" 0 ""
     WAIT_FOR="(y/N/s):" KEYS='n\r' run in_pty stash --version
-    [[ "$output" == *"is available"* ]]
+    [[ "$output" == *"is available"* ]] || false
     [ "$(state_value prompted)" -gt 0 ]
 
     run in_pty stash --version
-    [[ "$output" != *"is available"* ]]
+    [[ "$output" != *"is available"* ]] || false
 
     # One day later: still quiet; two days later: asked again
     write_state "$(date +%s)" "9.9.9" "$(( $(date +%s) - 90000 ))" ""
     run in_pty stash --version
-    [[ "$output" != *"is available"* ]]
+    [[ "$output" != *"is available"* ]] || false
     write_state "$(date +%s)" "9.9.9" "$(( $(date +%s) - 180000 ))" ""
     WAIT_FOR="(y/N/s):" KEYS='n\r' run in_pty stash --version
     [[ "$output" == *"is available"* ]]
@@ -299,7 +299,7 @@ EOF
     write_state "$(date +%s)" "9.9.9" 0 ""
     GITBASH_NESTED=1 run in_pty stash --version
     [ "$status" -eq 0 ]
-    [[ "$output" != *"is available"* ]]
+    [[ "$output" != *"is available"* ]] || false
     [ "$(state_value prompted)" = "0" ]
 }
 

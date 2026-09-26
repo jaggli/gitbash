@@ -20,17 +20,17 @@ setup() {
 @test "stale --json lists old branches but never protected ones" {
     run gb stale --json
     [ "$status" -eq 0 ]
-    [[ "$output" == *'"name":"feature/old"'* ]]
-    [[ "$output" != *'"name":"feature/new"'* ]]
-    [[ "$output" != *'"name":"develop"'* ]]
-    [[ "$output" != *'"name":"release/1.0"'* ]]
+    [[ "$output" == *'"name":"feature/old"'* ]] || false
+    [[ "$output" != *'"name":"feature/new"'* ]] || false
+    [[ "$output" != *'"name":"develop"'* ]] || false
+    [[ "$output" != *'"name":"release/1.0"'* ]] || false
     [[ "$output" != *'"name":"main"'* ]]
 }
 
 @test "stale --json --all includes recent branches but still no protected ones" {
     run gb stale --json --all
-    [[ "$output" == *'"name":"feature/new"'* ]]
-    [[ "$output" != *'"name":"main"'* ]]
+    [[ "$output" == *'"name":"feature/new"'* ]] || false
+    [[ "$output" != *'"name":"main"'* ]] || false
     [[ "$output" != *'"name":"develop"'* ]]
 }
 
@@ -63,7 +63,7 @@ setup() {
     git push --quiet -u origin feature/web-merged 2>/dev/null
     git switch --quiet main
     run gb stale --json
-    [[ "$output" == *'"author_email":"jane@example.com","author_name":"Jane Doe","name":"feature/web-merged"'* ]]
+    [[ "$output" == *'"author_email":"jane@example.com","author_name":"Jane Doe","name":"feature/web-merged"'* ]] || false
     [[ "$output" != *'GitHub'* ]]
 }
 

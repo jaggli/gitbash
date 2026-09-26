@@ -124,7 +124,7 @@ shellcheck -x bin/gitbash commands/*.sh
 ./bin/gitbash stale --all
 ```
 
-Tests live in `test/*.bats`. Each test gets its own temporary repository with a local bare remote (`test/helpers/setup.bash`). fzf is replaced by a stub that records its arguments and answers from a plan (`test/helpers/bin/fzf`); `test/fzf_real.bats` drives the real fzf in a pseudo-terminal. Add a test for every bug fix.
+Tests live in `test/*.bats`. Each test gets its own temporary repository with a local bare remote (`test/helpers/setup.bash`). fzf is replaced by a stub that records its arguments and answers from a plan (`test/helpers/bin/fzf`); `test/fzf_real.bats` drives the real fzf in a pseudo-terminal. Add a test for every bug fix. Write `[[ ... ]]` checks that are not the last line of a test as `[[ ... ]] || false`: bats running on bash 3.2 ignores a failing `[[ ]]` otherwise.
 
 CI runs shellcheck and the tests on Ubuntu (bash 5), macOS (bash 3.2 and 5) and Windows (Git Bash). Scripts must keep LF line endings (`.gitattributes` enforces it).
 

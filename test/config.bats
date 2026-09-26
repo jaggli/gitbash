@@ -107,7 +107,7 @@ EOF
 @test "the wizard rejects values that would be code in older versions" {
     run gb_input '$(touch x)\nok\n\n\n\n\n\n\n\n\n\n\n\n' --config-local
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Values cannot contain"* ]]
+    [[ "$output" == *"Values cannot contain"* ]] || false
     grep -qx 'GITBASH_CREATE_BRANCH_PREFIX="ok"' .gitbashrc
     ! grep -q 'MERGE_COMMAND' .gitbashrc
 }
@@ -162,7 +162,7 @@ STUB
     # Once is enough
     run gb_input '\n\n\n\n\n\n\n\n\n\n\n\n\n' --config
     [ "$status" -eq 0 ]
-    [[ "$output" == *"PowerShell integration already configured"* ]]
+    [[ "$output" == *"PowerShell integration already configured"* ]] || false
     [ "$(wc -l < "$PWSH_STUB_DIR/pwsh.exe.ps1")" -eq 1 ]
 }
 
@@ -211,7 +211,7 @@ STUB
     git switch --quiet main
     # Deleting an unmerged branch counts its commits against the base branch
     run gb_input 'y\nn\n' switch --delete-branch $'local: unmerged\tlocal\tunmerged'
-    [[ "$output" == *"Invalid GITBASH_BASE_BRANCH"* ]]
+    [[ "$output" == *"Invalid GITBASH_BASE_BRANCH"* ]] || false
     [ "$(cat "$victim")" = "important" ]
 }
 

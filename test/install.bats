@@ -32,7 +32,7 @@ publish() {
 @test "install.sh installs the latest version from npm after verifying it" {
     run sh "$PROJECT_DIR/install.sh"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Verified sha512 checksum."* ]]
+    [[ "$output" == *"Verified sha512 checksum."* ]] || false
     [ "$("$GITBASH_BIN_DIR/gitbash" --version)" = "gitbash 9.1.0" ]
     grep -qx 'method=script' "$GITBASH_INSTALL_DIR/.gitbash-install"
 }
@@ -54,7 +54,7 @@ publish() {
     echo "tampered" >> "$NPM_STUB_DIR/gitbash-9.1.0.tgz"
     run sh "$PROJECT_DIR/install.sh"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"checksum mismatch"* ]]
+    [[ "$output" == *"checksum mismatch"* ]] || false
     [ ! -e "$GITBASH_INSTALL_DIR" ]
     [ ! -e "$GITBASH_BIN_DIR/gitbash" ]
 }
@@ -63,7 +63,7 @@ publish() {
     sed -i.bak 's#https://registry.npmjs.org/gitbash/-/#https://evil.example/#' "$NPM_STUB_DIR/9.1.0.json"
     run sh "$PROJECT_DIR/install.sh"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"unexpected package location"* ]]
+    [[ "$output" == *"unexpected package location"* ]] || false
     [ ! -e "$GITBASH_INSTALL_DIR" ]
 }
 

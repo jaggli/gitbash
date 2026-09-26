@@ -82,8 +82,8 @@ json_field() {
     git branch develop
     git branch release/1.0
     run gb cleanup --json
-    [[ "$output" != *'"name":"develop"'* ]]
-    [[ "$output" != *'"name":"release/1.0"'* ]]
+    [[ "$output" != *'"name":"develop"'* ]] || false
+    [[ "$output" != *'"name":"release/1.0"'* ]] || false
     [[ "$output" != *'"name":"main"'* ]]
 }
 
@@ -94,7 +94,7 @@ json_field() {
     git switch --quiet main
     run gb cleanup --dry-run
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Would delete 1 branch(es)"* ]]
+    [[ "$output" == *"Would delete 1 branch(es)"* ]] || false
     git show-ref --verify --quiet refs/heads/old-pushed
     [ ! -e "$FZF_STUB_LOG" ]
 }
@@ -120,7 +120,7 @@ json_field() {
     # "y" to delete, then EOF on the force-delete question (default no)
     run gb_input 'y\n' cleanup
     [ "$status" -eq 0 ]
-    [[ "$output" == *"not merged"* ]]
+    [[ "$output" == *"not merged"* ]] || false
     git show-ref --verify --quiet refs/heads/wip
 
     # "y" twice force-deletes

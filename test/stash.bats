@@ -10,7 +10,7 @@ setup() {
     echo "new" > new.txt
     run gb stash my work
     [ "$status" -eq 0 ]
-    [[ "$(git stash list)" == *"my work"* ]]
+    [[ "$(git stash list)" == *"my work"* ]] || false
     [ ! -e new.txt ]
 }
 
@@ -23,10 +23,10 @@ setup() {
 @test "unstash and cleanstash say so when there are no stashes" {
     run gb unstash
     [ "$status" -eq 0 ]
-    [[ "$output" == *"No stashes."* ]]
+    [[ "$output" == *"No stashes."* ]] || false
     run gb cleanstash
     [ "$status" -eq 0 ]
-    [[ "$output" == *"No stashes."* ]]
+    [[ "$output" == *"No stashes."* ]] || false
     [ ! -e "$FZF_STUB_LOG" ]
 }
 
@@ -48,8 +48,8 @@ setup() {
     GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=color.status GIT_CONFIG_VALUE_0=always \
         run gb unstash
     [ "$status" -eq 0 ]
-    [[ "$output" == *$'\033[32mmodified:   README.md'* ]]
-    [[ "$output" == *$'\033[32mnew.txt'* ]]
+    [[ "$output" == *$'\033[32mmodified:   README.md'* ]] || false
+    [[ "$output" == *$'\033[32mnew.txt'* ]] || false
     [[ "$output" != *$'\033[31m'* ]]
 }
 
@@ -76,7 +76,7 @@ setup() {
     echo "change" >> README.md
     run gb stash -x work
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Unknown option: -x"* ]]
+    [[ "$output" == *"Unknown option: -x"* ]] || false
     [ -z "$(git stash list)" ]
     run gb stash -- -x work
     [ "$status" -eq 0 ]
@@ -86,7 +86,7 @@ setup() {
 @test "stash shows help for -h after a name" {
     echo "change" >> README.md
     run gb stash work -h
-    [[ "$output" == *"Usage: stash"* ]]
+    [[ "$output" == *"Usage: stash"* ]] || false
     [ -z "$(git stash list)" ]
 }
 
@@ -103,7 +103,7 @@ setup() {
     for cmd in status branch stashes unstash cleanstash; do
         run gb "$cmd" oops
         [ "$status" -eq 1 ]
-        [[ "$output" == *"Unknown argument: oops"* ]]
+        [[ "$output" == *"Unknown argument: oops"* ]] || false
     done
     run gb switch --nope
     [ "$status" -eq 1 ]

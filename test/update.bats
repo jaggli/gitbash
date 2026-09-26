@@ -51,8 +51,8 @@ setup() {
     commit_file main.txt "my conflicting content" "conflict"
     run gb update
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Merge conflicts in"* ]]
-    [[ "$output" == *"main.txt"* ]]
+    [[ "$output" == *"Merge conflicts in"* ]] || false
+    [[ "$output" == *"main.txt"* ]] || false
     # The default merge tool (stubbed) is opened on the repository
     [ "$(cat "$MERGE_TOOL_LOG")" = "." ]
 }

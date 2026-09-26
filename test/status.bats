@@ -14,8 +14,8 @@ status_list() {
     echo "x" > "my file.txt"
     git mv README.md "READ ME.md"
     run status_list
-    [[ "$output" == *$'??\tmy file.txt\t'* ]]
-    [[ "$output" == *$'R \tREAD ME.md\tREADME.md'* ]]
+    [[ "$output" == *$'??\tmy file.txt\t'* ]] || false
+    [[ "$output" == *$'R \tREAD ME.md\tREADME.md'* ]] || false
     [[ "$output" == *"[STAGED]"*"README.md -> READ ME.md"* ]]
 }
 

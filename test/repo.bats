@@ -62,7 +62,7 @@ STUB
     git remote remove origin
     run gb repo
     [ "$status" -eq 1 ]
-    [[ "$output" == *"No remote 'origin' found."* ]]
+    [[ "$output" == *"No remote 'origin' found."* ]] || false
 
     git remote add origin /some/local/path
     run gb repo
