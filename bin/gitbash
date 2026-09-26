@@ -396,7 +396,8 @@ check_pwsh_integration() {
         # Restricted (the default of Windows PowerShell) and AllSigned block the profile
         case "$policy" in
             Restricted|AllSigned|Undefined)
-                if gb_confirm "PowerShell blocks scripts, including your profile ($policy). Allow local scripts (execution policy RemoteSigned)?" y; then
+                # A security setting: never changed by pressing Enter or by GITBASH_ASSUME_YES
+                if gb_confirm --strict "PowerShell blocks scripts, including your profile ($policy). Allow local scripts (execution policy RemoteSigned)?" n; then
                     if "$exe" -NoProfile -NonInteractive -Command 'Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force'; then
                         print_success "Local scripts allowed."
                     else
