@@ -44,8 +44,9 @@ check_not() {
 
 @test "previews run in bash even when SHELL is not a POSIX shell" {
     local out="$BATS_TEST_TMPDIR/preview-out"
-    # 'become' runs like a preview: through SHELL, with {} substituted
-    run in_pty "SHELL=/usr/bin/false bash -c 'source \"$PROJECT_DIR/commands/_utils.sh\"; printf \"a b\\n\" | run_fzf --bind \"load:become:[[ {} == \\\"a b\\\" ]] && echo \\\$BASH_VERSION > $out\"'"
+    # execute-silent runs like a preview: through SHELL, with {} substituted
+    # (not 'become': fzf 0.36, the minimum, doesn't have it)
+    run in_pty "SHELL=/usr/bin/false bash -c 'source \"$PROJECT_DIR/commands/_utils.sh\"; printf \"a b\\n\" | run_fzf --bind \"load:execute-silent([[ {} == \\\"a b\\\" ]] && echo \\\$BASH_VERSION > $out)+abort\"'"
     [ -s "$out" ]
 }
 
@@ -77,3 +78,30 @@ check_not() {
     check_not git show-ref --verify --quiet refs/heads/feature/delete-me
     check [ "$(git branch --show-current)" = "main" ]
 }
+
+@test "branch names with shell syntax are never run by previews or bindings" {
+    local m="$BATS_TEST_TMPDIR/ran" name keys="" i
+    # Legal ref names; each would create a marker file if a shell ran it
+    for name in "a\$(touch\${IFS}$m-dollar)" "b\`touch\${IFS}$m-backtick\`" \
+                "c';touch\${IFS}$m-squote;'" "d\";touch\${IFS}$m-dquote;\"" \
+                "e|touch\${IFS}$m-pipe" "f&touch\${IFS}$m-amp"; do
+        git check-ref-format "refs/heads/$name"
+        git update-ref "refs/heads/$name" HEAD
+        git push --quiet origin "refs/heads/$name:refs/heads/$name" 2>/dev/null
+    done
+    git fetch --quiet origin
+    for i in 1 2 3 4 5 6 7 8; do keys+='\x1b[B<pause>'; done
+
+    # Every entry's preview, and Del (answered with "n") on one of them
+    PTY_LOG="$BATS_TEST_TMPDIR/switch-log" KEYS="${keys}\x1b[3~<pause>n\r<pause>\x1b" run in_pty "\"${GB_BASH:-bash}\" \"$GB\" switch"
+    PTY_LOG="$BATS_TEST_TMPDIR/cleanup-log" KEYS="${keys}\x1b" run in_pty "\"${GB_BASH:-bash}\" \"$GB\" cleanup"
+    PTY_LOG="$BATS_TEST_TMPDIR/stale-log" KEYS="${keys}\x1b" run in_pty "\"${GB_BASH:-bash}\" \"$GB\" stale --all"
+
+    # The previews did run
+    grep -q "Author:" "$BATS_TEST_TMPDIR/switch-log"
+    grep -q "Recent commits" "$BATS_TEST_TMPDIR/cleanup-log"
+    grep -q "Recent commits" "$BATS_TEST_TMPDIR/stale-log"
+    # ... and never ran a branch name
+    ! ls "$m"-* 2>/dev/null
+}
+
