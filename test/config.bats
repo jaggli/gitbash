@@ -135,6 +135,15 @@ STUB
     [ "$(wc -l < "$PWSH_STUB_DIR/pwsh.exe.ps1")" -eq 1 ]
 }
 
+@test "--config on Windows only changes the execution policy when asked to" {
+    gb_is_windows_host || skip "not on Windows"
+    pwsh_stubs Restricted
+    # Load the functions (y), but press Enter at the execution policy question
+    run gb_input '\n\n\n\n\n\n\n\n\n\n\n\n\ny\n\ny\n\n' --config
+    [ "$status" -eq 0 ]
+    ! grep -q "Set-ExecutionPolicy" "$PWSH_STUB_DIR/log"
+}
+
 @test "--config on Windows leaves a RemoteSigned execution policy alone" {
     gb_is_windows_host || skip "not on Windows"
     pwsh_stubs RemoteSigned
