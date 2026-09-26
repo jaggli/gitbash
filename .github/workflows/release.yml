@@ -3,18 +3,27 @@
 # On every push to main, after CI passes:
 # - Pending changesets: open or update the "chore: release vX.Y.Z" pull request
 #   (changeset version: package.json, CHANGELOG.md).
-# - No pending changesets and package.json's version is not on npm yet (the
-#   release pull request was merged): publish to npm with trusted publishing
-#   (OIDC, no npm token, provenance), then tag and create the GitHub release.
+# - No pending changesets and package.json's version is new (the release pull
+#   request was merged): stage it on npm with trusted publishing (OIDC, no npm
+#   token, provenance) and create a draft GitHub release as a record of that.
+#   Draft releases have no tag and are invisible to 'gitbash --update' and
+#   install.sh.
+# A maintainer approves the staged version on npmjs.com or with
+# 'npm stage approve' (needs 2FA; the workflow cannot do it). The next
+# scheduled run (or 'gh workflow run release.yml') sees the version live on npm
+# and publishes the draft release, which creates the vX.Y.Z tag.
 #
-# npm is published before the GitHub release, which is what 'gitbash --update'
-# and install.sh look for. Every step checks what is done already, so a failed
-# run can simply be re-run.
+# To re-stage after rejecting a staged version, delete the draft release and
+# re-run the workflow.
 name: Release
 
 on:
   push:
     branches: [main]
+  # Finish releases approved on npm (never stages anything)
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
 
 permissions: {}
 
@@ -24,20 +33,23 @@ concurrency:
 
 jobs:
   ci:
+    if: github.event_name == 'push'
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
 
   plan:
     needs: ci
+    # Scheduled and manual runs skip CI: they only finish releases
+    if: ${{ !cancelled() && (needs.ci.result == 'success' || (needs.ci.result == 'skipped' && github.event_name != 'push')) }}
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write  # draft releases are only visible with write access
     outputs:
       pending: ${{ steps.plan.outputs.pending }}
       version: ${{ steps.plan.outputs.version }}
-      on_npm: ${{ steps.plan.outputs.on_npm }}
-      released: ${{ steps.plan.outputs.released }}
+      live: ${{ steps.plan.outputs.live }}
+      release: ${{ steps.plan.outputs.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -55,28 +67,39 @@ jobs:
           done
           version="$(node -p "require('./package.json').version")"
 
-          # Only a 404 means "not published"; any other error stops the release
-          on_npm=true
-          if ! out="$(npm view "gitbash@$version" version 2>&1)"; then
+          # Live = published and approved: the version exists and 'latest' has
+          # reached it (a staged version is not live). Only a 404 means "not
+          # published"; any other error stops the run.
+          live=false
+          if out="$(npm view "gitbash@$version" version 2>&1)"; then
+            latest="$(npm view gitbash dist-tags.latest)"
+            if [ "$(printf '%s\n' "$version" "$latest" | sort -V | head -n 1)" = "$version" ]; then
+              live=true
+            fi
+          else
             case "$out" in
-              *E404*) on_npm=false ;;
+              *E404*) ;;
               *) echo "$out" >&2; exit 1 ;;
             esac
           fi
-          released=true
-          gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || released=false
 
-          echo "pending=$pending version=$version on_npm=$on_npm released=$released"
+          # GitHub release: none, draft (staged on npm) or published
+          release=none
+          if draft="$(gh release view "v$version" --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft 2>/dev/null)"; then
+            if [ "$draft" = true ]; then release=draft; else release=published; fi
+          fi
+
+          echo "pending=$pending version=$version live=$live release=$release"
           {
             echo "pending=$pending"
             echo "version=$version"
-            echo "on_npm=$on_npm"
-            echo "released=$released"
+            echo "live=$live"
+            echo "release=$release"
           } >> "$GITHUB_OUTPUT"
 
   release-pr:
     needs: plan
-    if: needs.plan.outputs.pending == 'true'
+    if: github.event_name == 'push' && needs.plan.outputs.pending == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write       # push the release branch
@@ -124,14 +147,17 @@ jobs:
           # Pull requests opened with the workflow token don't start pull_request runs
           gh workflow run ci.yml --ref "$BRANCH"
 
-  publish:
+  stage:
     needs: plan
-    if: needs.plan.outputs.pending == 'false' && (needs.plan.outputs.on_npm == 'false' || needs.plan.outputs.released == 'false')
+    # Only after CI passed for this commit, and only once per version
+    if: >-
+      github.event_name == 'push' && needs.plan.outputs.pending == 'false' &&
+      needs.plan.outputs.live == 'false' && needs.plan.outputs.release == 'none'
     runs-on: ubuntu-latest
-    # Protect it in Settings → Environments (only main, optionally a required reviewer)
+    # Protect it in Settings → Environments (deployment branches: main)
     environment: npm
     permissions:
-      contents: write  # tag and GitHub release
+      contents: write  # draft GitHub release
       id-token: write  # npm trusted publishing
     env:
       VERSION: ${{ needs.plan.outputs.version }}
@@ -142,24 +168,50 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
-      - name: Check npm supports trusted publishing
+      - name: Check npm supports trusted and staged publishing
         run: |
           npm_version="$(npm --version)"
-          if [ "$(printf '%s\n' 11.5.1 "$npm_version" | sort -V | head -n 1)" != 11.5.1 ]; then
-            echo "npm $npm_version is too old for trusted publishing (needs 11.5.1)" >&2
+          if [ "$(printf '%s\n' 11.5.1 "$npm_version" | sort -V | head -n 1)" != 11.5.1 ] ||
+             ! npm stage --help >/dev/null 2>&1; then
+            echo "npm $npm_version does not support staged trusted publishing" >&2
             exit 1
           fi
       - name: Check the version matches this commit
         run: test "$(node -p "require('./package.json').version")" = "$VERSION"
-      # Nothing is installed or built: the package is published as checked out
-      - name: Publish to npm
-        if: needs.plan.outputs.on_npm == 'false'
-        run: npm publish --ignore-scripts
-      - name: Create the tag and GitHub release
-        if: needs.plan.outputs.released == 'false'
+      # Nothing is installed or built: the package is staged as checked out
+      - name: Stage on npm
+        run: npm stage publish --ignore-scripts
+      - name: Create the draft GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           scripts/release-notes.sh "$VERSION" > "$RUNNER_TEMP/notes.md"
-          gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+          gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" \
             --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+          {
+            echo "### gitbash v$VERSION is staged on npm"
+            echo
+            echo "Approve it on npmjs.com or with \`npm stage approve\` (2FA)."
+            echo "The GitHub release and tag follow within 15 minutes, or run: \`gh workflow run release.yml\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  finish:
+    needs: plan
+    # Approved on npm: publish the draft release, which creates the tag
+    if: needs.plan.outputs.live == 'true' && needs.plan.outputs.release != 'published'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+      RELEASE: ${{ needs.plan.outputs.release }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Publish the GitHub release
+        run: |
+          if [ "$RELEASE" != draft ]; then
+            # Live on npm without a staging record: don't guess which commit to tag
+            echo "gitbash $VERSION is on npm but has no draft release. Create the v$VERSION release by hand for the commit that was published." >&2
+            exit 1
+          fi
+          gh release edit "v$VERSION" --repo "$GITHUB_REPOSITORY" --draft=false --latest
