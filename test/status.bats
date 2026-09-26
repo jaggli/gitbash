@@ -107,6 +107,8 @@ status_list() {
 }
 
 @test "terminal control sequences in file names are not printed" {
+    # Windows file names can't contain control characters (Git Bash replaces them)
+    gb_is_windows_host && skip "no control characters in Windows file names"
     printf 'x\n' > "$(printf 'notes\033]52;c;ZWNobw==\a.txt')"
     fzf_plan "notes" "esc"
     run gb status
