@@ -128,14 +128,14 @@ _gb_fetch() {
     fi
 }
 
-# Print the version of the latest GitHub release, e.g. 2.1.0
+# Print the latest version on npm, e.g. 2.1.0. npm's "latest" tag only moves
+# when a maintainer approves a staged version (2FA); a GitHub release doesn't need that.
 gb_latest_version() {
-    local json tag
-    json=$(_gb_fetch "https://api.github.com/repos/$GB_REPO/releases/latest" 2>/dev/null) || return 1
-    tag=$(printf '%s\n' "$json" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)
-    tag="${tag#v}"
-    [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
-    echo "$tag"
+    local json version
+    json=$(_gb_fetch "https://registry.npmjs.org/-/package/gitbash/dist-tags" 2>/dev/null) || return 1
+    version=$(printf '%s\n' "$json" | sed -n 's/.*"latest": *"\([^"]*\)".*/\1/p' | head -n 1)
+    [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+    echo "$version"
 }
 
 # Returns 0 if version $1 is newer than the running one

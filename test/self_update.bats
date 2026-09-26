@@ -46,7 +46,7 @@ state_value() {
 }
 
 fetches() {
-    if [[ -f "$CURL_LOG" ]]; then grep -c 'releases/latest' "$CURL_LOG"; else echo 0; fi
+    if [[ -f "$CURL_LOG" ]]; then grep -c 'dist-tags' "$CURL_LOG"; else echo 0; fi
 }
 
 # Wait up to 5 seconds for the background check to store a version
@@ -99,6 +99,13 @@ install_pnpm_copy() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"gitbash $CURRENT is up to date"* ]]
     [ ! -e "$NPM_LOG" ]
+}
+
+@test "--update takes the latest version from npm, not from GitHub releases" {
+    run gb --update
+    grep -qx 'https://registry.npmjs.org/-/package/gitbash/dist-tags' "$CURL_LOG"
+    ! grep -q 'api.github.com' "$CURL_LOG"
+    grep -q 'gitbash@9.9.9' "$NPM_LOG"
 }
 
 @test "--update reports when the latest version cannot be fetched" {

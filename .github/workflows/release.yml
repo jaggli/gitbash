@@ -6,8 +6,8 @@
 # - No pending changesets and package.json's version is new (the release pull
 #   request was merged): stage it on npm with trusted publishing (OIDC, no npm
 #   token, provenance) and create a draft GitHub release as a record of that.
-#   Draft releases have no tag and are invisible to 'gitbash --update' and
-#   install.sh.
+#   Draft releases have no tag. 'gitbash --update' and install.sh only look
+#   at npm's 'latest' tag, which moves when the version is approved.
 # A maintainer approves the staged version on npmjs.com or with
 # 'npm stage approve' (needs 2FA; the workflow cannot do it). The next
 # scheduled run (or 'gh workflow run release.yml') sees the version live on npm

@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# curl stub for update tests: serves the latest release (CURL_STUB_TAG) and
-# the install script (CURL_STUB_INSTALLER); fails like curl -f for anything else.
+# curl stub for update tests: serves npm's dist-tags with CURL_STUB_TAG as the latest
+# version and the install script (CURL_STUB_INSTALLER); fails like curl -f for anything else.
 url="${*: -1}"
 [[ -n "${CURL_LOG:-}" ]] && echo "$url" >> "$CURL_LOG"
 case "$url" in
-    */releases/latest)
+    https://registry.npmjs.org/-/package/gitbash/dist-tags)
         [[ -n "${CURL_STUB_TAG:-}" ]] || exit 22
-        printf '{\n  "url": "https://example.test",\n  "tag_name": "%s",\n  "name": "%s"\n}\n' \
-            "$CURL_STUB_TAG" "$CURL_STUB_TAG"
+        printf '{"latest":"%s","next":"99.0.0"}' "${CURL_STUB_TAG#v}"
         ;;
     */install.sh)
         [[ -f "${CURL_STUB_INSTALLER:-}" ]] || exit 22

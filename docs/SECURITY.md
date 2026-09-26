@@ -30,7 +30,7 @@ Versions before 2.0 executed repository `.gitbashrc` files as shell code, so ope
 
 - Releases are staged only by the Release workflow in GitHub Actions, with npm trusted publishing (OIDC, no long-lived npm token) and [provenance](https://docs.npmjs.com/generating-provenance-statements). A version goes live only after a maintainer approves it with 2FA ([staged publishing](https://docs.npmjs.com/staged-publishing/)); neither the workflow nor a leaked GitHub token can publish on its own. Check an installed copy with `npm audit signatures`.
 - The install script (`install.sh`) downloads that same npm package and installs it only if it matches the sha512 checksum npm records for the version. It keeps a copy of itself in the installation, and `gitbash --update` runs that copy, so a git tag cannot change what gets installed or run. (Before 3.1.0, `--update` downloaded `install.sh` from the release's git tag and ran it: whoever could create a GitHub release could run code on machines that updated a script install.)
-- The npm package is published before the GitHub release, which `gitbash --update` and the install script use.
+- `gitbash --update`, the update check and the install script take the latest version from npm's `latest` tag, which only moves when a maintainer approves a staged version. GitHub releases are not used for updates.
 - Third-party actions are pinned to commit SHAs and kept up to date by Dependabot; each workflow job gets only the permissions it needs.
 
 ---

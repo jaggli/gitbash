@@ -362,7 +362,7 @@ Run `gitbash --config-user` to create `.gitbashrc-user` for personal overrides i
 
 #### Updates
 
-`gitbash --update` installs the latest release the same way gitbash was installed: with `npm install -g` (or `pnpm add -g`) for a global package, or by running the release's install script again for the same locations.
+`gitbash --update` installs the latest version on npm the same way gitbash was installed: with `npm install -g` (or `pnpm add -g`) for a global package, or with the install script kept in the installation, for the same locations.
 
 gitbash also checks for new releases on its own, at most once a day, in the background while a command runs, so commands never wait for the network. When a new version is known, the next command at a terminal asks (at most every other day) whether to update now, not now, or skip that version for good. It never asks in scripts or pipes.
 
