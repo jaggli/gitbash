@@ -76,7 +76,7 @@ curl -fsSL https://raw.githubusercontent.com/jaggli/gitbash/main/install.sh | sh
 irm https://raw.githubusercontent.com/jaggli/gitbash/main/install.ps1 | iex
 ```
 
-It installs to `~/.local/share/gitbash` and links `~/.local/bin/gitbash` (add that folder to your PATH if the script says so); delete both to uninstall. Set `GITBASH_VERSION` for a specific version, and `GITBASH_INSTALL_DIR` / `GITBASH_BIN_DIR` for other locations.
+It downloads the package published on npm, checks it against npm's sha512 checksum, and installs it to `~/.local/share/gitbash` and links `~/.local/bin/gitbash` (add that folder to your PATH if the script says so); delete both to uninstall. Set `GITBASH_VERSION` for a specific version, and `GITBASH_INSTALL_DIR` / `GITBASH_BIN_DIR` for other locations.
 
 ## Options
 
