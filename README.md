@@ -1,6 +1,6 @@
 # gitbash
 
-Pure bash, zero-dependency git utilities. Reduce repetitive typing and supercharge git workflows with optional interactive previews and safe cleanup — see a [full comparison](./docs/workflows.md).
+Git utilities written in pure bash: only git is required, fzf, delta and bat are optional. Reduce repetitive typing and supercharge git workflows with optional interactive previews and safe cleanup — see a [full comparison](./docs/workflows.md).
 
 ![screenshot-status.png](./docs/screenshot-status.png)
 

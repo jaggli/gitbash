@@ -29,60 +29,12 @@ Features:
   - Clean up: Delete stashes without applying them
 
 Navigation:
-  ↑/↓ or j/k    Navigate through options
+  ↑/↓           Navigate through options (typing filters the list)
   Enter         Select action
   ESC/Ctrl-C    Abort
 
 Examples:
-  $ stashes
-  Stash action >
-  > 💾 Stash - Create a new stash with a name
-    📦 Unstash - Apply and optionally drop a stash
-    🗑️  Clean up - Delete stashes without applying
-    ✖ Abort
-
-  # Select "Stash" and press Enter
-  Stash name: work in progress
-  ✓ Created stash: work in progress
-
-  ---
-
-  $ stashes
-  Stash action >
-  > 💾 Stash - Create a new stash with a name
-    📦 Unstash - Apply and optionally drop a stash
-    🗑️  Clean up - Delete stashes without applying
-    ✖ Abort
-
-  # Select "Unstash" and press Enter
-  Available stashes >
-  > stash@{0}: WIP on main: 1a2b3c4 commit message
-    stash@{1}: WIP on feature: 5d6e7f8 another commit
-    ✖ Abort
-
-  Applying stash@{0} ...
-  Drop stash@{0} now? (Y/n): y
-
-  ---
-
-  $ stashes
-  Stash action >
-  > 📦 Unstash - Apply and optionally drop a stash
-    🗑️  Clean up - Delete stashes without applying
-    ✖ Abort
-
-  # Select "Clean up" and press Enter
-  Available stashes >
-  > stash@{0}: WIP on main: 1a2b3c4 commit message
-    stash@{1}: WIP on feature: 5d6e7f8 another commit
-    ✖ Abort
-
-  # Use TAB to select multiple stashes
-  Selected stashes to delete:
-    - stash@{0}
-    - stash@{1}
-
-  Delete these 2 stash(es)? (y/N): y
+  $ stashes     # pick Stash, Unstash or Clean up, then continue as in that command
 
 Actions:
   💾 Stash       - Create a new stash with all changes
