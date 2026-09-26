@@ -203,6 +203,7 @@ _gb_config_entries() {
 gb_global_config_file() { echo "$HOME/.gitbashrc"; }
 
 # Load ~/.gitbashrc, then <repo>/.gitbashrc, then <repo>/.gitbashrc-user.
+# A .gitbashrc-user that is tracked by git is treated like .gitbashrc.
 gb_load_config() {
     local repo_root="" file scope key value
     repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || repo_root=""
@@ -210,12 +211,19 @@ gb_load_config() {
         case "$scope" in
             global) file=$(gb_global_config_file) ;;
             local) [[ -n "$repo_root" ]] || continue; file="$repo_root/.gitbashrc" ;;
-            user) [[ -n "$repo_root" ]] || continue; file="$repo_root/.gitbashrc-user" ;;
+            user)
+                [[ -n "$repo_root" ]] || continue
+                file="$repo_root/.gitbashrc-user"
+                # A committed .gitbashrc-user came with the repository: as untrusted as .gitbashrc
+                if git -C "$repo_root" ls-files --error-unmatch -- .gitbashrc-user >/dev/null 2>&1; then
+                    scope="local"
+                fi
+                ;;
         esac
         while IFS='=' read -r key value; do
             [[ -z "$key" ]] && continue
             if [[ "$key" == "GITBASH_MERGE_COMMAND" && "$scope" == "local" ]]; then
-                print_warning "$file: ignored GITBASH_MERGE_COMMAND (a repository cannot choose which program runs; set it in ~/.gitbashrc or .gitbashrc-user)"
+                print_warning "$file: ignored GITBASH_MERGE_COMMAND (a repository cannot choose which program runs; set it in ~/.gitbashrc or an uncommitted .gitbashrc-user)"
                 continue
             fi
             printf -v "$key" '%s' "$value"

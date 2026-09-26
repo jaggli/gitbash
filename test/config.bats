@@ -51,6 +51,37 @@ EOF
     [[ "$output" == *"ignored GITBASH_MERGE_COMMAND"* ]]
 }
 
+@test "a committed .gitbashrc-user cannot choose the merge tool" {
+    echo 'GITBASH_MERGE_COMMAND="evil-tool"' > .gitbashrc-user
+    git add .gitbashrc-user
+    git commit --quiet -m "repository ships a .gitbashrc-user"
+    run gb stash --version
+    [[ "$output" == *"ignored GITBASH_MERGE_COMMAND"* ]]
+}
+
+@test "update doesn't run a merge tool from a committed .gitbashrc-user" {
+    local marker="$BATS_TEST_TMPDIR/pwned"
+    printf 'GITBASH_MERGE_COMMAND="touch %s"\n' "$marker" > .gitbashrc-user
+    git add .gitbashrc-user
+    git commit --quiet -m "repository ships a .gitbashrc-user"
+    git push --quiet origin main 2>/dev/null
+    git switch --quiet -c feature/pr
+    commit_file app.txt "feature" "feature change"
+    remote_commit main app.txt "main" "main change"
+    run gb update
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Merge conflicts in"* ]]
+    [ ! -e "$marker" ]
+    # The default merge tool (stubbed) is opened instead
+    [ "$(cat "$MERGE_TOOL_LOG")" = "." ]
+}
+
+@test "an uncommitted .gitbashrc-user still chooses the merge tool" {
+    echo 'GITBASH_MERGE_COMMAND="my-tool"' > .gitbashrc-user
+    run gb stash --version
+    [[ "$output" != *"ignored GITBASH_MERGE_COMMAND"* ]]
+}
+
 @test "invalid values fall back to defaults with a warning" {
     echo 'GITBASH_STALE_MONTHS="abc"' > "$HOME/.gitbashrc"
     run gb stale --json

@@ -352,7 +352,7 @@ Run `gitbash --config-local` inside a repository to create a committed `.gitbash
 
 #### User Configuration
 
-Run `gitbash --config-user` to create `.gitbashrc-user` for personal overrides in one repository. It is excluded from git via `.git/info/exclude`.
+Run `gitbash --config-user` to create `.gitbashrc-user` for personal overrides in one repository. It is excluded from git via `.git/info/exclude`. If a repository commits a `.gitbashrc-user` anyway, gitbash treats it like the committed `.gitbashrc` (it cannot set `GITBASH_MERGE_COMMAND`).
 
 **Configuration priority (highest to lowest):**
 
