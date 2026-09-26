@@ -99,7 +99,9 @@ jobs:
 
   release-pr:
     needs: plan
-    if: github.event_name == 'push' && needs.plan.outputs.pending == 'true'
+    # !cancelled(): the implicit success() would skip this job whenever the
+    # 'ci' job was skipped (scheduled and manual runs)
+    if: ${{ !cancelled() && needs.plan.result == 'success' && github.event_name == 'push' && needs.plan.outputs.pending == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write       # push the release branch
@@ -153,8 +155,9 @@ jobs:
     needs: plan
     # Only after CI passed for this commit, and only once per version
     if: >-
+      ${{ !cancelled() && needs.plan.result == 'success' &&
       github.event_name == 'push' && needs.plan.outputs.pending == 'false' &&
-      needs.plan.outputs.live == 'false' && needs.plan.outputs.release == 'none'
+      needs.plan.outputs.live == 'false' && needs.plan.outputs.release == 'none' }}
     runs-on: ubuntu-latest
     # Protect it in Settings → Environments (deployment branches: main)
     environment: npm
@@ -200,7 +203,7 @@ jobs:
   finish:
     needs: plan
     # Approved on npm: publish the draft release, which creates the tag
-    if: needs.plan.outputs.live == 'true' && needs.plan.outputs.release != 'published'
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.live == 'true' && needs.plan.outputs.release != 'published' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
