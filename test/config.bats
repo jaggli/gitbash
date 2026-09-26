@@ -240,3 +240,23 @@ STUB
     [[ "$output" == *"ignored (config files are no longer executed): junk]52;c;ZWNobw=="* ]] || false
     [[ "$output" != *$'\033'* && "$output" != *$'\a'* ]]
 }
+
+@test "a committed .gitbashrc that is a symbolic link is not read" {
+    printf 'secret line\nGITBASH_REMOTE="elsewhere"\n' > "$BATS_TEST_TMPDIR/outside"
+    ln -s "$BATS_TEST_TMPDIR/outside" .gitbashrc
+    run gb stash --version
+    [[ "$output" == *".gitbashrc: ignored (a symbolic link)"* ]] || false
+    [[ "$output" != *"secret line"* ]] || false
+    ln -s "$BATS_TEST_TMPDIR/outside" .gitbashrc-user
+    git add .gitbashrc-user
+    run gb stash --version
+    [[ "$output" == *".gitbashrc-user: ignored (a symbolic link)"* ]]
+}
+
+@test "an uncommitted .gitbashrc-user may be a symbolic link" {
+    echo 'GITBASH_CREATE_BRANCH_PREFIX="mine"' > "$BATS_TEST_TMPDIR/my-settings"
+    ln -s "$BATS_TEST_TMPDIR/my-settings" .gitbashrc-user
+    run gb create --no-push PROJ-1 x
+    [ "$(git branch --show-current)" = "feature/mine/PROJ-1-x" ]
+}
+

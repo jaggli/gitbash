@@ -231,6 +231,12 @@ gb_load_config() {
                 fi
                 ;;
         esac
+        # A repository's config file must be a file in the repository, not a link to
+        # something else on this machine (whose lines would be printed as warnings)
+        if [[ "$scope" == "local" && -L "$file" ]]; then
+            print_warning "$file: ignored (a symbolic link)"
+            continue
+        fi
         while IFS='=' read -r key value; do
             [[ -z "$key" ]] && continue
             # A repository cannot choose which program runs, or turn off update checks
