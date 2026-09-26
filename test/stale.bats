@@ -34,6 +34,24 @@ setup() {
     [[ "$output" != *'"name":"develop"'* ]]
 }
 
+@test "a committed .gitbashrc can protect more branches, but not unprotect any" {
+    echo 'GITBASH_PROTECTED_BRANCHES=" "' > .gitbashrc
+    run gb stale --json --all
+    [[ "$output" != *'"name":"develop"'* ]] || false
+    [[ "$output" != *'"name":"release/1.0"'* ]] || false
+
+    echo 'GITBASH_PROTECTED_BRANCHES="feature/*"' > .gitbashrc
+    run gb stale --json --all
+    [[ "$output" != *'"name":"develop"'* ]] || false
+    [[ "$output" != *'"name":"feature/old"'* ]] || false
+
+    # Your own settings can still change the list
+    rm .gitbashrc
+    echo 'GITBASH_PROTECTED_BRANCHES="main"' > "$HOME/.gitbashrc"
+    run gb stale --json --all
+    [[ "$output" == *'"name":"develop"'* ]]
+}
+
 @test "shows the author, not the committer (GitHub 'Update branch' merges)" {
     git switch --quiet -c feature/web-merged main
     printf 'w\n' > w.txt

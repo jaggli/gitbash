@@ -348,7 +348,7 @@ Config files are **read, never executed**. Only `GITBASH_*="value"` lines are us
 
 #### Local Configuration
 
-Run `gitbash --config-local` inside a repository to create a committed `.gitbashrc` with overrides for everyone working on it (e.g. a team branch prefix or different thresholds). For security, a committed `.gitbashrc` cannot set `GITBASH_MERGE_COMMAND`.
+Run `gitbash --config-local` inside a repository to create a committed `.gitbashrc` with overrides for everyone working on it (e.g. a team branch prefix or different thresholds). For security, a committed `.gitbashrc` cannot set `GITBASH_MERGE_COMMAND` or `GITBASH_NO_UPDATE_CHECKS`, and its `GITBASH_PROTECTED_BRANCHES` only adds to the branches your own settings protect.
 
 #### User Configuration
 

@@ -238,6 +238,10 @@ gb_load_config() {
                 print_warning "$file: ignored $key (a repository cannot set it; set it in ~/.gitbashrc or an uncommitted .gitbashrc-user)"
                 continue
             fi
+            # A repository can protect more branches, but not unprotect yours
+            if [[ "$scope" == "local" && "$key" == "GITBASH_PROTECTED_BRANCHES" ]]; then
+                value="${GITBASH_PROTECTED_BRANCHES:-main master develop release/*} $value"
+            fi
             printf -v "$key" '%s' "$value"
         done < <(_gb_config_entries "$file" warn)
     done
