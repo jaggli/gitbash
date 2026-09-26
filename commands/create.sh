@@ -103,7 +103,7 @@ EOF
       --hotfix) branch_type="hotfix/"; shift ;;
       --release) branch_type="release/"; shift ;;
       -p|--push) auto_push="yes"; shift ;;
-      -y|--yes) export GITBASH_ASSUME_YES=1; shift ;;
+      -y|--yes) GITBASH_ASSUME_YES=1; shift ;;
       --no-push) auto_push="no"; shift ;;
       --)
         shift

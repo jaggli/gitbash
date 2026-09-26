@@ -43,8 +43,8 @@ _gb_color_ok() {
 }
 
 # NO_COLOR (https://no-color.org): a non-empty value turns off all colors.
-# GB_COLOR is the --color value for git and bat in fzf previews; it is
-# exported because previews run in a separate bash started by fzf.
+# GB_COLOR is the --color value for git and bat in fzf previews; run_fzf
+# passes it to fzf, whose previews run in a separate bash.
 if [[ -n "${NO_COLOR:-}" ]]; then
     GB_COLOR="never"
     # Also for git's own output (added to any GIT_CONFIG_* entries already set)
@@ -55,7 +55,6 @@ if [[ -n "${NO_COLOR:-}" ]]; then
 else
     GB_COLOR="always"
 fi
-export GB_COLOR
 
 # Remove terminal control characters from text read from stdin: C0 controls
 # except tab and newline (ESC, BEL, CR, ...), DEL, and C1 controls in UTF-8.
@@ -122,8 +121,8 @@ prompt_read() {
 }
 
 # Yes/no question. Returns 0 for yes, 1 for no. EOF or Enter picks the default.
-# GITBASH_ASSUME_YES=1 (exported by --yes flags, so commands run from a command
-# inherit it) answers yes, unless --strict is given.
+# GITBASH_ASSUME_YES=1 (set by --yes flags and passed on to commands run from
+# a command) answers yes, unless --strict is given.
 # Usage: gb_confirm [--strict] "Question?" y|n
 gb_confirm() {
     local strict=false
@@ -365,7 +364,9 @@ require_fzf() {
 run_fzf() {
     local bash_path
     bash_path=$(command -v bash)
-    FZF_DEFAULT_OPTS="" FZF_DEFAULT_OPTS_FILE="" SHELL="$bash_path" fzf "$@"
+    # GITBASH_NESTED: bindings that run gitbash (e.g. switch's Del) are nested runs
+    FZF_DEFAULT_OPTS="" FZF_DEFAULT_OPTS_FILE="" SHELL="$bash_path" GB_COLOR="$GB_COLOR" \
+        GITBASH_NESTED=1 GITBASH_ASSUME_YES="${GITBASH_ASSUME_YES:-}" fzf "$@"
 }
 
 # =============================================================================
@@ -474,9 +475,11 @@ gb_is_protected() {
     return 1
 }
 
-# Run another gitbash command (same installation)
+# Run another gitbash command (same installation). GITBASH_NESTED and
+# GITBASH_ASSUME_YES (set by -y) are passed only to it, not exported to git
+# hooks, editors or merge tools.
 gb_run() {
-    "${GITBASH_BIN:-gitbash}" "$@"
+    GITBASH_NESTED=1 GITBASH_ASSUME_YES="${GITBASH_ASSUME_YES:-}" "${GITBASH_BIN:-gitbash}" "$@"
 }
 
 # Fetch the current branch, sync with its remote counterpart and push.

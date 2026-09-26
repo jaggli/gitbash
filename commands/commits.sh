@@ -60,7 +60,7 @@ EOF
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -a|--all) all=true ;;
-            -y|--yes) export GITBASH_ASSUME_YES=1 ;;
+            -y|--yes) GITBASH_ASSUME_YES=1 ;;
             -*) print_error "Unknown option '$1'. See 'commits --help'."; return 1 ;;
             *)
                 if [[ -n "$count" ]]; then
