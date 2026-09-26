@@ -153,3 +153,14 @@ setup() {
     [ "$status" -eq 0 ]
     [ "$(git log -1 --format=%s)" = "fix: broken tests" ]
 }
+
+@test "git hooks don't see gitbash's internal variables" {
+    local seen="$BATS_TEST_TMPDIR/hook-env"
+    printf '#!/bin/sh\necho "VERSION=$VERSION SCRIPT_DIR=$SCRIPT_DIR GITBASH_BIN=$GITBASH_BIN" > "%s"\n' "$seen" > .git/hooks/pre-commit
+    chmod +x .git/hooks/pre-commit
+    echo "change" > file.txt
+    VERSION= SCRIPT_DIR= GITBASH_BIN= run gb commit -y add file
+    [ "$status" -eq 0 ]
+    [ "$(cat "$seen")" = "VERSION= SCRIPT_DIR= GITBASH_BIN=" ]
+}
+
