@@ -30,6 +30,7 @@
     "bin/",
     "commands/",
     "docs/",
+    "install.sh",
     "README.md",
     "LICENSE"
   ],

@@ -20,7 +20,7 @@ setup() {
 publish() {
     local version="$1" pkg="$BATS_TEST_TMPDIR/pkg-$1" integrity
     mkdir -p "$pkg/package"
-    cp -R "$PROJECT_DIR/bin" "$PROJECT_DIR/commands" "$PROJECT_DIR/LICENSE" "$pkg/package/"
+    cp -R "$PROJECT_DIR/bin" "$PROJECT_DIR/commands" "$PROJECT_DIR/LICENSE" "$PROJECT_DIR/install.sh" "$pkg/package/"
     sed "s/\"version\": *\"[^\"]*\"/\"version\": \"$version\"/" "$PROJECT_DIR/package.json" > "$pkg/package/package.json"
     tar -czf "$NPM_STUB_DIR/gitbash-$version.tgz" -C "$pkg" package
     integrity="sha512-$(openssl dgst -sha512 -binary "$NPM_STUB_DIR/gitbash-$version.tgz" | openssl base64 -A)"
@@ -35,6 +35,12 @@ publish() {
     [[ "$output" == *"Verified sha512 checksum."* ]]
     [ "$("$GITBASH_BIN_DIR/gitbash" --version)" = "gitbash 9.1.0" ]
     grep -qx 'method=script' "$GITBASH_INSTALL_DIR/.gitbash-install"
+}
+
+@test "install.sh keeps the verified install script for 'gitbash --update'" {
+    run sh "$PROJECT_DIR/install.sh"
+    [ "$status" -eq 0 ]
+    cmp "$PROJECT_DIR/install.sh" "$GITBASH_INSTALL_DIR/install.sh"
 }
 
 @test "install.sh installs a chosen version" {

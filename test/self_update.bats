@@ -108,15 +108,14 @@ install_pnpm_copy() {
     [[ "$output" == *"Could not check for updates"* ]]
 }
 
-@test "--update re-runs the install script for script installs, with the same locations" {
+@test "--update runs the installed install script for script installs, with the same locations" {
     local dir
     mkdir -p "$BATS_TEST_TMPDIR/share/gitbash"
     dir=$(cd -P "$BATS_TEST_TMPDIR/share/gitbash" && pwd)
     cp -R "$PROJECT_DIR/bin" "$PROJECT_DIR/commands" "$PROJECT_DIR/package.json" "$dir/"
     printf 'method=script\nbin_dir=%s\n' "$BATS_TEST_TMPDIR/my-bin" > "$dir/.gitbash-install"
     GB="$dir/bin/gitbash"
-    export CURL_STUB_INSTALLER="$BATS_TEST_TMPDIR/install.sh"
-    cat > "$CURL_STUB_INSTALLER" <<'EOF'
+    cat > "$dir/install.sh" <<'EOF'
 echo "$GITBASH_VERSION|$GITBASH_INSTALL_DIR|$GITBASH_BIN_DIR" > "$INSTALL_LOG"
 pkg="$GITBASH_INSTALL_DIR/package.json"
 sed "s/\"version\": *\"[^\"]*\"/\"version\": \"$GITBASH_VERSION\"/" "$pkg" > "$pkg.new" && mv "$pkg.new" "$pkg"
@@ -126,8 +125,25 @@ EOF
     run gb --update
     [ "$status" -eq 0 ]
     [ "$(cat "$INSTALL_LOG")" = "9.9.9|$dir|$BATS_TEST_TMPDIR/my-bin" ]
-    grep -q 'jaggli/gitbash/v9.9.9/install.sh' "$CURL_LOG"
+    # Nothing but the version check was downloaded
+    ! grep -q 'install.sh' "$CURL_LOG"
     [[ "$output" == *"Updated gitbash $CURRENT → 9.9.9"* ]]
+}
+
+@test "--update never runs an install script downloaded from a release tag" {
+    local dir marker="$BATS_TEST_TMPDIR/pwned"
+    mkdir -p "$BATS_TEST_TMPDIR/share/gitbash"
+    dir=$(cd -P "$BATS_TEST_TMPDIR/share/gitbash" && pwd)
+    cp -R "$PROJECT_DIR/bin" "$PROJECT_DIR/commands" "$PROJECT_DIR/package.json" "$dir/"
+    printf 'method=script\nbin_dir=%s\n' "$BATS_TEST_TMPDIR/my-bin" > "$dir/.gitbash-install"
+    GB="$dir/bin/gitbash"
+    export CURL_STUB_INSTALLER="$BATS_TEST_TMPDIR/evil.sh"
+    printf 'touch "%s"\n' "$marker" > "$CURL_STUB_INSTALLER"
+
+    run gb --update
+    [ "$status" -eq 1 ]
+    [ ! -e "$marker" ]
+    [[ "$output" == *"main/install.sh | GITBASH_VERSION=9.9.9"* ]]
 }
 
 @test "--update in a git checkout points to git pull" {

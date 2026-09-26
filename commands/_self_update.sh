@@ -193,9 +193,12 @@ gb_self_update_to() {
     print_success "Updated gitbash $VERSION → $latest"
 }
 
-# Re-run the install script of the new release for the same locations
+# Install version $1 with the install script that came with this copy, for the
+# same locations. Never one downloaded from a git tag: whoever can create a tag
+# would decide what runs. The script downloads the version from npm and checks
+# its sha512 before installing it.
 _gb_self_update_script() {
-    local latest="$1" bin_dir="" key value tmp
+    local latest="$1" bin_dir="" key value
     if [[ -f "$SCRIPT_DIR/.gitbash-install" ]]; then
         while IFS='=' read -r key value; do
             [[ "$key" == "bin_dir" ]] && bin_dir="$value"
@@ -204,27 +207,24 @@ _gb_self_update_script() {
     bin_dir="${bin_dir:-$HOME/.local/bin}"
 
     local -a vars=(GITBASH_VERSION="$latest" GITBASH_INSTALL_DIR="$SCRIPT_DIR" GITBASH_BIN_DIR="$bin_dir")
-    local hint="curl -fsSL https://raw.githubusercontent.com/$GB_REPO/main/install.sh | sudo ${vars[*]} sh"
-    if [[ ! -w "$(dirname "$SCRIPT_DIR")" ]]; then
-        print_error "No permission to write to $(dirname "$SCRIPT_DIR"). Update with:"
+    local hint="curl -fsSL https://raw.githubusercontent.com/$GB_REPO/main/install.sh | ${vars[*]} sh"
+    if [[ ! -f "$SCRIPT_DIR/install.sh" ]]; then
+        # Installed before gitbash 3.1.0, which started to keep the script
+        print_error "This installation has no install script yet. Update once with:"
         echo "  $hint" >&2
         return 1
     fi
-
-    tmp=$(mktemp 2>/dev/null || mktemp -t gitbash) || return 1
-    if ! _gb_fetch "https://raw.githubusercontent.com/$GB_REPO/v$latest/install.sh" > "$tmp" 2>/dev/null ||
-       [[ ! -s "$tmp" ]]; then
-        rm -f "$tmp"
-        print_error "Could not download the install script of gitbash $latest."
+    if [[ ! -w "$(dirname "$SCRIPT_DIR")" ]]; then
+        print_error "No permission to write to $(dirname "$SCRIPT_DIR"). Update with:"
+        echo "  curl -fsSL https://raw.githubusercontent.com/$GB_REPO/main/install.sh | sudo ${vars[*]} sh" >&2
         return 1
     fi
-    print_info "Running the install script of gitbash $latest"
-    if ! env "${vars[@]}" sh "$tmp"; then
-        rm -f "$tmp"
+
+    print_info "Installing gitbash $latest"
+    if ! env "${vars[@]}" sh "$SCRIPT_DIR/install.sh"; then
         print_error "Update failed."
         return 1
     fi
-    rm -f "$tmp"
 }
 
 # gitbash --update

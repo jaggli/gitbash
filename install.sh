@@ -15,7 +15,8 @@
 #
 # Works in Git Bash on Windows, where a small launcher script replaces the symlink.
 #
-# Run it again, or 'gitbash --update', to upgrade.
+# Run it again, or 'gitbash --update' (which runs the installed copy of this
+# script), to upgrade.
 set -eu
 
 REGISTRY="https://registry.npmjs.org/gitbash"
@@ -121,6 +122,8 @@ src="$tmp/src/package"
 mkdir "$tmp/install"
 cp -R "$src/bin" "$src/commands" "$src/package.json" "$tmp/install/"
 [ -f "$src/LICENSE" ] && cp "$src/LICENSE" "$tmp/install/"
+# This version's verified installer: 'gitbash --update' runs it from here
+[ -f "$src/install.sh" ] && cp "$src/install.sh" "$tmp/install/"
 chmod +x "$tmp/install/bin/gitbash"
 # Tells 'gitbash --update' how gitbash was installed
 printf 'method=script\nbin_dir=%s\n' "$BIN_DIR" > "$tmp/install/.gitbash-install"
