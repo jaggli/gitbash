@@ -448,18 +448,39 @@ gb_sync_and_push() {
     done
 
     local remote branch
-    remote=$(gb_remote)
     if ! branch=$(gb_current_branch); then
         print_error "Detached HEAD: check out a branch before pushing."
         return 1
+    fi
+
+    # Push to the branch's upstream (e.g. a fork, or a different name on the remote),
+    # else to <GITBASH_REMOTE>/<branch>. An upstream that is a protected branch (a
+    # branch started from origin/main tracks main) is never pushed to.
+    local target="$branch" set_upstream=false up_remote up_merge
+    remote=$(gb_remote)
+    up_remote=$(git config "branch.$branch.remote" 2>/dev/null) || up_remote=""
+    up_merge=$(git config "branch.$branch.merge" 2>/dev/null) || up_merge=""
+    up_merge="${up_merge#refs/heads/}"
+    if [[ -n "$up_remote" && "$up_remote" != "." && "$up_remote" != -* && -n "$up_merge" ]] &&
+       git remote get-url "$up_remote" >/dev/null 2>&1 &&
+       _gb_valid_branch_name "$up_merge" && ! gb_is_protected "$up_merge"; then
+        remote="$up_remote"
+        target="$up_merge"
+    else
+        set_upstream=true
     fi
     if ! git remote get-url "$remote" >/dev/null 2>&1; then
         print_error "No remote '$remote' configured."
         return 1
     fi
+    local refspec="$branch" where="$remote"
+    if [[ "$target" != "$branch" ]]; then
+        refspec="$branch:refs/heads/$target"
+        where="$remote/$target"
+    fi
 
     local out
-    if ! out=$(git ls-remote --heads "$remote" "refs/heads/$branch" 2>&1); then
+    if ! out=$(git ls-remote --heads "$remote" "refs/heads/$target" 2>&1); then
         print_error "Could not reach '$remote':"
         printf '%s\n' "$out" >&2
         return 1
@@ -467,40 +488,40 @@ gb_sync_and_push() {
 
     # New branch: first push sets up tracking
     if [[ -z "$out" ]]; then
-        print_info "Pushing new branch '$branch' to '$remote'..."
-        if git push -u "$remote" "$branch"; then
-            print_success "Pushed '$branch' to '$remote'."
+        print_info "Pushing new branch '$branch' to '$where'..."
+        if git push -u "$remote" "$refspec"; then
+            print_success "Pushed '$branch' to '$where'."
             return 0
         fi
-        print_error "Failed to push '$branch' to '$remote'."
+        print_error "Failed to push '$branch' to '$where'."
         return 1
     fi
 
-    if ! git fetch --quiet "$remote" "+refs/heads/$branch:refs/remotes/$remote/$branch"; then
-        print_error "Failed to fetch '$remote/$branch'."
+    if ! git fetch --quiet "$remote" "+refs/heads/$target:refs/remotes/$remote/$target"; then
+        print_error "Failed to fetch '$remote/$target'."
         return 1
     fi
 
     local local_commit remote_commit
     local_commit=$(git rev-parse HEAD)
-    remote_commit=$(git rev-parse "refs/remotes/$remote/$branch")
+    remote_commit=$(git rev-parse "refs/remotes/$remote/$target")
 
     if [[ "$local_commit" == "$remote_commit" ]]; then
-        print_info "'$remote/$branch' is already up to date."
+        print_info "'$remote/$target' is already up to date."
         return 0
     fi
 
     local push_args=()
-    if [[ -z "$(git config "branch.$branch.remote" 2>/dev/null)" ]]; then
+    if [[ "$set_upstream" == true ]]; then
         push_args+=("-u")
     fi
 
     if git merge-base --is-ancestor "$remote_commit" "$local_commit"; then
         : # Ahead of the remote: plain push
     elif git merge-base --is-ancestor "$local_commit" "$remote_commit"; then
-        print_info "'$remote/$branch' has new commits. Fast-forwarding..."
-        if git merge --ff-only --quiet "refs/remotes/$remote/$branch"; then
-            print_success "Up to date with '$remote/$branch'. Nothing to push."
+        print_info "'$remote/$target' has new commits. Fast-forwarding..."
+        if git merge --ff-only --quiet "refs/remotes/$remote/$target"; then
+            print_success "Up to date with '$remote/$target'. Nothing to push."
             return 0
         fi
         print_error "Fast-forward failed."
@@ -510,10 +531,10 @@ gb_sync_and_push() {
         ahead=$(git rev-list --count "$remote_commit..$local_commit")
         behind=$(git rev-list --count "$local_commit..$remote_commit")
         if [[ "$amend" == true || "$force" == true ]]; then
-            print_warning "'$remote/$branch' differs from your rewritten branch ($ahead local vs $behind remote commit(s))."
-            if gb_confirm --strict "Overwrite '$remote/$branch' with your version (push --force-with-lease)?" n; then
-                if git push "${push_args[@]+"${push_args[@]}"}" --force-with-lease="refs/heads/$branch:$remote_commit" "$remote" "$branch"; then
-                    print_success "Force-pushed '$branch' to '$remote'."
+            print_warning "'$remote/$target' differs from your rewritten branch ($ahead local vs $behind remote commit(s))."
+            if gb_confirm --strict "Overwrite '$remote/$target' with your version (push --force-with-lease)?" n; then
+                if git push "${push_args[@]+"${push_args[@]}"}" --force-with-lease="refs/heads/$target:$remote_commit" "$remote" "$refspec"; then
+                    print_success "Force-pushed '$branch' to '$where'."
                     return 0
                 fi
                 print_error "Force push failed (someone else may have pushed in the meantime)."
@@ -523,18 +544,18 @@ gb_sync_and_push() {
             return 1
         fi
 
-        print_warning "Your branch and '$remote/$branch' have diverged ($ahead local, $behind remote commit(s))."
+        print_warning "Your branch and '$remote/$target' have diverged ($ahead local, $behind remote commit(s))."
         local choice
-        gb_choice choice "[r]ebase onto '$remote/$branch', [m]erge it, or [a]bort? (r/m/A):" "rma" "a"
+        gb_choice choice "[r]ebase onto '$remote/$target', [m]erge it, or [a]bort? (r/m/A):" "rma" "a"
         case "$choice" in
             r)
-                if ! git rebase --rebase-merges "refs/remotes/$remote/$branch"; then
+                if ! git rebase --rebase-merges "refs/remotes/$remote/$target"; then
                     print_error "Rebase stopped. Resolve the conflicts and run 'git rebase --continue', or 'git rebase --abort'."
                     return 1
                 fi
                 ;;
             m)
-                if ! git merge --no-edit "refs/remotes/$remote/$branch"; then
+                if ! git merge --no-edit "refs/remotes/$remote/$target"; then
                     print_error "Merge stopped. Resolve the conflicts and commit, or run 'git merge --abort'."
                     return 1
                 fi
@@ -546,12 +567,12 @@ gb_sync_and_push() {
         esac
     fi
 
-    print_info "Pushing '$branch' to '$remote'..."
-    if git push "${push_args[@]+"${push_args[@]}"}" "$remote" "$branch"; then
-        print_success "Pushed '$branch' to '$remote'."
+    print_info "Pushing '$branch' to '$where'..."
+    if git push "${push_args[@]+"${push_args[@]}"}" "$remote" "$refspec"; then
+        print_success "Pushed '$branch' to '$where'."
         return 0
     fi
-    print_error "Failed to push '$branch' to '$remote'."
+    print_error "Failed to push '$branch' to '$where'."
     return 1
 }
 
