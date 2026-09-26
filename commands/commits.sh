@@ -13,7 +13,7 @@ commits() {
     fi
     if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
         gb_help << 'EOF'
-Usage: commits [-a|--all] [COUNT]
+Usage: commits [-a|--all] [-y|--yes] [COUNT]
 
 List the commits made on the current branch with option to revert selected ones.
 
@@ -26,6 +26,7 @@ Arguments:
 
 Options:
   -a, --all     Show all recent commits reachable from HEAD
+  -y, --yes     Revert the selected commits without asking again
 
 Navigation:
   ↑/↓           Navigate through commits
@@ -59,6 +60,7 @@ EOF
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -a|--all) all=true ;;
+            -y|--yes) export GITBASH_ASSUME_YES=1 ;;
             -*) print_error "Unknown option '$1'. See 'commits --help'."; return 1 ;;
             *)
                 if [[ -n "$count" ]]; then

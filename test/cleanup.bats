@@ -151,3 +151,11 @@ json_field() {
     [ "$(json_field web-merged author_name)" = '"Jane Doe"' ]
     [ "$(json_field web-merged author_email)" = '"jane@example.com"' ]
 }
+
+@test "-n is --dry-run and --days takes a separate value" {
+    git switch --quiet -c old-merged
+    git switch --quiet main
+    run gb cleanup -n --days 1
+    [ "$status" -eq 0 ]
+    git show-ref --verify --quiet refs/heads/old-merged
+}

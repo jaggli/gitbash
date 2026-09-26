@@ -1,6 +1,6 @@
 # gitbash
 
-Pure bash, zero-dependency git utilities. Reduce repetitive typing and supercharge git workflows with optional interactive previews and safe cleanup — see a [full comparison](./docs/workflows.md).
+Git utilities written in pure bash: only git is required, fzf, delta and bat are optional. Reduce repetitive typing and supercharge git workflows with optional interactive previews and safe cleanup — see a [full comparison](./docs/workflows.md).
 
 ![screenshot-status.png](./docs/screenshot-status.png)
 
@@ -94,6 +94,8 @@ It installs to `~/.local/share/gitbash` and links `~/.local/bin/gitbash` (add th
 
 ## Commands
 
+`-y` / `--yes` answers every yes/no question with yes and is passed on to the commands a command runs (e.g. `pr -y` → `commit`). Deleting unmerged work or remote branches and force-pushing always ask. Options with a value accept `--days=14` and `--days 14`.
+
 ### branch
 
 Interactive menu for branch operations (create/switch/update).
@@ -107,7 +109,7 @@ branch --version    # Show version
 ### create
 
 ```bash
-create [--feature|--bugfix|--hotfix|--release|-t] [--push|--no-push] [JIRA_LINK|ISSUE] [TITLE...]
+create [--feature|--bugfix|--hotfix|--release|-t] [-p|--push|--no-push] [-y] [JIRA_LINK|ISSUE] [TITLE...]
 ```
 
 Create a branch from the latest `origin/<base>` with optional Jira parsing, then push and track it (`GITBASH_CREATE_AUTO_PUSH`, `--no-push`).
@@ -140,7 +142,7 @@ create                                  # Interactive mode (no Jira prompt)
 ```bash
 create PROJ-123 fix bug                 # → feature/PROJ-123-fix-bug
 create fix bug                          # → feature/NOISSUE-fix-bug
-create enhance login screen             # → feature/enhance-login-screen (parsing disabled)
+create --no-push PROJ-7 quick fix       # → feature/PROJ-7-quick-fix, not pushed
 ```
 
 ### switch
@@ -191,7 +193,7 @@ Interactive staging with fzf and diff previews.
 ### pr
 
 ```bash
-pr [-p|--push] [--print]
+pr [-p|--push] [--print] [-y|--yes]
 ```
 
 Open the pull request in the browser: the existing PR via the GitHub CLI when available, otherwise the create page (GitHub, GitHub Enterprise, GitLab, Bitbucket, Azure DevOps). Offers to commit local changes and to push a branch that is not on the remote yet. `-p` pushes first, `--print` prints the URL.
@@ -215,7 +217,7 @@ Reset the current branch like a fresh clone: fetch, `git reset --hard <remote>/<
 ### update
 
 ```bash
-update [-p|--push]
+update [-p|--push] [-y|--yes]
 ```
 
 Merge the latest `origin/<base>` into the current branch. With local changes, asks to commit, stash (restored afterwards) or abort. Lists conflicts and opens the merge tool (`GITBASH_MERGE_COMMAND`). On the base branch itself, fast-forwards it.
@@ -240,23 +242,23 @@ Interactive stash menu: create, apply, or delete stashes.
 ### stash
 
 ```bash
-stash [NAME...]
+stash [--] [NAME...]
 ```
 
-Create named stash (includes untracked files).
+Create named stash (includes untracked files). Use `--` for a name starting with `-`.
 
 ### unstash
 
-Apply stash with fzf picker. Drops it afterwards unless you say no.
+Apply stash with fzf picker. Drops it afterwards unless you say no. `-y` drops it without asking.
 
 ### cleanstash
 
-Delete stashes (multi-select with TAB).
+Delete stashes (multi-select with TAB). `-y` skips the confirmation.
 
 ### cleanup
 
 ```bash
-cleanup [--dry-run] [--days=N] [-y|--yes] [--json]
+cleanup [-n|--dry-run] [--days=N] [-y|--yes] [--json]
 ```
 
 Find and delete leftover local branches:
@@ -288,7 +290,7 @@ Unpushed commits are shown per branch. Deletes with `git branch -d`; force-delet
 ### commits
 
 ```bash
-commits [-a|--all] [COUNT]
+commits [-a|--all] [-y|--yes] [COUNT]
 ```
 
 List the current branch's own commits with option to revert. On a feature branch only commits not in the base branch are shown; on the base branch its first-parent history (merged branches as their merge commit). If the upstream has new commits, offers to fast-forward first. Multi-select with TAB; selected commits are reverted newest first.

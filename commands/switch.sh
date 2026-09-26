@@ -139,6 +139,15 @@ EOF
       ;;
   esac
 
+  # Branch names never start with '-': anything like that is a mistyped option
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+      -h|--help) switch --help; return 0 ;;
+      -*) print_error "Unknown option: $arg"; echo "Usage: switch [FILTER...]" >&2; return 1 ;;
+    esac
+  done
+
   require_git_repo || return 1
   require_fzf || return 1
 

@@ -45,7 +45,7 @@ Find and delete local branches that are no longer needed.
 Options:
   -h, --help       Show this help message
   --json           Output branch data as JSON (non-interactive)
-  --dry-run        List the branches that would be pre-selected, without deleting
+  -n, --dry-run    List the branches that would be pre-selected, without deleting
   --days=N         Override stale threshold (default: 7 days, configurable via GITBASH_CLEANUP_DAYS)
   -y, --yes        Delete the pre-selected branches without the picker (safe delete only)
 
@@ -88,12 +88,17 @@ EOF
         json_mode=true
         shift
         ;;
-      --dry-run)
+      -n|--dry-run)
         dry_run=true
         shift
         ;;
-      --days=*)
-        days_threshold="${1#--days=}"
+      --days=*|--days)
+        if [[ "$1" == --days ]]; then
+          days_threshold="${2:-}"
+          shift
+        else
+          days_threshold="${1#--days=}"
+        fi
         if ! [[ "$days_threshold" =~ ^[1-9][0-9]*$ ]]; then
           print_error "Invalid days value: $days_threshold"
           return 1
@@ -101,7 +106,7 @@ EOF
         shift
         ;;
       -y|--yes)
-        GITBASH_ASSUME_YES=1
+        export GITBASH_ASSUME_YES=1
         shift
         ;;
       *)

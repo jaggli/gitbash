@@ -12,13 +12,14 @@ stash() {
     fi
     if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
         gb_help << 'EOF'
-Usage: stash [NAME...]
+Usage: stash [--] [NAME...]
 
 Create a git stash with a descriptive name.
 If no name is provided, prompts for one interactively.
 
 Options:
   -h, --help    Show this help message
+  --            Everything after this is the name (even if it starts with '-')
 
 Features:
   - Stashes all changes: staged, unstaged and untracked files
@@ -45,6 +46,20 @@ EOF
         return 0
     fi
 
+    local name_parts=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--help) stash --help; return 0 ;;
+            --) shift; name_parts+=("$@"); break ;;
+            -*)
+                print_error "Unknown option: $1 (use 'stash -- $1' for a name starting with '-')"
+                return 1
+                ;;
+            *) name_parts+=("$1") ;;
+        esac
+        shift
+    done
+
     require_git_repo || return 1
 
     if ! git rev-parse --verify --quiet HEAD >/dev/null; then
@@ -58,8 +73,8 @@ EOF
     fi
 
     local stash_name
-    if [[ $# -gt 0 ]]; then
-        stash_name="$*"
+    if [[ ${#name_parts[@]} -gt 0 ]]; then
+        stash_name="${name_parts[*]}"
     else
         prompt_read "Stash name: " stash_name || true
         if [[ -z "$stash_name" ]]; then

@@ -84,8 +84,13 @@ EOF
                 my_mode=true
                 shift
                 ;;
-            --age=*)
-                stale_months="${1#--age=}"
+            --age=*|--age)
+                if [[ "$1" == --age ]]; then
+                    stale_months="${2:-}"
+                    shift
+                else
+                    stale_months="${1#--age=}"
+                fi
                 if ! [[ "$stale_months" =~ ^[1-9][0-9]*$ ]]; then
                     print_error "Invalid age value: $stale_months"
                     return 1
@@ -273,7 +278,8 @@ TOGGLE_EOF
 
     local failed=0 out
     for branch in "${branches_to_delete[@]}"; do
-        if out=$(git push "$remote" --delete "$branch" 2>&1); then
+        # A refspec, not a bare name: branch names come from the remote
+        if out=$(git push "$remote" ":refs/heads/$branch" 2>&1); then
             print_success "Deleted $remote/$branch"
         else
             print_error "Failed to delete $remote/$branch:"

@@ -78,8 +78,8 @@ We use [Changesets](https://github.com/changesets/changesets) to manage versions
 
 ```bash
 # 1. Create your feature branch
-./bin/gitbash create
-# Select "feature", enter "NOISSUE" or issue number, add description
+./bin/gitbash create -t
+# Pick the type (feature/bugfix), enter the issue number or press Enter for NOISSUE, then a title
 
 # 2. Make your changes
 vim commands/stale.sh

@@ -153,3 +153,47 @@ setup() {
     [ "$status" -eq 0 ]
     [ "$(git log -1 --format=%s)" = "fix: broken tests" ]
 }
+
+@test "git hooks don't see gitbash's internal variables" {
+    local seen="$BATS_TEST_TMPDIR/hook-env"
+    printf '#!/bin/sh\necho "VERSION=$VERSION SCRIPT_DIR=$SCRIPT_DIR GITBASH_BIN=$GITBASH_BIN" > "%s"\n' "$seen" > .git/hooks/pre-commit
+    chmod +x .git/hooks/pre-commit
+    echo "change" > file.txt
+    VERSION= SCRIPT_DIR= GITBASH_BIN= run gb commit -y add file
+    [ "$status" -eq 0 ]
+    [ "$(cat "$seen")" = "VERSION= SCRIPT_DIR= GITBASH_BIN=" ]
+}
+
+@test "commit -p pushes to the branch's upstream on another remote" {
+    local fork="$BATS_TEST_TMPDIR/fork.git"
+    git init --quiet --bare "$fork"
+    git remote add fork "$fork"
+    git switch --quiet -c feature/forked
+    git push --quiet -u fork feature/forked 2>/dev/null
+    echo "fork work" > fork.txt
+    run gb commit -y -p fork work
+    [ "$status" -eq 0 ]
+    [ "$(git ls-remote "$fork" refs/heads/feature/forked | cut -f1)" = "$(git rev-parse HEAD)" ]
+    ! remote_has_branch feature/forked
+}
+
+@test "commit -p pushes to an upstream with a different name" {
+    git switch --quiet -c feature/long-name
+    git push --quiet -u origin feature/long-name 2>/dev/null
+    git branch --quiet -m short
+    echo "work" > w.txt
+    run gb commit -y -p work
+    [ "$status" -eq 0 ]
+    [ "$(git ls-remote "$REMOTE" refs/heads/feature/long-name | cut -f1)" = "$(git rev-parse HEAD)" ]
+    ! remote_has_branch short
+}
+
+@test "commit -p never pushes a branch started from origin/main to main" {
+    git switch --quiet -c feature/from-main --track origin/main
+    echo "work" > w.txt
+    run gb commit -y -p work
+    [ "$status" -eq 0 ]
+    [ "$(git ls-remote "$REMOTE" refs/heads/main | cut -f1)" != "$(git rev-parse HEAD)" ]
+    remote_has_branch feature/from-main
+    [ "$(git rev-parse --abbrev-ref '@{upstream}')" = "origin/feature/from-main" ]
+}

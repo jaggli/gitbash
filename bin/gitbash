@@ -20,7 +20,9 @@ if [[ "$SCRIPT_DIR" == */node_modules/.pnpm/gitbash@*/node_modules/gitbash &&
 fi
 COMMANDS_DIR="$SCRIPT_DIR/commands"
 VERSION="$(grep -o '"version": *"[^"]*"' "$SCRIPT_DIR/package.json" | head -1 | cut -d'"' -f4)"
-export SCRIPT_DIR GITBASH_BIN VERSION
+# Not exported: they would leak into git hooks, editors and merge tools.
+# Commands are sourced into this process; nested runs of gitbash set them again.
+export -n SCRIPT_DIR GITBASH_BIN VERSION
 
 # shellcheck source=../commands/_utils.sh
 source "$COMMANDS_DIR/_utils.sh"

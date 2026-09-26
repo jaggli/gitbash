@@ -30,60 +30,12 @@ Features:
   - Update: Update current branch with latest main/master
 
 Navigation:
-  ↑/↓ or j/k    Navigate through options
+  ↑/↓           Navigate through options (typing filters the list)
   Enter         Select action
   ESC/Ctrl-C    Abort
 
 Examples:
-  $ branch
-  Branch action >
-  > 🌿 Create - Create a new feature branch
-    🔀 Switch - Switch to another branch
-    ⬆️  Update - Update current branch with main/master
-    ✖ Abort
-
-  # Select "Create" and press Enter
-  Enter Jira link (e.g., https://jira.company.com/browse/PROJ-123):
-  > PROJ-123
-  Parsed issue number: PROJ-123
-
-  Enter branch title (will be converted to lowercase with dashes):
-  > add new feature
-
-  Branch name: feature/PROJ-123-add-new-feature
-  Updating 'main' from origin...
-  ✓ 'main' is up to date.
-  ✓ Successfully created and switched to branch: feature/PROJ-123-add-new-feature (from main)
-
-  ---
-
-  $ branch
-  Branch action >
-  > 🌿 Create - Create a new feature branch
-    🔀 Switch - Switch to another branch
-    ⬆️  Update - Update current branch with main/master
-    ✖ Abort
-
-  # Select "Switch" and press Enter
-  Select branch: 
-  Current: main
-  > local: main
-    local: feature/PROJ-123-add-new-feature
-    remote: origin/develop
-
-  ---
-
-  $ branch
-  Branch action >
-  > 🌿 Create - Create a new feature branch
-    🔀 Switch - Switch to another branch
-    ⬆️  Update - Update current branch with main/master
-    ✖ Abort
-
-  # Select "Update" and press Enter
-  Fetching latest 'main' from origin...
-  Merging updated 'main' into 'feature/PROJ-123-add-new-feature'...
-  ✓ 'feature/PROJ-123-add-new-feature' is now up-to-date with 'main'.
+  $ branch      # pick Create, Switch or Update, then continue as in that command
 
 Actions:
   🌿 Create - Create a new feature branch with Jira parsing
@@ -100,6 +52,12 @@ See also:
 
 EOF
         return 0
+    fi
+
+    if [[ $# -gt 0 ]]; then
+        print_error "Unknown argument: $1"
+        echo "Usage: branch [-h|--help]" >&2
+        return 1
     fi
 
     # -----------------------------

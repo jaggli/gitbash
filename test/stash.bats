@@ -71,3 +71,41 @@ setup() {
     run gb branch
     [ "$status" -eq 0 ]
 }
+
+@test "stash rejects unknown options; -- allows a name starting with '-'" {
+    echo "change" >> README.md
+    run gb stash -x work
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Unknown option: -x"* ]]
+    [ -z "$(git stash list)" ]
+    run gb stash -- -x work
+    [ "$status" -eq 0 ]
+    [[ "$(git stash list)" == *"-x work"* ]]
+}
+
+@test "stash shows help for -h after a name" {
+    echo "change" >> README.md
+    run gb stash work -h
+    [[ "$output" == *"Usage: stash"* ]]
+    [ -z "$(git stash list)" ]
+}
+
+@test "cleanstash -y deletes the selected stashes without asking" {
+    echo "change" >> README.md
+    git stash push --quiet -m "old"
+    export FZF_STUB_STEP="old"
+    run gb cleanstash -y
+    [ "$status" -eq 0 ]
+    [ -z "$(git stash list)" ]
+}
+
+@test "menus and no-argument commands reject arguments" {
+    for cmd in status branch stashes unstash cleanstash; do
+        run gb "$cmd" oops
+        [ "$status" -eq 1 ]
+        [[ "$output" == *"Unknown argument: oops"* ]]
+    done
+    run gb switch --nope
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Unknown option: --nope"* ]]
+}

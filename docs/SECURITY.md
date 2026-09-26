@@ -19,6 +19,7 @@ Versions before 2.0 executed repository `.gitbashrc` files as shell code, so ope
 
 - Configuration files (`~/.gitbashrc`, a repository's `.gitbashrc` and `.gitbashrc-user`) are **parsed, never executed**. Only plain `GITBASH_*="value"` lines from a fixed list of settings are read; values containing `$`, backticks, backslashes or quotes are rejected.
 - A repository's committed `.gitbashrc` is treated as untrusted: it cannot set `GITBASH_MERGE_COMMAND` (the only setting that names a program to run). That setting is only read from `~/.gitbashrc` and `.gitbashrc-user`.
+- Settings that reach git as arguments are validated: `GITBASH_BASE_BRANCH` (and a base branch taken from the remote's `HEAD`) must be a valid branch name that does not start with `-`, and `GITBASH_REMOTE` must not start with `-`. Before 2.2.3, a committed `.gitbashrc` could set `GITBASH_BASE_BRANCH="--output=<file>"` and make `switch` or `cleanup` overwrite that file.
 - `gitbash --init` prints wrapper functions that call the installed `gitbash` binary; command code is not sourced into your shell.
 - `pr` and `repo` never pass credentials from the remote URL to the browser.
 
