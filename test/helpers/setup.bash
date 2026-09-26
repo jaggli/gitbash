@@ -6,14 +6,39 @@ HELPERS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$HELPERS_DIR/../.." && pwd)"
 GB="$PROJECT_DIR/bin/gitbash"
 
+# Build HOME, the bare remote and the clone once per test run, in a template
+# directory: starting processes is slow (very slow in Git Bash), and each
+# test would otherwise run a dozen git commands just to get here.
+_build_repo_template() {
+    local template="$1" tmp
+    tmp=$(mktemp -d "$BATS_RUN_TMPDIR/template.XXXXXX")
+    (
+        export HOME="$tmp/home"
+        mkdir -p "$HOME"
+        git config --global user.name "Test User"
+        git config --global user.email "test@example.com"
+        git config --global init.defaultBranch main
+        git config --global advice.detachedHead false
+        git init --quiet --bare "$tmp/remote.git"
+        git -C "$tmp/remote.git" symbolic-ref HEAD refs/heads/main
+        git clone --quiet "$tmp/remote.git" "$tmp/repo" 2>/dev/null
+        cd "$tmp/repo" || exit 1
+        echo "hello" > README.md
+        git add README.md
+        git commit --quiet -m "init"
+        git push --quiet origin main 2>/dev/null
+        git remote set-head origin main >/dev/null
+    ) || return 1
+    # (mv onto an existing directory would move it inside: check first)
+    if [[ -d "$template" ]]; then rm -rf "$tmp"; else mv "$tmp" "$template"; fi
+}
+
 setup_repo() {
-    export HOME="$BATS_TEST_TMPDIR/home"
-    mkdir -p "$HOME"
     export GIT_CONFIG_NOSYSTEM=1
-    git config --global user.name "Test User"
-    git config --global user.email "test@example.com"
-    git config --global init.defaultBranch main
-    git config --global advice.detachedHead false
+    local template="$BATS_RUN_TMPDIR/repo-template"
+    [[ -d "$template" ]] || _build_repo_template "$template" || return 1
+    cp -R "$template/home" "$template/remote.git" "$template/repo" "$BATS_TEST_TMPDIR/"
+    export HOME="$BATS_TEST_TMPDIR/home"
 
     # Stubs (fzf, open, xdg-open, gh, fork) and, if requested, a specific bash first on PATH
     local path_prefix="$HELPERS_DIR/bin"
@@ -33,15 +58,9 @@ setup_repo() {
 
     REMOTE="$BATS_TEST_TMPDIR/remote.git"
     REPO="$BATS_TEST_TMPDIR/repo"
-    git init --quiet --bare "$REMOTE"
-    git -C "$REMOTE" symbolic-ref HEAD refs/heads/main
-    git clone --quiet "$REMOTE" "$REPO" 2>/dev/null
     cd "$REPO" || return 1
-    echo "hello" > README.md
-    git add README.md
-    git commit --quiet -m "init"
-    git push --quiet origin main 2>/dev/null
-    git remote set-head origin main >/dev/null
+    # The copied clone still points at the template's remote
+    git remote set-url origin "$REMOTE"
 }
 
 # Run gitbash with no input (prompts read EOF and use their default)
