@@ -49,7 +49,8 @@ setup() {
     run gb commits
     [ "$status" -eq 0 ]
     [[ "$(fzf_input)" == *"feature work"* ]]
-    [[ "$(fzf_input)" != *"c3"* ]]
+    # Padded: short hashes like 4ac3e21 must not match
+    [[ "$(fzf_input)" != *"  c3  "* ]]
     [[ "$(fzf_args)" == *"not in 'origin/main'"* ]]
 }
 
@@ -59,7 +60,8 @@ setup() {
     # c1..c3 are only in the local main, not pushed
     run gb commits
     [[ "$(fzf_input)" == *"feature work"* ]]
-    [[ "$(fzf_input)" != *"c3"* ]]
+    # Padded: short hashes like 4ac3e21 must not match
+    [[ "$(fzf_input)" != *"  c3  "* ]]
 }
 
 @test "a feature branch without own commits says so" {
@@ -76,7 +78,7 @@ setup() {
     run gb commits --all 5
     [ "$status" -eq 0 ]
     [[ "$(fzf_input)" == *"feature work"* ]]
-    [[ "$(fzf_input)" == *"c3"* ]]
+    [[ "$(fzf_input)" == *"  c3  "* ]]
 }
 
 @test "on the base branch merged branches show as their merge commit" {
@@ -96,7 +98,7 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"behind its upstream"* ]]
     [ "$(git log -1 --format=%s)" = "c3" ]
-    [[ "$(fzf_input)" == *"c3"* ]]
+    [[ "$(fzf_input)" == *"  c3  "* ]]
 }
 
 @test "declining the pull still lists the local commits" {
