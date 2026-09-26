@@ -183,6 +183,14 @@ EOF
     [ "$(fetches)" -eq 0 ]
 }
 
+@test "a committed .gitbashrc cannot turn off update checks" {
+    echo 'GITBASH_NO_UPDATE_CHECKS="yes"' > .gitbashrc
+    run gb stash --version
+    [[ "$output" == *"ignored GITBASH_NO_UPDATE_CHECKS"* ]]
+    sleep 0.3
+    [ -e "$STATE" ]
+}
+
 @test "GITBASH_NO_UPDATE_CHECKS=no in the environment wins over the config files" {
     echo 'GITBASH_NO_UPDATE_CHECKS="yes"' > "$HOME/.gitbashrc"
     GITBASH_NO_UPDATE_CHECKS=no run gb stash --version

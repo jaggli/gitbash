@@ -222,8 +222,9 @@ gb_load_config() {
         esac
         while IFS='=' read -r key value; do
             [[ -z "$key" ]] && continue
-            if [[ "$key" == "GITBASH_MERGE_COMMAND" && "$scope" == "local" ]]; then
-                print_warning "$file: ignored GITBASH_MERGE_COMMAND (a repository cannot choose which program runs; set it in ~/.gitbashrc or an uncommitted .gitbashrc-user)"
+            # A repository cannot choose which program runs, or turn off update checks
+            if [[ "$scope" == "local" && ( "$key" == "GITBASH_MERGE_COMMAND" || "$key" == "GITBASH_NO_UPDATE_CHECKS" ) ]]; then
+                print_warning "$file: ignored $key (a repository cannot set it; set it in ~/.gitbashrc or an uncommitted .gitbashrc-user)"
                 continue
             fi
             printf -v "$key" '%s' "$value"
