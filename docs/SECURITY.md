@@ -24,6 +24,14 @@ Versions before 2.0 executed repository `.gitbashrc` files as shell code, so ope
 
 ---
 
+## Releases
+
+- Releases are published only by the Release workflow in GitHub Actions, with npm trusted publishing (OIDC, no long-lived npm token) and [provenance](https://docs.npmjs.com/generating-provenance-statements). Check an installed copy with `npm audit signatures`.
+- The npm package is published before the GitHub release, which `gitbash --update` and the install script use.
+- Third-party actions are pinned to commit SHAs and kept up to date by Dependabot; each workflow job gets only the permissions it needs.
+
+---
+
 ## Reporting a Vulnerability
 
 We take security vulnerabilities seriously and appreciate your efforts to responsibly disclose them.

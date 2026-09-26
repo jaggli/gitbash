@@ -98,13 +98,12 @@ npm run changeset
 
 ### What happens to changesets:
 
-When your PR is merged:
-1. The changeset file is included in the main branch
-2. When ready for release, maintainers run `npm run version`
-3. Changesets are consumed and version is bumped
-4. CHANGELOG.md is automatically updated
-5. Changes are published with `npm run release`
-6. Pushing the `vX.Y.Z` tag triggers the Release workflow, which creates the GitHub release with that version's CHANGELOG.md section as its notes (re-run it for an existing tag via "Run workflow")
+Releases run only in GitHub Actions ([release.yml](../.github/workflows/release.yml)), never from a laptop:
+
+1. When your PR is merged, its changeset lands on `main`.
+2. The Release workflow runs CI, then opens (or updates) the **`chore: release vX.Y.Z`** pull request: `changeset version` bumps `package.json` and adds the CHANGELOG.md section. More merged changesets are added to the same pull request.
+3. Merging the release pull request publishes to npm with [trusted publishing](https://docs.npmjs.com/trusted-publishers) (no npm token, with provenance), then creates the `vX.Y.Z` tag and the GitHub release with that version's CHANGELOG.md section.
+4. If a step fails, re-run the workflow: steps that are done already are skipped.
 
 ## Development Guidelines
 

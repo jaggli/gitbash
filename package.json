@@ -38,14 +38,17 @@
     "linux",
     "win32"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "engines": {
     "node": ">=14"
   },
   "scripts": {
     "test": "bats test",
     "changeset": "changeset",
-    "version": "changeset version",
-    "release": "scripts/release.sh"
+    "version": "changeset version"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",
