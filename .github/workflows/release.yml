@@ -104,7 +104,6 @@ jobs:
     permissions:
       contents: write       # push the release branch
       pull-requests: write  # open or update the release pull request
-      actions: write        # start CI for it
     steps:
       # No credentials in .git/config: npm packages below run without the token
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -133,7 +132,12 @@ jobs:
             push --force origin "$BRANCH"
 
           {
-            echo "Merging this publishes **gitbash v$version** to npm from GitHub Actions and creates the GitHub release."
+            echo "Merging this **stages gitbash v$version** on npm (trusted publishing, provenance) and creates a draft GitHub release."
+            echo
+            echo "1. Approve the CI run for this pull request (**Approve workflows to run** below): runs for pull requests opened by GitHub Actions wait for a maintainer."
+            echo "2. Merge. CI runs again on \`main\` before anything is staged."
+            echo "3. Approve v$version on npmjs.com or with \`npm stage approve\` (2FA)."
+            echo "4. Within 15 minutes the GitHub release and the \`v$version\` tag follow (or: \`gh workflow run release.yml\`)."
             echo
             echo "## Changes"
             echo
@@ -144,8 +148,6 @@ jobs:
           else
             gh pr create --base main --head "$BRANCH" --title "chore: release v$version" --body-file "$RUNNER_TEMP/body.md"
           fi
-          # Pull requests opened with the workflow token don't start pull_request runs
-          gh workflow run ci.yml --ref "$BRANCH"
 
   stage:
     needs: plan

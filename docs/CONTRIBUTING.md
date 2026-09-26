@@ -102,7 +102,7 @@ Releases run only in GitHub Actions ([release.yml](../.github/workflows/release.
 
 1. When your PR is merged, its changeset lands on `main`.
 2. The Release workflow runs CI, then opens (or updates) the **`chore: release vX.Y.Z`** pull request: `changeset version` bumps `package.json` and adds the CHANGELOG.md section. More merged changesets are added to the same pull request.
-3. Merging the release pull request **stages** the version on npm with [trusted publishing](https://docs.npmjs.com/trusted-publishers) (no npm token, with provenance) and creates a draft GitHub release (no tag yet, not visible to `gitbash --update`).
+3. On the release pull request, approve its CI run ("Approve workflows to run"): runs for pull requests opened by GitHub Actions wait for a maintainer. Merging it **stages** the version on npm with [trusted publishing](https://docs.npmjs.com/trusted-publishers) (no npm token, with provenance) and creates a draft GitHub release (no tag yet, not visible to `gitbash --update`).
 4. A maintainer reviews and approves the staged version on npmjs.com or with `npm stage approve` ([staged publishing](https://docs.npmjs.com/staged-publishing/), needs 2FA; the workflow cannot approve).
 5. Within 15 minutes a scheduled run sees the version live on npm and publishes the GitHub release, which creates the `vX.Y.Z` tag. To do it right away: `gh workflow run release.yml`.
 6. If a run fails, re-run it: finished steps are skipped. To re-stage a rejected version, delete its draft release and re-run.
