@@ -32,6 +32,12 @@ jobs:
           - name: ubuntu, bash 5
             os: ubuntu-latest
             bash: /bin/bash
+          # The oldest fzf gitbash supports (GB_FZF_MIN_VERSION), for fzf_real.bats
+          - name: ubuntu, fzf 0.36 (minimum)
+            os: ubuntu-latest
+            bash: /bin/bash
+            fzf: 0.36.0
+            fzf_sha256: 7e6271c7935ba0e92fc04eca346a2b2320561ca862b6bc76301376b70b3558b3
           - name: macos, bash 3.2
             os: macos-latest
             bash: /bin/bash
@@ -71,7 +77,22 @@ jobs:
           node-version: 24
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y fzf zsh
+        run: sudo apt-get update && sudo apt-get install -y zsh
+      - name: Install fzf (Linux)
+        if: runner.os == 'Linux'
+        env:
+          FZF_VERSION: ${{ matrix.fzf }}
+          FZF_SHA256: ${{ matrix.fzf_sha256 }}
+        run: |
+          if [ -z "$FZF_VERSION" ]; then
+            sudo apt-get install -y fzf
+            exit 0
+          fi
+          # A specific release, checked against its pinned checksum
+          file="fzf-$FZF_VERSION-linux_amd64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$file" "https://github.com/junegunn/fzf/releases/download/$FZF_VERSION/$file"
+          echo "$FZF_SHA256  $RUNNER_TEMP/$file" | sha256sum -c -
+          sudo tar -xzf "$RUNNER_TEMP/$file" -C /usr/local/bin fzf
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: brew install fzf bash
