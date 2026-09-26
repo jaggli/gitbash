@@ -106,7 +106,7 @@ EOF
         shift
         ;;
       -y|--yes)
-        export GITBASH_ASSUME_YES=1
+        GITBASH_ASSUME_YES=1
         shift
         ;;
       *)
@@ -183,7 +183,7 @@ EOF
     fi
     entries+=("$preselect|$label|$ts|$branch|$rel|$email|$unpushed|$name")
   done < <(git for-each-ref \
-      --format="%(refname:short)%1f%(committerdate:unix)%1f%(committerdate:relative)%1f%(authoremail)%1f%(upstream:short)%1f%(upstream:track)%1f%(authorname)" \
+      --format="%(refname:lstrip=2)%1f%(committerdate:unix)%1f%(committerdate:relative)%1f%(authoremail)%1f%(upstream:short)%1f%(upstream:track)%1f%(authorname)" \
       refs/heads 2>/dev/null)
 
   # Pre-selected first, then newest first
@@ -235,7 +235,7 @@ EOF
     fi
     if [[ "$dry_run" == true ]]; then
       echo "Would delete ${#selected[@]} branch(es):"
-      printf '  - %s\n' "${selected[@]}"
+      printf '  - %s\n' "${selected[@]}" | gb_sanitize
       return 0
     fi
   else
@@ -322,7 +322,7 @@ ${#sorted[@]} branches, $preselect_count pre-selected" \
     label_of=""
     [[ "$branch" == "$current_branch" ]] && { need_switch=true; label_of=" (current branch)"; }
     [[ "$merged_list" == *" $branch "* ]] || only_merged=false
-    echo "  - $branch$label_of"
+    echo "  - $branch$label_of" | gb_sanitize
   done
   if [[ "$need_switch" == true ]]; then
     echo "Will switch to '$base_branch' first."
@@ -363,8 +363,8 @@ ${#sorted[@]} branches, $preselect_count pre-selected" \
     echo
     print_warning "These branches have commits that are not merged. Deleting them loses those commits:"
     for branch in "${refused[@]}"; do
-      echo "  $branch:"
-      git log --oneline -n 5 "refs/heads/$branch" --not "$base_ref" --remotes 2>/dev/null | sed 's/^/      /'
+      echo "  $branch:" | gb_sanitize
+      git log --oneline -n 5 "refs/heads/$branch" --not "$base_ref" --remotes 2>/dev/null | gb_sanitize | sed 's/^/      /'
     done
     if gb_confirm --strict "Force-delete these ${#refused[@]} branch(es)?" n; then
       for branch in "${refused[@]}"; do

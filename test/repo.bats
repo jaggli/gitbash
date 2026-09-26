@@ -62,12 +62,23 @@ STUB
     git remote remove origin
     run gb repo
     [ "$status" -eq 1 ]
-    [[ "$output" == *"No remote 'origin' found."* ]]
+    [[ "$output" == *"No remote 'origin' found."* ]] || false
 
     git remote add origin /some/local/path
     run gb repo
     [ "$status" -eq 1 ]
     [[ "$output" == *"Don't know how to open"* ]]
+}
+
+@test "credentials in a remote URL that can't be opened are not printed" {
+    git remote set-url origin "https://alice:ghp_secret@git.example.test"
+    run gb repo
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Don't know how to open 'https://git.example.test'"* ]] || false
+    [[ "$output" != *ghp_secret* && "$output" != *alice* ]] || false
+    run gb pr --print
+    [ "$status" -eq 1 ]
+    [[ "$output" != *ghp_secret* ]]
 }
 
 @test "repo rejects unknown arguments" {

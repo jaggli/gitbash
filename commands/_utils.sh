@@ -43,8 +43,8 @@ _gb_color_ok() {
 }
 
 # NO_COLOR (https://no-color.org): a non-empty value turns off all colors.
-# GB_COLOR is the --color value for git and bat in fzf previews; it is
-# exported because previews run in a separate bash started by fzf.
+# GB_COLOR is the --color value for git and bat in fzf previews; run_fzf
+# passes it to fzf, whose previews run in a separate bash.
 if [[ -n "${NO_COLOR:-}" ]]; then
     GB_COLOR="never"
     # Also for git's own output (added to any GIT_CONFIG_* entries already set)
@@ -55,15 +55,25 @@ if [[ -n "${NO_COLOR:-}" ]]; then
 else
     GB_COLOR="always"
 fi
-export GB_COLOR
+
+# Remove terminal control characters from text read from stdin: C0 controls
+# except tab and newline (ESC, BEL, CR, ...), DEL, and C1 controls in UTF-8.
+# Commit messages, file names, branch names and config lines come from
+# repositories and could otherwise change the clipboard or fake output.
+gb_sanitize() {
+    local c1
+    c1=$(printf '\302[\200-\237]')
+    LC_ALL=C tr -d '\000-\010\013-\037\177' | LC_ALL=C sed "s/$c1//g"
+}
 
 _gb_print() {
-    local fd="$1" color="$2" symbol="$3"
+    local fd="$1" color="$2" symbol="$3" text
     shift 3
+    text=$(printf '%s' "$*" | gb_sanitize)
     if _gb_color_ok "$fd"; then
-        printf '\033[%sm%s\033[0m %s\n' "$color" "$symbol" "$*" >&"$fd"
+        printf '\033[%sm%s\033[0m %s\n' "$color" "$symbol" "$text" >&"$fd"
     else
-        printf '%s %s\n' "$symbol" "$*" >&"$fd"
+        printf '%s %s\n' "$symbol" "$text" >&"$fd"
     fi
 }
 
@@ -111,8 +121,8 @@ prompt_read() {
 }
 
 # Yes/no question. Returns 0 for yes, 1 for no. EOF or Enter picks the default.
-# GITBASH_ASSUME_YES=1 (exported by --yes flags, so commands run from a command
-# inherit it) answers yes, unless --strict is given.
+# GITBASH_ASSUME_YES=1 (set by --yes flags and passed on to commands run from
+# a command) answers yes, unless --strict is given.
 # Usage: gb_confirm [--strict] "Question?" y|n
 gb_confirm() {
     local strict=false
@@ -203,6 +213,7 @@ _gb_config_entries() {
 gb_global_config_file() { echo "$HOME/.gitbashrc"; }
 
 # Load ~/.gitbashrc, then <repo>/.gitbashrc, then <repo>/.gitbashrc-user.
+# A .gitbashrc-user that is tracked by git is treated like .gitbashrc.
 gb_load_config() {
     local repo_root="" file scope key value
     repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || repo_root=""
@@ -210,13 +221,31 @@ gb_load_config() {
         case "$scope" in
             global) file=$(gb_global_config_file) ;;
             local) [[ -n "$repo_root" ]] || continue; file="$repo_root/.gitbashrc" ;;
-            user) [[ -n "$repo_root" ]] || continue; file="$repo_root/.gitbashrc-user" ;;
+            user)
+                [[ -n "$repo_root" ]] || continue
+                file="$repo_root/.gitbashrc-user"
+                # A committed .gitbashrc-user came with the repository: as untrusted as .gitbashrc
+                if git -C "$repo_root" ls-files --error-unmatch -- .gitbashrc-user >/dev/null 2>&1; then
+                    scope="local"
+                fi
+                ;;
         esac
+        # A repository's config file must be a file in the repository, not a link to
+        # something else on this machine (whose lines would be printed as warnings)
+        if [[ "$scope" == "local" && -L "$file" ]]; then
+            print_warning "$file: ignored (a symbolic link)"
+            continue
+        fi
         while IFS='=' read -r key value; do
             [[ -z "$key" ]] && continue
-            if [[ "$key" == "GITBASH_MERGE_COMMAND" && "$scope" == "local" ]]; then
-                print_warning "$file: ignored GITBASH_MERGE_COMMAND (a repository cannot choose which program runs; set it in ~/.gitbashrc or .gitbashrc-user)"
+            # A repository cannot choose which program runs, or turn off update checks
+            if [[ "$scope" == "local" && ( "$key" == "GITBASH_MERGE_COMMAND" || "$key" == "GITBASH_NO_UPDATE_CHECKS" ) ]]; then
+                print_warning "$file: ignored $key (a repository cannot set it; set it in ~/.gitbashrc or an uncommitted .gitbashrc-user)"
                 continue
+            fi
+            # A repository can protect more branches, but not unprotect yours
+            if [[ "$scope" == "local" && "$key" == "GITBASH_PROTECTED_BRANCHES" ]]; then
+                value="${GITBASH_PROTECTED_BRANCHES:-main master develop release/*} $value"
             fi
             printf -v "$key" '%s' "$value"
         done < <(_gb_config_entries "$file" warn)
@@ -335,7 +364,9 @@ require_fzf() {
 run_fzf() {
     local bash_path
     bash_path=$(command -v bash)
-    FZF_DEFAULT_OPTS="" FZF_DEFAULT_OPTS_FILE="" SHELL="$bash_path" fzf "$@"
+    # GITBASH_NESTED: bindings that run gitbash (e.g. switch's Del) are nested runs
+    FZF_DEFAULT_OPTS="" FZF_DEFAULT_OPTS_FILE="" SHELL="$bash_path" GB_COLOR="$GB_COLOR" \
+        GITBASH_NESTED=1 GITBASH_ASSUME_YES="${GITBASH_ASSUME_YES:-}" fzf "$@"
 }
 
 # =============================================================================
@@ -346,9 +377,12 @@ gb_remote() {
     echo "${GITBASH_REMOTE:-origin}"
 }
 
-# Current branch name; fails on detached HEAD
+# Current branch name; fails on detached HEAD. Not --short: with a tag of the
+# same name, that prints "heads/<branch>".
 gb_current_branch() {
-    git symbolic-ref --quiet --short HEAD 2>/dev/null
+    local ref
+    ref=$(git symbolic-ref --quiet HEAD 2>/dev/null) || return 1
+    echo "${ref#refs/heads/}"
 }
 
 # Returns 0 if $1 is a valid branch name that can't be mistaken for an option.
@@ -367,9 +401,11 @@ gb_base_branch() {
         echo "$GITBASH_BASE_BRANCH"
         return 0
     fi
-    if branch=$(git symbolic-ref --quiet --short "refs/remotes/$remote/HEAD" 2>/dev/null) &&
-       _gb_valid_branch_name "${branch#"$remote"/}"; then
-        echo "${branch#"$remote"/}"
+    # Full ref name: --short would give "remotes/origin/main" when a tag "origin/main" exists
+    if branch=$(git symbolic-ref --quiet "refs/remotes/$remote/HEAD" 2>/dev/null) &&
+       [[ "$branch" == "refs/remotes/$remote/"* ]] &&
+       _gb_valid_branch_name "${branch#"refs/remotes/$remote/"}"; then
+        echo "${branch#"refs/remotes/$remote/"}"
         return 0
     fi
     for branch in main master; do
@@ -382,15 +418,23 @@ gb_base_branch() {
     return 1
 }
 
-# The ref to compare against: <remote>/<base> if it exists, else the local base
+# The ref to compare against, as a full ref name: refs/remotes/<remote>/<base>
+# if it exists, else refs/heads/<base>. Never a short name like origin/main:
+# git resolves those to a tag of the same name first, and tags come from the remote.
 gb_base_ref() {
     local base="$1" remote
     remote=$(gb_remote)
     if git show-ref --verify --quiet "refs/remotes/$remote/$base"; then
-        echo "$remote/$base"
+        echo "refs/remotes/$remote/$base"
     else
-        echo "$base"
+        echo "refs/heads/$base"
     fi
+}
+
+# Short name of a full ref, for messages: refs/remotes/origin/main -> origin/main
+gb_ref_short() {
+    local ref="${1#refs/remotes/}"
+    echo "${ref#refs/heads/}"
 }
 
 # Fetch the current branch's upstream and, if it has new commits, offer to
@@ -431,9 +475,11 @@ gb_is_protected() {
     return 1
 }
 
-# Run another gitbash command (same installation)
+# Run another gitbash command (same installation). GITBASH_NESTED and
+# GITBASH_ASSUME_YES (set by -y) are passed only to it, not exported to git
+# hooks, editors or merge tools.
 gb_run() {
-    "${GITBASH_BIN:-gitbash}" "$@"
+    GITBASH_NESTED=1 GITBASH_ASSUME_YES="${GITBASH_ASSUME_YES:-}" "${GITBASH_BIN:-gitbash}" "$@"
 }
 
 # Fetch the current branch, sync with its remote counterpart and push.
@@ -689,6 +735,12 @@ gb_web_url() {
         return 0
     fi
     echo "$scheme://$host/$path"
+}
+
+# A remote URL for messages, without user name and password or token
+# (https://user:token@host/path -> https://host/path)
+gb_redact_url() {
+    printf '%s' "$1" | sed -E 's#^([A-Za-z][A-Za-z0-9+.-]*://)[^/@]*@#\1#'
 }
 
 # Open a URL in the browser, or print it if no opener is available

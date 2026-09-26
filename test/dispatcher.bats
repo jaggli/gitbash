@@ -21,7 +21,7 @@ setup() {
 @test "internal files and paths are not runnable as commands" {
     run gb _utils
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Unknown command"* ]]
+    [[ "$output" == *"Unknown command"* ]] || false
 
     run gb ../commands/commit
     [ "$status" -eq 1 ]
@@ -31,16 +31,16 @@ setup() {
 @test "--init prints wrapper functions, not source lines" {
     run gb --init
     [ "$status" -eq 0 ]
-    [[ "$output" == *"commit() { "*"/bin/gitbash commit \"\$@\"; }"* ]]
-    [[ "$output" == *"switch() {"* ]]
+    [[ "$output" == *"commit() { "*"/bin/gitbash commit \"\$@\"; }"* ]] || false
+    [[ "$output" == *"switch() {"* ]] || false
     [[ "$output" != *"source "* ]]
 }
 
 @test "--init --prefix prefixes every function" {
     run gb --init --prefix=gb-
     [ "$status" -eq 0 ]
-    [[ "$output" == *"gb-commit() {"* ]]
-    [[ "$output" == *"gb-pr() {"* ]]
+    [[ "$output" == *"gb-commit() {"* ]] || false
+    [[ "$output" == *"gb-pr() {"* ]] || false
     [[ "$output" != *$'\n'"pr() {"* ]]
 }
 
@@ -53,17 +53,17 @@ setup() {
     run bash -c 'eval "$("$0" "$1" --init)"; stash --version; declare -F prompt_read >/dev/null && echo LEAK || echo CLEAN' \
         "${GB_BASH:-bash}" "$GB"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"gitbash stash v"* ]]
+    [[ "$output" == *"gitbash stash v"* ]] || false
     [[ "$output" == *"CLEAN"* ]]
 }
 
 @test "--init --shell=pwsh prints PowerShell functions" {
     run gb --init --shell=pwsh
     [ "$status" -eq 0 ]
-    [[ "$output" == *"function gitbash { & '"*"' '"*"/bin/gitbash' @args }"* ]]
-    [[ "$output" == *"function commit { & '"*"/bin/gitbash' commit @args }"* ]]
+    [[ "$output" == *"function gitbash { & '"*"' '"*"/bin/gitbash' @args }"* ]] || false
+    [[ "$output" == *"function commit { & '"*"/bin/gitbash' commit @args }"* ]] || false
     # switch is a PowerShell keyword
-    [[ "$output" != *"function switch "* ]]
+    [[ "$output" != *"function switch "* ]] || false
 
     run gb --init --shell=pwsh --prefix=gb-
     [ "$status" -eq 0 ]
@@ -84,7 +84,7 @@ setup() {
     run pwsh -NoProfile -NonInteractive -Command \
         "node '$launcher' --init --shell=pwsh | Out-String | Invoke-Expression; stash --version; gitbash --version" < /dev/null
     [ "$status" -eq 0 ]
-    [[ "$output" == *"gitbash stash v"* ]]
+    [[ "$output" == *"gitbash stash v"* ]] || false
     [[ "$output" == *"gitbash "[0-9]* ]]
 }
 
@@ -98,9 +98,9 @@ setup() {
 @test "help shows the banner with the version, also without arguments" {
     run gb --help
     [ "$status" -eq 0 ]
-    [[ "$output" == *'\__, |_|\__|_.__/'* ]]
-    [[ "$output" =~ v[0-9]+\.[0-9]+\.[0-9]+\ -\ Interactive ]]
-    [[ "$output" == *"Commands:"* ]]
+    [[ "$output" == *'\__, |_|\__|_.__/'* ]] || false
+    [[ "$output" =~ v[0-9]+\.[0-9]+\.[0-9]+\ -\ Interactive ]] || false
+    [[ "$output" == *"Commands:"* ]] || false
 
     local help="$output"
     run gb
@@ -110,14 +110,14 @@ setup() {
 
 @test "help has no color codes when not writing to a terminal" {
     run gb --help
-    [[ "$output" != *$'\033'* ]]
+    [[ "$output" != *$'\033'* ]] || false
 
     local cmd
     for cmd in $(ls "$PROJECT_DIR/commands" | grep -v '^_' | sed 's/\.sh$//'); do
         run gb "$cmd" --help
         [ "$status" -eq 0 ]
-        [[ "$output" == "Usage: $cmd"* ]]
-        [[ "$output" != *$'\033'* ]]
+        [[ "$output" == "Usage: $cmd"* ]] || false
+        [[ "$output" != *$'\033'* ]] || false
     done
 }
 
@@ -126,14 +126,14 @@ setup() {
     export PTY_LOG="$BATS_TEST_TMPDIR/pty-help"
     run python3 "$HELPERS_DIR/pty_run.py" "\"${GB_BASH:-bash}\" \"$GB\" --help"
     [ "$status" -eq 0 ]
-    [[ "$(cat "$PTY_LOG")" == *$'\033[1;38;5;209mCommands:\033[0m'* ]]
+    [[ "$(cat "$PTY_LOG")" == *$'\033[1;38;5;209mCommands:\033[0m'* ]] || false
 
     export PTY_LOG="$BATS_TEST_TMPDIR/pty-commit"
     run python3 "$HELPERS_DIR/pty_run.py" "\"${GB_BASH:-bash}\" \"$GB\" commit --help"
     [ "$status" -eq 0 ]
     local log
     log=$(cat "$PTY_LOG")
-    [[ "$log" == *$'\033[1;38;5;209mUsage:\033[0m commit'* ]]
-    [[ "$log" == *$'\033[1;38;5;209mWhat gets committed:\033[0m'* ]]
+    [[ "$log" == *$'\033[1;38;5;209mUsage:\033[0m commit'* ]] || false
+    [[ "$log" == *$'\033[1;38;5;209mWhat gets committed:\033[0m'* ]] || false
     [[ "$log" != *$'\033[1;38;5;209m  '* ]]
 }

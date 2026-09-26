@@ -23,6 +23,9 @@ VERSION="$(grep -o '"version": *"[^"]*"' "$SCRIPT_DIR/package.json" | head -1 | 
 # Not exported: they would leak into git hooks, editors and merge tools.
 # Commands are sourced into this process; nested runs of gitbash set them again.
 export -n SCRIPT_DIR GITBASH_BIN VERSION
+# Read from the environment (a parent gitbash sets them), but not passed on to
+# git hooks, editors and merge tools either
+export -n GITBASH_ASSUME_YES GITBASH_NESTED GB_COLOR 2>/dev/null
 
 # shellcheck source=../commands/_utils.sh
 source "$COMMANDS_DIR/_utils.sh"
@@ -656,7 +659,7 @@ main() {
             gb_load_config
             gb_update_check "$cmd" "$@"
             # Commands run gitbash again (e.g. pr runs commit): no update prompt in there
-            export GITBASH_NESTED=1
+            GITBASH_NESTED=1
             # shellcheck source=/dev/null
             source "$COMMANDS_DIR/$cmd.sh"
             "$cmd" "$@"

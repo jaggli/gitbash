@@ -51,6 +51,37 @@ EOF
     [[ "$output" == *"ignored GITBASH_MERGE_COMMAND"* ]]
 }
 
+@test "a committed .gitbashrc-user cannot choose the merge tool" {
+    echo 'GITBASH_MERGE_COMMAND="evil-tool"' > .gitbashrc-user
+    git add .gitbashrc-user
+    git commit --quiet -m "repository ships a .gitbashrc-user"
+    run gb stash --version
+    [[ "$output" == *"ignored GITBASH_MERGE_COMMAND"* ]]
+}
+
+@test "update doesn't run a merge tool from a committed .gitbashrc-user" {
+    local marker="$BATS_TEST_TMPDIR/pwned"
+    printf 'GITBASH_MERGE_COMMAND="touch %s"\n' "$marker" > .gitbashrc-user
+    git add .gitbashrc-user
+    git commit --quiet -m "repository ships a .gitbashrc-user"
+    git push --quiet origin main 2>/dev/null
+    git switch --quiet -c feature/pr
+    commit_file app.txt "feature" "feature change"
+    remote_commit main app.txt "main" "main change"
+    run gb update
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Merge conflicts in"* ]] || false
+    [ ! -e "$marker" ]
+    # The default merge tool (stubbed) is opened instead
+    [ "$(cat "$MERGE_TOOL_LOG")" = "." ]
+}
+
+@test "an uncommitted .gitbashrc-user still chooses the merge tool" {
+    echo 'GITBASH_MERGE_COMMAND="my-tool"' > .gitbashrc-user
+    run gb stash --version
+    [[ "$output" != *"ignored GITBASH_MERGE_COMMAND"* ]]
+}
+
 @test "invalid values fall back to defaults with a warning" {
     echo 'GITBASH_STALE_MONTHS="abc"' > "$HOME/.gitbashrc"
     run gb stale --json
@@ -76,7 +107,7 @@ EOF
 @test "the wizard rejects values that would be code in older versions" {
     run gb_input '$(touch x)\nok\n\n\n\n\n\n\n\n\n\n\n\n' --config-local
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Values cannot contain"* ]]
+    [[ "$output" == *"Values cannot contain"* ]] || false
     grep -qx 'GITBASH_CREATE_BRANCH_PREFIX="ok"' .gitbashrc
     ! grep -q 'MERGE_COMMAND' .gitbashrc
 }
@@ -131,7 +162,7 @@ STUB
     # Once is enough
     run gb_input '\n\n\n\n\n\n\n\n\n\n\n\n\n' --config
     [ "$status" -eq 0 ]
-    [[ "$output" == *"PowerShell integration already configured"* ]]
+    [[ "$output" == *"PowerShell integration already configured"* ]] || false
     [ "$(wc -l < "$PWSH_STUB_DIR/pwsh.exe.ps1")" -eq 1 ]
 }
 
@@ -180,7 +211,7 @@ STUB
     git switch --quiet main
     # Deleting an unmerged branch counts its commits against the base branch
     run gb_input 'y\nn\n' switch --delete-branch $'local: unmerged\tlocal\tunmerged'
-    [[ "$output" == *"Invalid GITBASH_BASE_BRANCH"* ]]
+    [[ "$output" == *"Invalid GITBASH_BASE_BRANCH"* ]] || false
     [ "$(cat "$victim")" = "important" ]
 }
 
@@ -202,3 +233,30 @@ STUB
     run gb repo --print
     [[ "$output" == *"Invalid GITBASH_REMOTE"* ]]
 }
+
+@test "warnings don't print terminal control sequences from a config file" {
+    printf 'junk\033]52;c;ZWNobw==\a\n' > .gitbashrc
+    run gb stash --version
+    [[ "$output" == *"ignored (config files are no longer executed): junk]52;c;ZWNobw=="* ]] || false
+    [[ "$output" != *$'\033'* && "$output" != *$'\a'* ]]
+}
+
+@test "a committed .gitbashrc that is a symbolic link is not read" {
+    printf 'secret line\nGITBASH_REMOTE="elsewhere"\n' > "$BATS_TEST_TMPDIR/outside"
+    ln -s "$BATS_TEST_TMPDIR/outside" .gitbashrc
+    run gb stash --version
+    [[ "$output" == *".gitbashrc: ignored (a symbolic link)"* ]] || false
+    [[ "$output" != *"secret line"* ]] || false
+    ln -s "$BATS_TEST_TMPDIR/outside" .gitbashrc-user
+    git add .gitbashrc-user
+    run gb stash --version
+    [[ "$output" == *".gitbashrc-user: ignored (a symbolic link)"* ]]
+}
+
+@test "an uncommitted .gitbashrc-user may be a symbolic link" {
+    echo 'GITBASH_CREATE_BRANCH_PREFIX="mine"' > "$BATS_TEST_TMPDIR/my-settings"
+    ln -s "$BATS_TEST_TMPDIR/my-settings" .gitbashrc-user
+    run gb create --no-push PROJ-1 x
+    [ "$(git branch --show-current)" = "feature/mine/PROJ-1-x" ]
+}
+

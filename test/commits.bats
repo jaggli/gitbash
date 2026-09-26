@@ -48,9 +48,9 @@ setup() {
     commit_file b.txt "b" "feature work"
     run gb commits
     [ "$status" -eq 0 ]
-    [[ "$(fzf_input)" == *"feature work"* ]]
+    [[ "$(fzf_input)" == *"feature work"* ]] || false
     # Padded: short hashes like 4ac3e21 must not match
-    [[ "$(fzf_input)" != *"  c3  "* ]]
+    [[ "$(fzf_input)" != *"  c3  "* ]] || false
     [[ "$(fzf_args)" == *"not in 'origin/main'"* ]]
 }
 
@@ -59,7 +59,7 @@ setup() {
     commit_file b.txt "b" "feature work"
     # c1..c3 are only in the local main, not pushed
     run gb commits
-    [[ "$(fzf_input)" == *"feature work"* ]]
+    [[ "$(fzf_input)" == *"feature work"* ]] || false
     # Padded: short hashes like 4ac3e21 must not match
     [[ "$(fzf_input)" != *"  c3  "* ]]
 }
@@ -68,7 +68,7 @@ setup() {
     git switch --quiet -c feature/empty
     run gb commits
     [ "$status" -eq 0 ]
-    [[ "$output" == *"No commits on 'feature/empty'"*"--all"* ]]
+    [[ "$output" == *"No commits on 'feature/empty'"*"--all"* ]] || false
     [ ! -e "$FZF_STUB_LOG" ]
 }
 
@@ -77,7 +77,7 @@ setup() {
     commit_file b.txt "b" "feature work"
     run gb commits --all 5
     [ "$status" -eq 0 ]
-    [[ "$(fzf_input)" == *"feature work"* ]]
+    [[ "$(fzf_input)" == *"feature work"* ]] || false
     [[ "$(fzf_input)" == *"  c3  "* ]]
 }
 
@@ -87,7 +87,7 @@ setup() {
     git switch --quiet main
     git merge --quiet --no-ff --no-edit side -m "merge side"
     run gb commits
-    [[ "$(fzf_input)" == *"merge side"* ]]
+    [[ "$(fzf_input)" == *"merge side"* ]] || false
     [[ "$(fzf_input)" != *"side work"* ]]
 }
 
@@ -96,7 +96,7 @@ setup() {
     git reset --quiet --hard HEAD~1
     run gb_input 'y\n' commits
     [ "$status" -eq 0 ]
-    [[ "$output" == *"behind its upstream"* ]]
+    [[ "$output" == *"behind its upstream"* ]] || false
     [ "$(git log -1 --format=%s)" = "c3" ]
     [[ "$(fzf_input)" == *"  c3  "* ]]
 }
@@ -114,4 +114,13 @@ setup() {
     run gb commits --nope
     [ "$status" -eq 1 ]
     [[ "$output" == *"Unknown option"* ]]
+}
+
+@test "terminal control sequences in commit messages are not printed" {
+    commit_file b.txt "b" "$(printf 'fix\033]52;c;ZWNobw==\a\033[2K\rfake')"
+    export FZF_STUB_STEP="fix"
+    run gb commits --all
+    [[ "$output" == *"Commits to revert"* ]] || false
+    [[ "$output" == *"fix]52;c;ZWNobw==[2Kfake"* ]] || false
+    [[ "$output" != *$'\033'* && "$output" != *$'\a'* && "$output" != *$'\r'* ]]
 }

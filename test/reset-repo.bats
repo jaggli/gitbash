@@ -26,7 +26,7 @@ make_mess() {
     make_mess
     run gb reset-repo --yes
     [ "$status" -eq 0 ]
-    [[ "$output" == *"is now like a fresh clone of 'origin/main'"* ]]
+    [[ "$output" == *"is now like a fresh clone of 'origin/main'"* ]] || false
     [ "$(cat README.md)" = "hello" ]
     [ -z "$(git status --porcelain --ignored)" ]
     [ ! -e node_modules ]
@@ -38,9 +38,9 @@ make_mess() {
     remote_commit main remote.txt "r" "teammate work"
     run gb reset-repo --yes
     [ "$status" -eq 0 ]
-    [[ "$output" == *"1 unpushed commit(s) will be removed"* ]]
-    [[ "$output" == *"unpushed work"* ]]
-    [[ "$output" == *"git reflog"* ]]
+    [[ "$output" == *"1 unpushed commit(s) will be removed"* ]] || false
+    [[ "$output" == *"unpushed work"* ]] || false
+    [[ "$output" == *"git reflog"* ]] || false
     [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]
     [ -f remote.txt ]
     [ ! -e local.txt ]
@@ -50,9 +50,9 @@ make_mess() {
     make_mess
     run gb reset-repo
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Untracked and ignored files to delete:"* ]]
-    [[ "$output" == *"node_modules/"* ]]
-    [[ "$output" == *"Aborted - nothing was changed."* ]]
+    [[ "$output" == *"Untracked and ignored files to delete:"* ]] || false
+    [[ "$output" == *"node_modules/"* ]] || false
+    [[ "$output" == *"Aborted - nothing was changed."* ]] || false
     [ -f untracked.txt ]
     [ -f node_modules/pkg/index.js ]
     [ "$(cat README.md)" = "changed" ]
@@ -66,10 +66,10 @@ make_mess() {
     make_mess
     run gb reset-repo --dry-run
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Local changes to discard:"* ]]
-    [[ "$output" == *"README.md"* ]]
-    [[ "$output" == *"untracked.txt"* ]]
-    [[ "$output" == *"Dry run - nothing was changed."* ]]
+    [[ "$output" == *"Local changes to discard:"* ]] || false
+    [[ "$output" == *"README.md"* ]] || false
+    [[ "$output" == *"untracked.txt"* ]] || false
+    [[ "$output" == *"Dry run - nothing was changed."* ]] || false
     [ -f untracked.txt ]
     [ -f debug.log ]
 }
@@ -118,7 +118,7 @@ make_mess() {
     echo "untracked" > untracked.txt
     run gb reset-repo --yes
     [ "$status" -eq 0 ]
-    [[ "$output" == *"'local-only' is not on 'origin'"* ]]
+    [[ "$output" == *"'local-only' is not on 'origin'"* ]] || false
     [ -f l.txt ]
     [ ! -e untracked.txt ]
     [ "$(git log -1 --format=%s)" = "local commit" ]
@@ -150,8 +150,8 @@ make_mess() {
     [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]
     run gb reset-repo --yes
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Resetting 'feature' to 'origin/feature'"* ]]
-    [[ "$output" == *"unpushed change"* ]]
+    [[ "$output" == *"Resetting 'feature' to 'origin/feature'"* ]] || false
+    [[ "$output" == *"unpushed change"* ]] || false
     [ "$(git branch --show-current)" = "feature" ]
     [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/feature)" ]
     [ ! -d .git/rebase-merge ]
@@ -168,7 +168,7 @@ make_mess() {
     git switch --quiet --detach
     run gb reset-repo --yes
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Detached HEAD"* ]]
+    [[ "$output" == *"Detached HEAD"* ]] || false
 
     git switch --quiet main
     git remote remove origin
@@ -181,4 +181,56 @@ make_mess() {
     run gb reset-repo --nope
     [ "$status" -eq 1 ]
     [[ "$output" == *"Unknown argument: --nope"* ]]
+}
+
+@test "reset-repo doesn't clone submodules that were never initialized" {
+    printf '[submodule "lib"]\n\tpath = lib\n\turl = https://attacker.invalid/x.git\n' > .gitmodules
+    git add .gitmodules
+    git update-index --add --cacheinfo 160000,1111111111111111111111111111111111111111,lib
+    git commit --quiet -m "submodule"
+    git push --quiet origin main 2>/dev/null
+    echo "junk" > build.log
+    run gb reset-repo -y
+    [ "$status" -eq 0 ]
+    [ -z "$(git config --get submodule.lib.url)" ]
+    [ ! -e build.log ]
+}
+
+@test "reset-repo resets initialized submodules" {
+    git config --global protocol.file.allow always
+    git init --quiet "$BATS_TEST_TMPDIR/lib"
+    commit_in() { git -C "$BATS_TEST_TMPDIR/lib" commit --quiet --allow-empty -m "$1"; }
+    commit_in "lib v1"
+    git submodule add --quiet "$BATS_TEST_TMPDIR/lib" lib 2>/dev/null
+    git commit --quiet -m "add lib"
+    git push --quiet origin main 2>/dev/null
+    local recorded
+    recorded=$(git -C lib rev-parse HEAD)
+    commit_in "lib v2"
+    git -C lib pull --quiet origin 2>/dev/null || git -C lib fetch --quiet origin
+    git -C lib checkout --quiet FETCH_HEAD 2>/dev/null || true
+    [ "$(git -C lib rev-parse HEAD)" != "$recorded" ]
+    run gb reset-repo -y
+    [ "$status" -eq 0 ]
+    [ "$(git -C lib rev-parse HEAD)" = "$recorded" ]
+}
+
+# A commit that is not on main, tagged with the name git would also try for a
+# branch (like a tag pushed by someone who can't push to main)
+_tag_unreviewed() {
+    local name="$1" commit
+    git switch --quiet --detach
+    commit_file unreviewed.txt "unreviewed" "unreviewed change"
+    commit=$(git rev-parse HEAD)
+    git switch --quiet -
+    git tag "$name" "$commit"
+}
+
+@test "reset-repo resets to the remote branch, not a tag named like it" {
+    _tag_unreviewed origin/main
+    commit_file local.txt "local" "local work"
+    run gb reset-repo -y
+    [ "$status" -eq 0 ]
+    [ "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/origin/main)" ]
+    [ ! -e unreviewed.txt ]
 }

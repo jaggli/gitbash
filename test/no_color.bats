@@ -24,7 +24,8 @@ utils() {
 }
 
 @test "NO_COLOR turns off colors in previews and git output" {
-    NO_COLOR=1 run utils 'echo "$GB_COLOR"; git config color.ui; gb_diff_pager; bash -c "echo \$GB_COLOR"'
+    # fzf previews run in a new bash: run_fzf passes GB_COLOR to it
+    NO_COLOR=1 run utils 'echo "$GB_COLOR"; git config color.ui; gb_diff_pager; fzf() { bash -c "echo \$GB_COLOR"; }; run_fzf'
     [ "$status" -eq 0 ]
     [ "$output" = $'never\nnever\ncat\nnever' ]
 }
@@ -53,6 +54,6 @@ utils() {
     export PTY_LOG="$BATS_TEST_TMPDIR/pty-help"
     NO_COLOR=1 run python3 "$HELPERS_DIR/pty_run.py" "\"${GB_BASH:-bash}\" \"$GB\" --help"
     [ "$status" -eq 0 ]
-    [[ "$(cat "$PTY_LOG")" == *"Commands:"* ]]
+    [[ "$(cat "$PTY_LOG")" == *"Commands:"* ]] || false
     [[ "$(cat "$PTY_LOG")" != *$'\033'* ]]
 }

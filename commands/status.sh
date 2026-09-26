@@ -177,7 +177,7 @@ EOF
           print_warning "$path has a merge conflict - resolve it in your editor, then stage it."
           ;;
         ?" ")
-          echo "Unstaging: $path"
+          echo "Unstaging: $path" | gb_sanitize
           if [[ -n "$orig" ]]; then
             _status_unstage "$path" "$orig" || print_error "Failed to unstage $path"
           else
@@ -185,7 +185,7 @@ EOF
           fi
           ;;
         *)
-          echo "Staging: $path"
+          echo "Staging: $path" | gb_sanitize
           git add -A -- "$path" || print_error "Failed to stage $path"
           ;;
       esac
@@ -210,7 +210,7 @@ _status_discard() {
 
   if [[ ${#untracked[@]} -gt 0 ]]; then
     echo "Untracked files/directories to delete:"
-    printf '  - %s\n' "${untracked[@]}"
+    printf '  - %s\n' "${untracked[@]}" | gb_sanitize
     if gb_confirm --strict "Delete these ${#untracked[@]} item(s)? This cannot be undone." n; then
       for path in "${untracked[@]}"; do
         if rm -rf -- "$path"; then
@@ -224,7 +224,7 @@ _status_discard() {
 
   if [[ ${#added[@]} -gt 0 ]]; then
     echo "Newly added files to unstage:"
-    printf '  - %s\n' "${added[@]}"
+    printf '  - %s\n' "${added[@]}" | gb_sanitize
     if gb_confirm --strict "Unstage these ${#added[@]} file(s)?" n; then
       local delete_too=false
       gb_confirm --strict "Also delete them from disk?" n && delete_too=true
@@ -248,7 +248,7 @@ _status_discard() {
       return 0
     fi
     echo "Files to restore to the last commit:"
-    printf '  - %s\n' "${tracked[@]}"
+    printf '  - %s\n' "${tracked[@]}" | gb_sanitize
     if gb_confirm --strict "Discard all changes in these ${#tracked[@]} file(s)? This cannot be undone." n; then
       for path in "${tracked[@]}"; do
         if git restore --source=HEAD --staged --worktree -- "$path" 2>/dev/null ||

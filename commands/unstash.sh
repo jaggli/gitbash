@@ -53,7 +53,7 @@ EOF
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -h|--help) unstash --help; return 0 ;;
-            -y|--yes) export GITBASH_ASSUME_YES=1 ;;
+            -y|--yes) GITBASH_ASSUME_YES=1 ;;
             *)
                 print_error "Unknown argument: $1"
                 echo "Usage: unstash [-y|--yes]" >&2

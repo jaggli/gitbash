@@ -128,14 +128,14 @@ _gb_fetch() {
     fi
 }
 
-# Print the version of the latest GitHub release, e.g. 2.1.0
+# Print the latest version on npm, e.g. 2.1.0. npm's "latest" tag only moves
+# when a maintainer approves a staged version (2FA); a GitHub release doesn't need that.
 gb_latest_version() {
-    local json tag
-    json=$(_gb_fetch "https://api.github.com/repos/$GB_REPO/releases/latest" 2>/dev/null) || return 1
-    tag=$(printf '%s\n' "$json" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)
-    tag="${tag#v}"
-    [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
-    echo "$tag"
+    local json version
+    json=$(_gb_fetch "https://registry.npmjs.org/-/package/gitbash/dist-tags" 2>/dev/null) || return 1
+    version=$(printf '%s\n' "$json" | sed -n 's/.*"latest": *"\([^"]*\)".*/\1/p' | head -n 1)
+    [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+    echo "$version"
 }
 
 # Returns 0 if version $1 is newer than the running one
@@ -193,9 +193,12 @@ gb_self_update_to() {
     print_success "Updated gitbash $VERSION → $latest"
 }
 
-# Re-run the install script of the new release for the same locations
+# Install version $1 with the install script that came with this copy, for the
+# same locations. Never one downloaded from a git tag: whoever can create a tag
+# would decide what runs. The script downloads the version from npm and checks
+# its sha512 before installing it.
 _gb_self_update_script() {
-    local latest="$1" bin_dir="" key value tmp
+    local latest="$1" bin_dir="" key value
     if [[ -f "$SCRIPT_DIR/.gitbash-install" ]]; then
         while IFS='=' read -r key value; do
             [[ "$key" == "bin_dir" ]] && bin_dir="$value"
@@ -204,27 +207,24 @@ _gb_self_update_script() {
     bin_dir="${bin_dir:-$HOME/.local/bin}"
 
     local -a vars=(GITBASH_VERSION="$latest" GITBASH_INSTALL_DIR="$SCRIPT_DIR" GITBASH_BIN_DIR="$bin_dir")
-    local hint="curl -fsSL https://raw.githubusercontent.com/$GB_REPO/main/install.sh | sudo ${vars[*]} sh"
-    if [[ ! -w "$(dirname "$SCRIPT_DIR")" ]]; then
-        print_error "No permission to write to $(dirname "$SCRIPT_DIR"). Update with:"
+    local hint="curl -fsSL https://raw.githubusercontent.com/$GB_REPO/main/install.sh | ${vars[*]} sh"
+    if [[ ! -f "$SCRIPT_DIR/install.sh" ]]; then
+        # Installed before gitbash 3.1.0, which started to keep the script
+        print_error "This installation has no install script yet. Update once with:"
         echo "  $hint" >&2
         return 1
     fi
-
-    tmp=$(mktemp 2>/dev/null || mktemp -t gitbash) || return 1
-    if ! _gb_fetch "https://raw.githubusercontent.com/$GB_REPO/v$latest/install.sh" > "$tmp" 2>/dev/null ||
-       [[ ! -s "$tmp" ]]; then
-        rm -f "$tmp"
-        print_error "Could not download the install script of gitbash $latest."
+    if [[ ! -w "$(dirname "$SCRIPT_DIR")" ]]; then
+        print_error "No permission to write to $(dirname "$SCRIPT_DIR"). Update with:"
+        echo "  curl -fsSL https://raw.githubusercontent.com/$GB_REPO/main/install.sh | sudo ${vars[*]} sh" >&2
         return 1
     fi
-    print_info "Running the install script of gitbash $latest"
-    if ! env "${vars[@]}" sh "$tmp"; then
-        rm -f "$tmp"
+
+    print_info "Installing gitbash $latest"
+    if ! env "${vars[@]}" sh "$SCRIPT_DIR/install.sh"; then
         print_error "Update failed."
         return 1
     fi
-    rm -f "$tmp"
 }
 
 # gitbash --update

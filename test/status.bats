@@ -14,8 +14,8 @@ status_list() {
     echo "x" > "my file.txt"
     git mv README.md "READ ME.md"
     run status_list
-    [[ "$output" == *$'??\tmy file.txt\t'* ]]
-    [[ "$output" == *$'R \tREAD ME.md\tREADME.md'* ]]
+    [[ "$output" == *$'??\tmy file.txt\t'* ]] || false
+    [[ "$output" == *$'R \tREAD ME.md\tREADME.md'* ]] || false
     [[ "$output" == *"[STAGED]"*"README.md -> READ ME.md"* ]]
 }
 
@@ -104,4 +104,14 @@ status_list() {
         fzf_args | grep -q 'delta --dark'
     fi
     ! fzf_args | grep -q 'delta --light'
+}
+
+@test "terminal control sequences in file names are not printed" {
+    # Windows file names can't contain control characters (Git Bash replaces them)
+    gb_is_windows_host && skip "no control characters in Windows file names"
+    printf 'x\n' > "$(printf 'notes\033]52;c;ZWNobw==\a.txt')"
+    fzf_plan "notes" "esc"
+    run gb status
+    [[ "$output" == *"Staging: notes]52;c;ZWNobw==.txt"* ]] || false
+    [[ "$output" != *$'\033'* && "$output" != *$'\a'* ]]
 }

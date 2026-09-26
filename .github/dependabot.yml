@@ -1,7 +1,15 @@
-# Keeps the SHA-pinned actions in .github/workflows up to date
+# Keeps the SHA-pinned actions in .github/workflows and the npm dev dependencies
+# (bats, changesets) up to date. gitbash has no runtime dependencies.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      dev-dependencies:
+        dependency-type: development

@@ -46,7 +46,7 @@ state_value() {
 }
 
 fetches() {
-    if [[ -f "$CURL_LOG" ]]; then grep -c 'releases/latest' "$CURL_LOG"; else echo 0; fi
+    if [[ -f "$CURL_LOG" ]]; then grep -c 'dist-tags' "$CURL_LOG"; else echo 0; fi
 }
 
 # Wait up to 5 seconds for the background check to store a version
@@ -63,7 +63,7 @@ wait_for_latest() {
     run gb --update
     [ "$status" -eq 0 ]
     grep -qx 'npm install -g gitbash@9.9.9' "$NPM_LOG"
-    [[ "$output" == *"Updated gitbash $CURRENT → 9.9.9"* ]]
+    [[ "$output" == *"Updated gitbash $CURRENT → 9.9.9"* ]] || false
     [ "$(state_value latest)" = "9.9.9" ]
 }
 
@@ -89,7 +89,7 @@ install_pnpm_copy() {
     root=$(cd -P "$PNPM_STUB_ROOT" && pwd)
     run gb --init
     [ "$status" -eq 0 ]
-    [[ "$output" == *"$root/gitbash/bin/gitbash commit"* ]]
+    [[ "$output" == *"$root/gitbash/bin/gitbash commit"* ]] || false
     [[ "$output" != *".pnpm"* ]]
 }
 
@@ -97,8 +97,15 @@ install_pnpm_copy() {
     export CURL_STUB_TAG="v$CURRENT"
     run gb --update
     [ "$status" -eq 0 ]
-    [[ "$output" == *"gitbash $CURRENT is up to date"* ]]
+    [[ "$output" == *"gitbash $CURRENT is up to date"* ]] || false
     [ ! -e "$NPM_LOG" ]
+}
+
+@test "--update takes the latest version from npm, not from GitHub releases" {
+    run gb --update
+    grep -qx 'https://registry.npmjs.org/-/package/gitbash/dist-tags' "$CURL_LOG"
+    ! grep -q 'api.github.com' "$CURL_LOG"
+    grep -q 'gitbash@9.9.9' "$NPM_LOG"
 }
 
 @test "--update reports when the latest version cannot be fetched" {
@@ -108,15 +115,14 @@ install_pnpm_copy() {
     [[ "$output" == *"Could not check for updates"* ]]
 }
 
-@test "--update re-runs the install script for script installs, with the same locations" {
+@test "--update runs the installed install script for script installs, with the same locations" {
     local dir
     mkdir -p "$BATS_TEST_TMPDIR/share/gitbash"
     dir=$(cd -P "$BATS_TEST_TMPDIR/share/gitbash" && pwd)
     cp -R "$PROJECT_DIR/bin" "$PROJECT_DIR/commands" "$PROJECT_DIR/package.json" "$dir/"
     printf 'method=script\nbin_dir=%s\n' "$BATS_TEST_TMPDIR/my-bin" > "$dir/.gitbash-install"
     GB="$dir/bin/gitbash"
-    export CURL_STUB_INSTALLER="$BATS_TEST_TMPDIR/install.sh"
-    cat > "$CURL_STUB_INSTALLER" <<'EOF'
+    cat > "$dir/install.sh" <<'EOF'
 echo "$GITBASH_VERSION|$GITBASH_INSTALL_DIR|$GITBASH_BIN_DIR" > "$INSTALL_LOG"
 pkg="$GITBASH_INSTALL_DIR/package.json"
 sed "s/\"version\": *\"[^\"]*\"/\"version\": \"$GITBASH_VERSION\"/" "$pkg" > "$pkg.new" && mv "$pkg.new" "$pkg"
@@ -126,15 +132,32 @@ EOF
     run gb --update
     [ "$status" -eq 0 ]
     [ "$(cat "$INSTALL_LOG")" = "9.9.9|$dir|$BATS_TEST_TMPDIR/my-bin" ]
-    grep -q 'jaggli/gitbash/v9.9.9/install.sh' "$CURL_LOG"
+    # Nothing but the version check was downloaded
+    ! grep -q 'install.sh' "$CURL_LOG"
     [[ "$output" == *"Updated gitbash $CURRENT → 9.9.9"* ]]
+}
+
+@test "--update never runs an install script downloaded from a release tag" {
+    local dir marker="$BATS_TEST_TMPDIR/pwned"
+    mkdir -p "$BATS_TEST_TMPDIR/share/gitbash"
+    dir=$(cd -P "$BATS_TEST_TMPDIR/share/gitbash" && pwd)
+    cp -R "$PROJECT_DIR/bin" "$PROJECT_DIR/commands" "$PROJECT_DIR/package.json" "$dir/"
+    printf 'method=script\nbin_dir=%s\n' "$BATS_TEST_TMPDIR/my-bin" > "$dir/.gitbash-install"
+    GB="$dir/bin/gitbash"
+    export CURL_STUB_INSTALLER="$BATS_TEST_TMPDIR/evil.sh"
+    printf 'touch "%s"\n' "$marker" > "$CURL_STUB_INSTALLER"
+
+    run gb --update
+    [ "$status" -eq 1 ]
+    [ ! -e "$marker" ]
+    [[ "$output" == *"main/install.sh | GITBASH_VERSION=9.9.9"* ]]
 }
 
 @test "--update in a git checkout points to git pull" {
     GB="$PROJECT_DIR/bin/gitbash"
     run gb --update
     [ "$status" -eq 1 ]
-    [[ "$output" == *"git pull"* ]]
+    [[ "$output" == *"git pull"* ]] || false
     [ ! -e "$NPM_LOG" ]
 }
 
@@ -183,6 +206,14 @@ EOF
     [ "$(fetches)" -eq 0 ]
 }
 
+@test "a committed .gitbashrc cannot turn off update checks" {
+    echo 'GITBASH_NO_UPDATE_CHECKS="yes"' > .gitbashrc
+    run gb stash --version
+    [[ "$output" == *"ignored GITBASH_NO_UPDATE_CHECKS"* ]] || false
+    sleep 0.3
+    [ -e "$STATE" ]
+}
+
 @test "GITBASH_NO_UPDATE_CHECKS=no in the environment wins over the config files" {
     echo 'GITBASH_NO_UPDATE_CHECKS="yes"' > "$HOME/.gitbashrc"
     GITBASH_NO_UPDATE_CHECKS=no run gb stash --version
@@ -201,7 +232,7 @@ EOF
     write_state "$(date +%s)" "9.9.9" 0 ""
     run gb stash --version
     [ "$status" -eq 0 ]
-    [[ "$output" != *"is available"* ]]
+    [[ "$output" != *"is available"* ]] || false
     [ "$(state_value prompted)" = "0" ]
 }
 
@@ -210,14 +241,14 @@ EOF
     write_state "$(date +%s)" "9.9.9" 0 ""
     WAIT_FOR="(y/N/s):" KEYS='s\r' run in_pty stash --version
     [ "$status" -eq 0 ]
-    [[ "$output" == *"gitbash 9.9.9 is available (you have $CURRENT)"* ]]
-    [[ "$output" == *"gitbash stash v$CURRENT"* ]]
+    [[ "$output" == *"gitbash 9.9.9 is available (you have $CURRENT)"* ]] || false
+    [[ "$output" == *"gitbash stash v$CURRENT"* ]] || false
     [ "$(state_value skipped)" = "9.9.9" ]
 
     # Not asked again, even when asking would be due
     write_state "$(date +%s)" "9.9.9" 0 "9.9.9"
     run in_pty stash --version
-    [[ "$output" != *"is available"* ]]
+    [[ "$output" != *"is available"* ]] || false
 
     # But a newer version is offered
     write_state "$(date +%s)" "9.9.10" 0 "9.9.9"
@@ -229,16 +260,16 @@ EOF
     require_pty
     write_state "$(date +%s)" "9.9.9" 0 ""
     WAIT_FOR="(y/N/s):" KEYS='n\r' run in_pty stash --version
-    [[ "$output" == *"is available"* ]]
+    [[ "$output" == *"is available"* ]] || false
     [ "$(state_value prompted)" -gt 0 ]
 
     run in_pty stash --version
-    [[ "$output" != *"is available"* ]]
+    [[ "$output" != *"is available"* ]] || false
 
     # One day later: still quiet; two days later: asked again
     write_state "$(date +%s)" "9.9.9" "$(( $(date +%s) - 90000 ))" ""
     run in_pty stash --version
-    [[ "$output" != *"is available"* ]]
+    [[ "$output" != *"is available"* ]] || false
     write_state "$(date +%s)" "9.9.9" "$(( $(date +%s) - 180000 ))" ""
     WAIT_FOR="(y/N/s):" KEYS='n\r' run in_pty stash --version
     [[ "$output" == *"is available"* ]]
@@ -268,7 +299,7 @@ EOF
     write_state "$(date +%s)" "9.9.9" 0 ""
     GITBASH_NESTED=1 run in_pty stash --version
     [ "$status" -eq 0 ]
-    [[ "$output" != *"is available"* ]]
+    [[ "$output" != *"is available"* ]] || false
     [ "$(state_value prompted)" = "0" ]
 }
 

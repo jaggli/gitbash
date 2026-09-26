@@ -18,7 +18,9 @@ Versions before 2.0 executed repository `.gitbashrc` files as shell code, so ope
 ## Trust Model
 
 - Configuration files (`~/.gitbashrc`, a repository's `.gitbashrc` and `.gitbashrc-user`) are **parsed, never executed**. Only plain `GITBASH_*="value"` lines from a fixed list of settings are read; values containing `$`, backticks, backslashes or quotes are rejected.
-- A repository's committed `.gitbashrc` is treated as untrusted: it cannot set `GITBASH_MERGE_COMMAND` (the only setting that names a program to run). That setting is only read from `~/.gitbashrc` and `.gitbashrc-user`.
+- A repository's committed `.gitbashrc` is treated as untrusted: it cannot set `GITBASH_MERGE_COMMAND` (the only setting that names a program to run). That setting is only read from `~/.gitbashrc` and an uncommitted `.gitbashrc-user`. A `.gitbashrc-user` that is tracked by git came with the repository and is treated like `.gitbashrc` (before 3.1.0 it was trusted, so a repository could choose the merge tool that `update` runs on conflicts).
+- A repository's `.gitbashrc` can add to `GITBASH_PROTECTED_BRANCHES`, but not remove branches that your own settings (or the default) protect.
+- A repository also cannot turn off update checks: `GITBASH_NO_UPDATE_CHECKS` is ignored in the committed `.gitbashrc` (and in a committed `.gitbashrc-user`).
 - Settings that reach git as arguments are validated: `GITBASH_BASE_BRANCH` (and a base branch taken from the remote's `HEAD`) must be a valid branch name that does not start with `-`, and `GITBASH_REMOTE` must not start with `-`. Before 3.0.0, a committed `.gitbashrc` could set `GITBASH_BASE_BRANCH="--output=<file>"` and make `switch` or `cleanup` overwrite that file.
 - `gitbash --init` prints wrapper functions that call the installed `gitbash` binary; command code is not sourced into your shell.
 - `pr` and `repo` never pass credentials from the remote URL to the browser.
@@ -28,8 +30,8 @@ Versions before 2.0 executed repository `.gitbashrc` files as shell code, so ope
 ## Releases
 
 - Releases are staged only by the Release workflow in GitHub Actions, with npm trusted publishing (OIDC, no long-lived npm token) and [provenance](https://docs.npmjs.com/generating-provenance-statements). A version goes live only after a maintainer approves it with 2FA ([staged publishing](https://docs.npmjs.com/staged-publishing/)); neither the workflow nor a leaked GitHub token can publish on its own. Check an installed copy with `npm audit signatures`.
-- The install script (`install.sh`, also used by `gitbash --update` for script installs) downloads that same npm package and installs it only if it matches the sha512 checksum npm records for the version, so a moved git tag cannot change what gets installed.
-- The npm package is published before the GitHub release, which `gitbash --update` and the install script use.
+- The install script (`install.sh`) downloads that same npm package and installs it only if it matches the sha512 checksum npm records for the version. It keeps a copy of itself in the installation, and `gitbash --update` runs that copy, so a git tag cannot change what gets installed or run. (Before 3.1.0, `--update` downloaded `install.sh` from the release's git tag and ran it: whoever could create a GitHub release could run code on machines that updated a script install.)
+- `gitbash --update`, the update check and the install script take the latest version from npm's `latest` tag, which only moves when a maintainer approves a staged version. GitHub releases are not used for updates.
 - Third-party actions are pinned to commit SHAs and kept up to date by Dependabot; each workflow job gets only the permissions it needs.
 
 ---

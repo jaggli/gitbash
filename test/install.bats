@@ -20,7 +20,7 @@ setup() {
 publish() {
     local version="$1" pkg="$BATS_TEST_TMPDIR/pkg-$1" integrity
     mkdir -p "$pkg/package"
-    cp -R "$PROJECT_DIR/bin" "$PROJECT_DIR/commands" "$PROJECT_DIR/LICENSE" "$pkg/package/"
+    cp -R "$PROJECT_DIR/bin" "$PROJECT_DIR/commands" "$PROJECT_DIR/LICENSE" "$PROJECT_DIR/install.sh" "$pkg/package/"
     sed "s/\"version\": *\"[^\"]*\"/\"version\": \"$version\"/" "$PROJECT_DIR/package.json" > "$pkg/package/package.json"
     tar -czf "$NPM_STUB_DIR/gitbash-$version.tgz" -C "$pkg" package
     integrity="sha512-$(openssl dgst -sha512 -binary "$NPM_STUB_DIR/gitbash-$version.tgz" | openssl base64 -A)"
@@ -32,9 +32,15 @@ publish() {
 @test "install.sh installs the latest version from npm after verifying it" {
     run sh "$PROJECT_DIR/install.sh"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Verified sha512 checksum."* ]]
+    [[ "$output" == *"Verified sha512 checksum."* ]] || false
     [ "$("$GITBASH_BIN_DIR/gitbash" --version)" = "gitbash 9.1.0" ]
     grep -qx 'method=script' "$GITBASH_INSTALL_DIR/.gitbash-install"
+}
+
+@test "install.sh keeps the verified install script for 'gitbash --update'" {
+    run sh "$PROJECT_DIR/install.sh"
+    [ "$status" -eq 0 ]
+    cmp "$PROJECT_DIR/install.sh" "$GITBASH_INSTALL_DIR/install.sh"
 }
 
 @test "install.sh installs a chosen version" {
@@ -48,7 +54,7 @@ publish() {
     echo "tampered" >> "$NPM_STUB_DIR/gitbash-9.1.0.tgz"
     run sh "$PROJECT_DIR/install.sh"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"checksum mismatch"* ]]
+    [[ "$output" == *"checksum mismatch"* ]] || false
     [ ! -e "$GITBASH_INSTALL_DIR" ]
     [ ! -e "$GITBASH_BIN_DIR/gitbash" ]
 }
@@ -57,14 +63,22 @@ publish() {
     sed -i.bak 's#https://registry.npmjs.org/gitbash/-/#https://evil.example/#' "$NPM_STUB_DIR/9.1.0.json"
     run sh "$PROJECT_DIR/install.sh"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"unexpected package location"* ]]
+    [[ "$output" == *"unexpected package location"* ]] || false
     [ ! -e "$GITBASH_INSTALL_DIR" ]
 }
 
 @test "install.sh rejects invalid versions and unknown ones" {
-    GITBASH_VERSION='1;rm -rf' run sh "$PROJECT_DIR/install.sh"
+    local v
+    for v in '1;rm -rf' '1.2.3/../../x' '1.2.3.4' '1..2.3' '.1.2.3' 'a.b.c' "1.2.3
+4.5.6"; do
+        GITBASH_VERSION="$v" run sh "$PROJECT_DIR/install.sh"
+        [ "$status" -eq 1 ]
+        [[ "$output" == *"invalid GITBASH_VERSION"* ]] || false
+    done
+    echo '{"latest":"9.1.0/../../evil/1.0.0"}' > "$NPM_STUB_DIR/dist-tags.json"
+    run sh "$PROJECT_DIR/install.sh"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"invalid GITBASH_VERSION"* ]]
+    [[ "$output" == *"could not look up the latest version"* ]] || false
     GITBASH_VERSION=8.8.8 run sh "$PROJECT_DIR/install.sh"
     [ "$status" -eq 1 ]
     [[ "$output" == *"could not find gitbash 8.8.8 on npm"* ]]

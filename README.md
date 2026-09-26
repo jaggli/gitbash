@@ -212,7 +212,7 @@ Open the repository's web page in the browser: via the GitHub CLI (`gh repo view
 reset-repo [-n|--dry-run] [-y|--yes]
 ```
 
-Reset the current branch like a fresh clone: fetch, `git reset --hard <remote>/<branch>` and delete all untracked and ignored files (`git clean -dx`). Lists the unpushed commits, local changes and files it removes and asks first. Aborts an unfinished merge or rebase. Files matching `GITBASH_RESET_KEEP` (e.g. `.env`), `.gitbashrc-user` and nested repositories are kept; stashes and other branches are not touched.
+Reset the current branch like a fresh clone: fetch, `git reset --hard <remote>/<branch>` and delete all untracked and ignored files (`git clean -dx`). Lists the unpushed commits, local changes and files it removes and asks first. Aborts an unfinished merge or rebase. Files matching `GITBASH_RESET_KEEP` (e.g. `.env`), `.gitbashrc-user` and nested repositories are kept; stashes and other branches are not touched. Submodules you initialized are reset to the recorded commit; others are left alone (run `git submodule update --init` to clone them).
 
 ### update
 
@@ -348,11 +348,11 @@ Config files are **read, never executed**. Only `GITBASH_*="value"` lines are us
 
 #### Local Configuration
 
-Run `gitbash --config-local` inside a repository to create a committed `.gitbashrc` with overrides for everyone working on it (e.g. a team branch prefix or different thresholds). For security, a committed `.gitbashrc` cannot set `GITBASH_MERGE_COMMAND`.
+Run `gitbash --config-local` inside a repository to create a committed `.gitbashrc` with overrides for everyone working on it (e.g. a team branch prefix or different thresholds). For security, a committed `.gitbashrc` cannot set `GITBASH_MERGE_COMMAND` or `GITBASH_NO_UPDATE_CHECKS`, and its `GITBASH_PROTECTED_BRANCHES` only adds to the branches your own settings protect.
 
 #### User Configuration
 
-Run `gitbash --config-user` to create `.gitbashrc-user` for personal overrides in one repository. It is excluded from git via `.git/info/exclude`.
+Run `gitbash --config-user` to create `.gitbashrc-user` for personal overrides in one repository. It is excluded from git via `.git/info/exclude`. If a repository commits a `.gitbashrc-user` anyway, gitbash treats it like the committed `.gitbashrc` (it cannot set `GITBASH_MERGE_COMMAND`).
 
 **Configuration priority (highest to lowest):**
 
@@ -362,7 +362,7 @@ Run `gitbash --config-user` to create `.gitbashrc-user` for personal overrides i
 
 #### Updates
 
-`gitbash --update` installs the latest release the same way gitbash was installed: with `npm install -g` (or `pnpm add -g`) for a global package, or by running the release's install script again for the same locations.
+`gitbash --update` installs the latest version on npm the same way gitbash was installed: with `npm install -g` (or `pnpm add -g`) for a global package, or with the install script kept in the installation, for the same locations.
 
 gitbash also checks for new releases on its own, at most once a day, in the background while a command runs, so commands never wait for the network. When a new version is known, the next command at a terminal asks (at most every other day) whether to update now, not now, or skip that version for good. It never asks in scripts or pipes.
 

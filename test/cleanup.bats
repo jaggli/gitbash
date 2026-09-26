@@ -82,8 +82,8 @@ json_field() {
     git branch develop
     git branch release/1.0
     run gb cleanup --json
-    [[ "$output" != *'"name":"develop"'* ]]
-    [[ "$output" != *'"name":"release/1.0"'* ]]
+    [[ "$output" != *'"name":"develop"'* ]] || false
+    [[ "$output" != *'"name":"release/1.0"'* ]] || false
     [[ "$output" != *'"name":"main"'* ]]
 }
 
@@ -94,7 +94,7 @@ json_field() {
     git switch --quiet main
     run gb cleanup --dry-run
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Would delete 1 branch(es)"* ]]
+    [[ "$output" == *"Would delete 1 branch(es)"* ]] || false
     git show-ref --verify --quiet refs/heads/old-pushed
     [ ! -e "$FZF_STUB_LOG" ]
 }
@@ -120,7 +120,7 @@ json_field() {
     # "y" to delete, then EOF on the force-delete question (default no)
     run gb_input 'y\n' cleanup
     [ "$status" -eq 0 ]
-    [[ "$output" == *"not merged"* ]]
+    [[ "$output" == *"not merged"* ]] || false
     git show-ref --verify --quiet refs/heads/wip
 
     # "y" twice force-deletes
@@ -159,3 +159,29 @@ json_field() {
     [ "$status" -eq 0 ]
     git show-ref --verify --quiet refs/heads/old-merged
 }
+
+@test "C1 control characters in branch names are not printed" {
+    local name
+    name="old$(printf '\302\233')2J"
+    commit_file old.txt "old" "old work" "2020-01-01T00:00:00"
+    git push --quiet origin main 2>/dev/null
+    git branch "$name"
+    run gb cleanup --dry-run
+    [[ "$output" == *"  - old2J"* ]] || false
+    [[ "$output" != *$'\302\233'* ]]
+}
+
+@test "a tag named like a branch doesn't hide or rename the branch" {
+    git switch --quiet -c feature/done
+    commit_file d.txt "d" "done" "2020-01-01T00:00:00"
+    git switch --quiet main
+    git merge --quiet --no-edit feature/done
+    git push --quiet origin main 2>/dev/null
+    git tag feature/done feature/done
+    git tag main main
+    run gb cleanup --json
+    [[ "$output" == *'"name":"feature/done"'* ]] || false
+    [[ "$output" != *'heads/'* ]] || false
+    [[ "$output" != *'"name":"main"'* ]]
+}
+

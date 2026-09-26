@@ -11,10 +11,10 @@ _switch_list_branches() {
   current=$(gb_current_branch) || current=""
   if base=$(gb_base_branch 2>/dev/null); then
     base_ref=$(gb_base_ref "$base")
-    merged=$(git for-each-ref --merged "$base_ref" --format='%(refname:short)' refs/heads 2>/dev/null)
+    merged=$(git for-each-ref --merged "$base_ref" --format='%(refname:lstrip=2)' refs/heads 2>/dev/null)
   fi
 
-  local_names=$(git for-each-ref --format='%(refname:short)' refs/heads)
+  local_names=$(git for-each-ref --format='%(refname:lstrip=2)' refs/heads)
   while IFS= read -r name; do
     [[ -z "$name" ]] && continue
     if [[ "$name" != "$current" && "$name" != "$base" ]] && printf '%s\n' "$merged" | grep -qxF -- "$name"; then
@@ -36,7 +36,7 @@ _switch_list_branches() {
       printed_spacer=true
     fi
     printf 'remote: %s\tremote\t%s\n' "$name" "$name"
-  done < <(git for-each-ref --format='%(refname:short)' refs/remotes)
+  done < <(git for-each-ref --format='%(refname:lstrip=2)' refs/remotes)
 }
 
 # Delete the local branch of a list line (called from fzf via 'switch --delete-branch')
@@ -70,9 +70,11 @@ _switch_delete_branch() {
     return 0
   fi
 
-  count=$(git rev-list --count "refs/heads/$name" --not --remotes "$(gb_base_ref "$(gb_base_branch 2>/dev/null || echo HEAD)")" 2>/dev/null || echo "?")
+  local base_ref=HEAD base
+  base=$(gb_base_branch 2>/dev/null) && base_ref=$(gb_base_ref "$base")
+  count=$(git rev-list --count "refs/heads/$name" --not --remotes "$base_ref" 2>/dev/null || echo "?")
   print_warning "'$name' has $count commit(s) that are not merged or pushed:"
-  git log --oneline -n 10 "refs/heads/$name" --not --remotes 2>/dev/null | sed 's/^/    /'
+  git log --oneline -n 10 "refs/heads/$name" --not --remotes 2>/dev/null | gb_sanitize | sed 's/^/    /'
   if gb_confirm --strict "Force-delete '$name' and lose these commits?" n; then
     if git branch -D "$name" >/dev/null 2>&1; then
       print_success "Force-deleted $name"
@@ -246,7 +248,7 @@ EOF
       git switch "$local_branch" || { print_error "Failed to switch branch."; return 1; }
     else
       echo "Creating local branch '$local_branch' tracking '$branch_name'"
-      git switch -c "$local_branch" --track "$branch_name" || { print_error "Failed to switch branch."; return 1; }
+      git switch -c "$local_branch" --track "refs/remotes/$branch_name" || { print_error "Failed to switch branch."; return 1; }
     fi
   fi
   print_success "Switched to branch: $(gb_current_branch)"
