@@ -27,8 +27,13 @@ on:
 
 permissions: {}
 
+# GitHub keeps one pending run per group and cancels the older one, even with
+# cancel-in-progress: false. In one group, a scheduled run queued behind a push
+# run cancelled the push run of the next merge, and the release pull request
+# missed its changeset. Pushes get their own group: a newer push run replaces
+# a pending one and sees all changesets on main.
 concurrency:
-  group: release
+  group: release-${{ github.event_name == 'push' && 'push' || 'finish' }}
   cancel-in-progress: false
 
 jobs:
