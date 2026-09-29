@@ -39,6 +39,16 @@ _switch_list_branches() {
   done < <(git for-each-ref --format='%(refname:lstrip=2)' refs/remotes)
 }
 
+# Fetch one branch from the remote ("<name>" or "<remote>/<name>").
+# Returns 1 if it is not a valid branch name or the remote has no such branch.
+_switch_fetch_branch() {
+  local remote name
+  remote=$(gb_remote)
+  name="${1#"$remote"/}"
+  _gb_valid_branch_name "$name" || return 1
+  git fetch --quiet "$remote" "+refs/heads/$name:refs/remotes/$remote/$name" 2>/dev/null
+}
+
 # Delete the local branch of a list line (called from fzf via 'switch --delete-branch')
 _switch_delete_branch() {
   local line="$1" type name current count
@@ -110,7 +120,8 @@ Select a git branch using fzf and switch to it.
 Arguments:
   FILTER...     Optional search words to pre-fill fzf (joined with spaces).
                 Switches directly on an exact branch name, or if exactly
-                one branch name contains them.
+                one branch name contains them. A branch that is not known
+                locally is fetched from the remote first.
 
 Options:
   -h, --help    Show this help message
@@ -175,6 +186,17 @@ EOF
       selected=$(printf '%s\n' "$branch_list" | awk -F'\t' -v f="$filter" '$2 == "remote" && ($3 == f || substr($3, index($3, "/") + 1) == f) { print; exit }')
     fi
     [[ -n "$selected" ]] && print_info "Exact match found, switching directly..."
+  fi
+  # Not in the list: it may be a branch that was pushed since the last fetch
+  if [[ -n "$filter" && -z "$selected" ]] && _switch_fetch_branch "$filter"; then
+    local remote name
+    remote=$(gb_remote)
+    name="${filter#"$remote"/}"
+    branch_list=$(_switch_list_branches)
+    # (the list shows the local branch instead, if "<remote>/<name>" has one)
+    selected=$(printf '%s\n' "$branch_list" | awk -F'\t' -v r="$remote/$name" -v n="$name" \
+      '($2 == "remote" && $3 == r) || ($2 == "local" && $3 == n) { print; exit }')
+    [[ -n "$selected" ]] && print_info "Found on $remote, switching directly..."
   fi
   if [[ -n "$filter" && -z "$selected" ]]; then
     local matches match_count

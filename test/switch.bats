@@ -118,3 +118,35 @@ setup() {
     [ "$(git config branch.feature/x.merge)" = "refs/heads/feature/x" ]
 }
 
+
+@test "a branch pushed since the last fetch is fetched and switched to directly" {
+    remote_commit feature/new-on-remote n.txt "n" "new remote work"
+    [ -z "$(git for-each-ref refs/remotes/origin/feature/new-on-remote)" ]
+    run gb switch feature/new-on-remote
+    [ "$status" -eq 0 ]
+    [ "$(git branch --show-current)" = "feature/new-on-remote" ]
+    [ "$(git rev-parse --abbrev-ref '@{upstream}')" = "origin/feature/new-on-remote" ]
+    [ ! -e "$FZF_STUB_LOG" ]
+}
+
+@test "a branch pushed since the last fetch is found with the remote prefix too" {
+    remote_commit feature/new-on-remote n.txt "n" "new remote work"
+    run gb switch origin/feature/new-on-remote
+    [ "$status" -eq 0 ]
+    [ "$(git branch --show-current)" = "feature/new-on-remote" ]
+}
+
+@test "a new remote branch wins over a local branch that only contains the name" {
+    git branch feature/new-on-remote-old
+    remote_commit feature/new-on-remote n.txt "n" "new remote work"
+    run gb switch feature/new-on-remote
+    [ "$status" -eq 0 ]
+    [ "$(git branch --show-current)" = "feature/new-on-remote" ]
+}
+
+@test "a name that is not on the remote still opens the picker" {
+    run gb switch feature/does-not-exist
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"No branch selected."* ]]
+    [ -z "$(git for-each-ref refs/remotes/origin/feature/does-not-exist)" ]
+}
