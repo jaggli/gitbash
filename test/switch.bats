@@ -147,6 +147,6 @@ setup() {
 @test "a name that is not on the remote still opens the picker" {
     run gb switch feature/does-not-exist
     [ "$status" -eq 0 ]
-    [[ "$output" == *"No branch selected."* ]]
+    [[ "$output" == *"No branch selected."* ]] || false
     [ -z "$(git for-each-ref refs/remotes/origin/feature/does-not-exist)" ]
 }
