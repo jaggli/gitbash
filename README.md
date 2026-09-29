@@ -151,7 +151,7 @@ create --no-push PROJ-7 quick fix       # → feature/PROJ-7-quick-fix, not push
 switch [FILTER...]
 ```
 
-Switch branches with fzf. Shows local branches (`merged:` = fully merged into the base branch), then remote branches without a local copy. Preview shows commit history. Switches directly when the filter is an exact branch name or matches exactly one branch name. After switching, offers to fast-forward a branch that is behind.
+Switch branches with fzf. Shows local branches (`merged:` = fully merged into the base branch), then remote branches without a local copy. Preview shows commit history. Switches directly when the filter is an exact branch name or matches exactly one branch name; a branch name that is not known locally is fetched from the remote first, so `switch <branch>` also works for a branch pushed since the last fetch. After switching, offers to fast-forward a branch that is behind.
 
 - `Del` deletes the selected local branch (asks first, default no; unmerged commits need a second confirmation)
 
