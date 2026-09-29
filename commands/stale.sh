@@ -132,8 +132,10 @@ EOF
     local remote
     remote=$(gb_remote)
     [[ "$json_mode" == false ]] && echo "Fetching latest from '$remote'..."
-    if ! git fetch --prune --quiet "$remote" 2>/dev/null; then
-        [[ "$json_mode" == false ]] && print_warning "Fetch failed; continuing with local data."
+    if [[ "$json_mode" == true ]]; then
+        gb_fetch_prune "$remote" --silent
+    else
+        gb_fetch_prune "$remote"
     fi
     GB_BASE=$(gb_base_branch 2>/dev/null) || GB_BASE=""
 

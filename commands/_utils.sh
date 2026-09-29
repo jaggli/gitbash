@@ -437,6 +437,30 @@ gb_ref_short() {
     echo "${ref#refs/heads/}"
 }
 
+# Fetch all branches of the remote and prune deleted ones, for commands that
+# can go on with local data. On failure, warns with git's own error.
+# git fails when a single ref can't be updated, even if all others were: on a
+# case-insensitive file system (macOS, Windows) it does so on every fetch when
+# the remote has branches whose names differ only in case (Feature/x, feature/x).
+# Usage: gb_fetch_prune <remote> [--silent]
+gb_fetch_prune() {
+    local remote="$1" silent="${2:-}" err refs
+    err=$(git fetch --prune --quiet "$remote" 2>&1 >/dev/null) && return 0
+    [[ "$silent" == "--silent" ]] && return 1
+
+    refs=$(printf '%s\n' "$err" | sed -n "s/^error: cannot lock ref 'refs\/remotes\/\([^']*\)'.*/\1/p" | sort -u)
+    if [[ -n "$refs" ]]; then
+        print_warning "Fetch could not update $(printf '%s\n' "$refs" | paste -sd ' ' -); all other branches were updated."
+        if [[ "$(git config --bool core.ignoreCase 2>/dev/null)" == "true" ]]; then
+            print_info "The remote probably has branches whose names differ only in case, which this file system can't keep apart. Delete or rename one of them on the remote, or store refs case-sensitively with 'git refs migrate --ref-format=reftable' (git 2.46+)."
+        fi
+    else
+        print_warning "Fetch failed; continuing with local data."
+    fi
+    printf '%s\n' "$err" | gb_sanitize | grep -v '^[[:space:]]*$' | head -n 5 | sed 's/^/    /' >&2
+    return 1
+}
+
 # Fetch the current branch's upstream and, if it has new commits, offer to
 # fast-forward. Returns 1 only when the fast-forward fails.
 gb_offer_fast_forward() {
