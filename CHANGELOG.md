@@ -1,5 +1,12 @@
 # gitbash
 
+## 3.1.1
+
+### Patch Changes
+
+- 7553ba1: `cleanup` and `stale` now say why a fetch failed instead of only "Fetch failed" (#83). git fails the whole fetch when a single branch can't be updated: on macOS and Windows that happens on every fetch when the remote has branches whose names differ only in case (`Feature/x` and `feature/x`). The warning now names the branches that weren't updated, says that all others were, and explains the case conflict; other errors (network, access) show git's message.
+- 5638536: `switch <branch>` now also finds a branch that was pushed to the remote since the last fetch: a branch name that is not known locally is fetched from the remote first, and a local tracking branch is created (#82).
+
 ## 3.1.0
 
 ### Minor Changes
