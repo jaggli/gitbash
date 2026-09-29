@@ -96,3 +96,12 @@ setup() {
     [ -n "$dir" ]
     [ ! -e "$dir" ]
 }
+
+@test "a failed fetch shows git's error" {
+    git remote set-url origin "$BATS_TEST_TMPDIR/missing.git"
+    run gb stale --json
+    [[ "$output" != *"Fetch failed"* ]] || false
+    run gb stale
+    [[ "$output" == *"Fetch failed; continuing with local data."* ]] || false
+    [[ "$output" == *"missing.git"* ]] || false
+}

@@ -185,3 +185,42 @@ json_field() {
     [[ "$output" != *'"name":"main"'* ]]
 }
 
+
+@test "a fetch that can't update one branch names it and updates the others" {
+    remote_commit feature/locked l.txt "l" "locked"
+    remote_commit feature/other o.txt "o" "other"
+    mkdir -p .git/refs/remotes/origin/feature
+    touch .git/refs/remotes/origin/feature/locked.lock
+    git config core.ignoreCase false
+    run gb cleanup --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Fetch could not update origin/feature/locked; all other branches were updated."* ]] || false
+    [[ "$output" == *"error: cannot lock ref 'refs/remotes/origin/feature/locked'"* ]] || false
+    [[ "$output" != *"differ only in case"* ]] || false
+    [ -n "$(git for-each-ref refs/remotes/origin/feature/other)" ]
+}
+
+@test "on a case-insensitive file system, a failed ref update explains branch names that differ only in case" {
+    remote_commit feature/locked l.txt "l" "locked"
+    mkdir -p .git/refs/remotes/origin/feature
+    touch .git/refs/remotes/origin/feature/locked.lock
+    git config core.ignoreCase true
+    run gb cleanup --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"differ only in case"* ]] || false
+}
+
+@test "a failed fetch shows git's error" {
+    git remote set-url origin "$BATS_TEST_TMPDIR/missing.git"
+    run gb cleanup --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Fetch failed; continuing with local data."* ]] || false
+    [[ "$output" == *"missing.git"* ]] || false
+}
+
+@test "a failed fetch prints nothing in JSON mode" {
+    git remote set-url origin "$BATS_TEST_TMPDIR/missing.git"
+    run gb cleanup --json
+    [ "$status" -eq 0 ]
+    [ "$output" = "[]" ]
+}

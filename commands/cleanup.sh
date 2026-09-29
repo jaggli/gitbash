@@ -134,8 +134,10 @@ EOF
 
   local remote
   remote=$(gb_remote)
-  if ! git fetch --prune --quiet "$remote" 2>/dev/null; then
-    [[ "$json_mode" == false ]] && print_warning "Fetch failed; continuing with local data."
+  if [[ "$json_mode" == true ]]; then
+    gb_fetch_prune "$remote" --silent
+  else
+    gb_fetch_prune "$remote"
   fi
 
   local base_branch base_ref
