@@ -1,11 +1,13 @@
 # Releases run only here, never from a laptop.
 #
-# On every push to main, after CI passes:
+# On every push to main:
 # - Pending changesets: open or update the "chore: release vX.Y.Z" pull request
-#   (changeset version: package.json, CHANGELOG.md).
+#   (changeset version: package.json, CHANGELOG.md). No tests: nothing is
+#   published, and the pull requests (including the release one) ran CI.
 # - No pending changesets and package.json's version is new (the release pull
-#   request was merged): stage it on npm with trusted publishing (OIDC, no npm
-#   token, provenance) and create a draft GitHub release as a record of that.
+#   request was merged): run CI on this commit, then stage it on npm with
+#   trusted publishing (OIDC, no npm token, provenance) and create a draft
+#   GitHub release as a record of that.
 #   Draft releases have no tag. 'gitbash --update' and install.sh only look
 #   at npm's 'latest' tag, which moves when the version is approved.
 # A maintainer approves the staged version on npmjs.com or with
@@ -37,16 +39,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  ci:
-    if: github.event_name == 'push'
-    uses: ./.github/workflows/ci.yml
-    permissions:
-      contents: read
-
   plan:
-    needs: ci
-    # Scheduled and manual runs skip CI: they only finish releases
-    if: ${{ !cancelled() && (needs.ci.result == 'success' || (needs.ci.result == 'skipped' && github.event_name != 'push')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write  # draft releases are only visible with write access
@@ -102,11 +95,20 @@ jobs:
             echo "release=$release"
           } >> "$GITHUB_OUTPUT"
 
+  # Tests run only for a commit that will be staged: a push that only updates
+  # the release pull request publishes nothing
+  ci:
+    needs: plan
+    if: >-
+      ${{ github.event_name == 'push' && needs.plan.outputs.pending == 'false' &&
+      needs.plan.outputs.live == 'false' && needs.plan.outputs.release == 'none' }}
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   release-pr:
     needs: plan
-    # !cancelled(): the implicit success() would skip this job whenever the
-    # 'ci' job was skipped (scheduled and manual runs)
-    if: ${{ !cancelled() && needs.plan.result == 'success' && github.event_name == 'push' && needs.plan.outputs.pending == 'true' }}
+    if: ${{ github.event_name == 'push' && needs.plan.outputs.pending == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write       # push the release branch
@@ -157,10 +159,10 @@ jobs:
           fi
 
   stage:
-    needs: plan
+    needs: [plan, ci]
     # Only after CI passed for this commit, and only once per version
     if: >-
-      ${{ !cancelled() && needs.plan.result == 'success' &&
+      ${{ needs.ci.result == 'success' &&
       github.event_name == 'push' && needs.plan.outputs.pending == 'false' &&
       needs.plan.outputs.live == 'false' && needs.plan.outputs.release == 'none' }}
     runs-on: ubuntu-latest
@@ -208,7 +210,7 @@ jobs:
   finish:
     needs: plan
     # Approved on npm: publish the draft release, which creates the tag
-    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.live == 'true' && needs.plan.outputs.release != 'published' }}
+    if: ${{ needs.plan.outputs.live == 'true' && needs.plan.outputs.release != 'published' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
