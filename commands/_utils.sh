@@ -437,6 +437,22 @@ gb_ref_short() {
     echo "${ref#refs/heads/}"
 }
 
+# git fetch --prune, printing git's error on failure. Prune deletes all stale
+# refs in one transaction, so two that differ only in case (feature/x,
+# Feature/x) lock the same file on a case-insensitive file system: delete the
+# one git names on its own and retry.
+# Usage: gb_git_fetch_prune <remote>
+gb_git_fetch_prune() {
+    local remote="$1" err ref tries=0
+    while ! err=$(git fetch --prune --quiet "$remote" 2>&1 >/dev/null); do
+        ref=$(printf '%s\n' "$err" | sed -n "s/^error: could not delete references: cannot lock ref '\(refs\/remotes\/[^']*\)'.*/\1/p" | head -n 1)
+        if [[ -z "$ref" ]] || (( ++tries > 20 )) || ! git update-ref -d "$ref" 2>/dev/null; then
+            printf '%s\n' "$err" >&2
+            return 1
+        fi
+    done
+}
+
 # Fetch all branches of the remote and prune deleted ones, for commands that
 # can go on with local data. On failure, warns with git's own error.
 # git fails when a single ref can't be updated, even if all others were: on a
@@ -445,7 +461,7 @@ gb_ref_short() {
 # Usage: gb_fetch_prune <remote> [--silent]
 gb_fetch_prune() {
     local remote="$1" silent="${2:-}" err refs
-    err=$(git fetch --prune --quiet "$remote" 2>&1 >/dev/null) && return 0
+    err=$(gb_git_fetch_prune "$remote" 2>&1) && return 0
     [[ "$silent" == "--silent" ]] && return 1
 
     refs=$(printf '%s\n' "$err" | sed -n "s/^error: cannot lock ref 'refs\/remotes\/\([^']*\)'.*/\1/p" | sort -u)
