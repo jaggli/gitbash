@@ -107,7 +107,7 @@ EOF_HELP
     return 1
   fi
   print_info "Fetching '$remote'..."
-  if ! git fetch --quiet --prune "$remote"; then
+  if ! gb_git_fetch_prune "$remote"; then
     print_error "Failed to fetch '$remote'."
     return 1
   fi

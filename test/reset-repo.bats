@@ -234,3 +234,13 @@ _tag_unreviewed() {
     [ "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/origin/main)" ]
     [ ! -e unreviewed.txt ]
 }
+
+@test "reset-repo prunes deleted branches whose names differ only in case" {
+    [ "$(git config --bool core.ignoreCase)" = true ] || skip "needs a case-insensitive file system"
+    git update-ref refs/remotes/origin/feature/Gone HEAD
+    git pack-refs --all
+    git update-ref refs/remotes/origin/feature/gone HEAD
+    run gb reset-repo --yes
+    [ "$status" -eq 0 ]
+    [ -z "$(git for-each-ref refs/remotes/origin/feature)" ]
+}
