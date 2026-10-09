@@ -69,3 +69,24 @@ create_url() {
     [[ "$output" != *"Add these files"* ]] || false
     [ -z "$(git status --porcelain)" ]
 }
+
+@test "pr on a merged branch opens the merged PR instead of pushing" {
+    git switch --quiet -c feature/merged
+    commit_file f.txt "x" "work"
+    export GH_STUB_PR_JSON="MERGED $(git rev-parse HEAD) https://github.com/acme/repo/pull/7"
+    run gb pr
+    [ "$status" -eq 0 ]
+    run remote_has_branch feature/merged
+    [ "$status" -ne 0 ]
+    [ "$(cat "$OPEN_LOG")" = "https://github.com/acme/repo/pull/7" ]
+}
+
+@test "pr on a merged branch with new commits offers to push them" {
+    git switch --quiet -c feature/merged-more
+    commit_file f.txt "x" "work"
+    export GH_STUB_PR_JSON="MERGED $(git rev-parse HEAD) https://github.com/acme/repo/pull/7"
+    commit_file g.txt "y" "more work"
+    run gb pr
+    [ "$status" -eq 0 ]
+    remote_has_branch feature/merged-more
+}
