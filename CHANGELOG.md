@@ -1,5 +1,15 @@
 # gitbash
 
+## 3.2.0
+
+### Minor Changes
+
+- 4a06e86: `status`: `Ctrl-X` adds the selected untracked files to `.gitignore` and refreshes the list.
+
+### Patch Changes
+
+- 47d6417: `pr` on a branch whose pull request was already merged now opens that pull request instead of offering to push the branch again (needs the GitHub CLI). New commits after the merge still go through the usual push and create flow.
+
 ## 3.1.2
 
 ### Patch Changes
