@@ -53,6 +53,7 @@ Behavior:
   - Uncommitted changes: offers to commit them first (via 'commit')
   - Branch not on the remote yet: offers to push it
   - With the GitHub CLI (gh) installed and logged in, an existing PR is opened directly
+  - With gh, an already merged branch opens its merged PR instead of being pushed again
   - Otherwise opens the create page for the hosting service:
       GitHub / GitHub Enterprise   <repo>/compare/<branch>?expand=1
       GitLab                       <repo>/-/merge_requests/new?...
@@ -128,7 +129,29 @@ EOF
   fi
 
   # -----------------------------
-  # 2. Make sure the branch exists on the remote
+  # 2. Already merged (gh): open the merged PR instead of pushing again
+  # -----------------------------
+  local use_gh=false
+  if [[ "$base" != *gitlab* && "$base" != *bitbucket.org/* ]] && command -v gh >/dev/null 2>&1; then
+    use_gh=true
+    local state head_oid pr_url
+    read -r state head_oid pr_url < <(GH_PROMPT_DISABLED=1 gh pr view "$branch" \
+      --json state,headRefOid,url -q '[.state, .headRefOid, .url] | join(" ")' 2>/dev/null)
+    # Only if HEAD has no commits beyond the merged PR
+    if [[ "$state" == MERGED && -n "$pr_url" ]] &&
+       git merge-base --is-ancestor HEAD "$head_oid" 2>/dev/null; then
+      if [[ "$print_only" == true ]]; then
+        echo "$pr_url"
+      else
+        print_info "'$branch' was already merged. Opening its pull request."
+        gb_open_url "$pr_url"
+      fi
+      return 0
+    fi
+  fi
+
+  # -----------------------------
+  # 3. Make sure the branch exists on the remote
   # -----------------------------
   if [[ "$should_push" == false ]]; then
     local on_remote
@@ -144,10 +167,9 @@ EOF
   fi
 
   # -----------------------------
-  # 3. Open existing PR with gh, else the create page
+  # 4. Open existing PR with gh, else the create page
   # -----------------------------
-  if [[ "$print_only" == false && "$base" != *gitlab* && "$base" != *bitbucket.org/* ]] &&
-     command -v gh >/dev/null 2>&1; then
+  if [[ "$print_only" == false && "$use_gh" == true ]]; then
     if GH_PROMPT_DISABLED=1 gh pr view "$branch" --web >/dev/null 2>&1; then
       print_success "Opened the pull request for '$branch'."
       return 0

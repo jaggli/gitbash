@@ -1,3 +1,8 @@
 #!/usr/bin/env bash
-# gh stub: behaves like gh without a matching pull request
+# gh stub: behaves like gh without a matching pull request.
+# GH_STUB_PR_JSON is printed as the answer to 'gh pr view ... --json' (after -q).
+if [[ -n "${GH_STUB_PR_JSON:-}" && " $* " == *" --json "* ]]; then
+    printf '%s\n' "$GH_STUB_PR_JSON"
+    exit 0
+fi
 exit 1
