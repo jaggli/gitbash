@@ -119,14 +119,14 @@ status_list() {
 @test "Ctrl-X adds untracked files to .gitignore and refreshes the list" {
     mkdir build
     echo "x" > build/out.txt
-    echo "x" > "a*b.log"
+    echo "x" > "a[1].log"
     printf 'node_modules' > .gitignore
     git add .gitignore && git commit --quiet -m "ignore"
-    fzf_plan "ctrl-x::build/;;a*b.log" esc
+    fzf_plan "ctrl-x::build/;;a[1].log" esc
     run gb status
     [ "$status" -eq 0 ]
-    [ "$(cat .gitignore)" = $'node_modules\n/build/\n/a\\*b.log' ]
-    [[ "$(fzf_input 1)" != *"build/"* && "$(fzf_input 1)" != *"a*b.log"* ]] || false
+    [ "$(cat .gitignore)" = $'node_modules\n/build/\n/a\\[1\\].log' ]
+    [[ "$(fzf_input 1)" != *"build/"* && "$(fzf_input 1)" != *"a[1].log"* ]] || false
     [[ "$(fzf_input 1)" == *".gitignore"* ]]
 }
 
