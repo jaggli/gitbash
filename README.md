@@ -187,6 +187,7 @@ Interactive staging with fzf and diff previews.
 
 - `Enter` stages the selected files (unstages fully staged ones)
 - `Ctrl-R` discards changes (asks first)
+- `Ctrl-X` adds untracked files to `.gitignore`
 - `Ctrl-O` commits the staged changes, then asks whether to push
 - `ESC` exits
 

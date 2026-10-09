@@ -64,6 +64,7 @@ Keys:
   TAB           Select/deselect file (multi-select)
   Enter         Stage the selected files (unstage them if fully staged)
   Ctrl-R        Discard changes of the selected files (asks first)
+  Ctrl-X        Ignore the selected untracked files (adds them to .gitignore)
   Ctrl-O        Commit the staged changes (then asks whether to push)
   ESC/Ctrl-C    Exit
 
@@ -123,11 +124,11 @@ EOF
         --reverse \
         --border \
         --prompt="Git Status > " \
-        --header="[Enter] stage/unstage | [Ctrl-R] discard | [Ctrl-O] commit staged | [TAB] multi-select | [ESC] exit" \
+        --header="[Enter] stage/unstage | [Ctrl-R] discard | [Ctrl-X] ignore | [Ctrl-O] commit staged | [TAB] multi-select | [ESC] exit" \
         --multi \
         --delimiter=$'\t' \
         --with-nth=1 \
-        --expect=ctrl-r,ctrl-o \
+        --expect=ctrl-r,ctrl-x,ctrl-o \
         --preview="$preview" \
         --preview-window=right:60% \
         <<< "$status_list"
@@ -162,6 +163,10 @@ EOF
         _status_discard "${selected[@]}"
         continue
         ;;
+      ctrl-x)
+        _status_ignore "${selected[@]}"
+        continue
+        ;;
     esac
 
     [[ ${#selected[@]} -eq 0 ]] && return 0
@@ -190,6 +195,23 @@ EOF
           ;;
       esac
     done
+  done
+}
+
+# Add the selected untracked files to .gitignore
+_status_ignore() {
+  local line xy path
+  for line in "$@"; do
+    xy=$(printf '%s' "$line" | cut -f2)
+    path=$(printf '%s' "$line" | cut -f3)
+    if [[ "$xy" != "??" ]]; then
+      print_warning "$path is tracked - .gitignore only affects untracked files."
+      continue
+    fi
+    # Start on a new line; anchor to the root and escape glob characters
+    [[ -s .gitignore && -n "$(tail -c 1 .gitignore)" ]] && echo >> .gitignore
+    printf '/%s\n' "$path" | sed 's/[][*?\\]/\\&/g' >> .gitignore &&
+      echo "Ignored: $path" | gb_sanitize
   done
 }
 

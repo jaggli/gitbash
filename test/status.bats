@@ -115,3 +115,25 @@ status_list() {
     [[ "$output" == *"Staging: notes]52;c;ZWNobw==.txt"* ]] || false
     [[ "$output" != *$'\033'* && "$output" != *$'\a'* ]]
 }
+
+@test "Ctrl-X adds untracked files to .gitignore and refreshes the list" {
+    mkdir build
+    echo "x" > build/out.txt
+    echo "x" > "a*b.log"
+    printf 'node_modules' > .gitignore
+    git add .gitignore && git commit --quiet -m "ignore"
+    fzf_plan "ctrl-x::build/;;a*b.log" esc
+    run gb status
+    [ "$status" -eq 0 ]
+    [ "$(cat .gitignore)" = $'node_modules\n/build/\n/a\\*b.log' ]
+    [[ "$(fzf_input 1)" != *"build/"* && "$(fzf_input 1)" != *"a*b.log"* ]] || false
+    [[ "$(fzf_input 1)" == *".gitignore"* ]]
+}
+
+@test "Ctrl-X leaves tracked files alone" {
+    echo "changed" >> README.md
+    fzf_plan "ctrl-x::README.md" esc
+    run gb status
+    [ ! -e .gitignore ]
+    [[ "$output" == *"README.md is tracked"* ]]
+}
